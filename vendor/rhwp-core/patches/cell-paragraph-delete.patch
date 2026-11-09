@@ -1,0 +1,59 @@
+--- a/src/document_core/commands/text_editing.rs
++++ b/src/document_core/commands/text_editing.rs
+@@ -6077,6 +6077,38 @@
+         )))
+     }
+ 
++    /// Remove one cell paragraph without merging it into a neighbour.
++    /// The caller is responsible for protecting anchored content.
++    pub fn delete_paragraph_in_cell_by_path(
++        &mut self, section_idx: usize, parent_para_idx: usize, path: &[(usize, usize, usize)],
++    ) -> Result<String, HwpError> {
++        let index = path.last().ok_or_else(|| HwpError::RenderError("empty cell path".into()))?.2;
++        let (anchor, origin) = {
++            let paras = self.get_cell_paragraphs_mut_by_path(section_idx, parent_para_idx, path)?;
++            if index >= paras.len() || paras.len() <= 1 {
++                return Err(HwpError::RenderError("cell paragraph cannot be removed".into()));
++            }
++            let origin = if index == 0 && !cell_vpos_resets(&paras[0], &paras[1]) {
++                paras[0].line_segs.first().map(|seg| seg.vertical_pos)
++            } else { None };
++            paras.remove(index);
++            (index.min(paras.len() - 1), origin)
++        };
++        if let Some(vpos) = origin {
++            let paras = self.get_cell_paragraphs_mut_by_path(section_idx, parent_para_idx, path)?;
++            shift_paragraph_vpos_origin(&mut paras[anchor], vpos);
++        }
++        self.recalculate_cell_paragraph_vpos_by_path(section_idx, parent_para_idx, path, anchor, None);
++        self.mark_cell_control_dirty(section_idx, parent_para_idx, path[0].0);
++        self.document.sections[section_idx].raw_stream = None;
++        self.mark_section_dirty(section_idx);
++        self.paginate_if_needed();
++        self.event_log.push(DocumentEvent::CellTextChanged {
++            section: section_idx, para: parent_para_idx, ctrl: path[0].0, cell: path[0].1,
++        });
++        Ok(super::super::helpers::json_ok_with(&format!("\"cellParaIndex\":{}", anchor)))
++    }
++
+     /// path 기반 셀 문단 분할 (중첩 표 지원)
+     ///
+     /// `restore_meta` 는 병합 undo 전용이다 — 평면 형제와 같은 규약이다 (Task #2342).
+--- a/src/wasm_api.rs
++++ b/src/wasm_api.rs
+@@ -1813,6 +1813,15 @@
+             end_offset as usize,
+         )
+         .map_err(|e| e.into())
++    }
++
++    #[wasm_bindgen(js_name = deleteParagraphInCellByPath)]
++    pub fn delete_paragraph_in_cell_by_path_api(
++        &mut self, section_idx: u32, parent_para_idx: u32, path_json: &str,
++    ) -> Result<String, JsValue> {
++        let path = DocumentCore::parse_cell_path(path_json)?;
++        self.delete_paragraph_in_cell_by_path(section_idx as usize, parent_para_idx as usize, &path)
++            .map_err(|e| e.into())
+     }
+ 
+     #[wasm_bindgen(js_name = splitParagraphInCellByPath)]

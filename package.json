@@ -1,0 +1,37 @@
+{
+  "name": "obsidian-hwp-hands",
+  "version": "0.3.1",
+  "description": "Open and edit HWP and HWPX documents locally with a bundled RHWP engine, and expose a versioned document API to other plugins.",
+  "main": "main.js",
+  "private": true,
+  "type": "module",
+  "author": "everydaymind",
+  "license": "MIT",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "release:check": "node scripts/check-release.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs main.js"
+  },
+  "dependencies": {
+    "@rhwp/core": "file:vendor/rhwp-core-0.8.7-hwp-editor.10.tgz",
+    "cfb": "1.2.2",
+    "crc-32": "1.2.2",
+    "dompurify": "3.4.17"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.35",
+    "esbuild": "0.25.12",
+    "eslint": "9.39.5",
+    "eslint-plugin-obsidianmd": "0.5.1",
+    "obsidian": "1.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.0"
+  },
+  "overrides": {
+    "moment": "2.31.0",
+    "minimatch@>=7.0.0 <11.0.1": "11.0.5",
+    "eslint-plugin-obsidianmd": { "obsidian": "$obsidian" }
+  }
+}

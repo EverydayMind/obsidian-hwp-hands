@@ -1,0 +1,109 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 931cbe0..a12e691 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1243,6 +1243,7 @@ dependencies = [
+  "byteorder-lite",
+  "color_quant",
+  "gif 0.14.2",
++ "image-webp",
+  "moxcms",
+  "num-traits",
+  "png 0.18.1",
+diff --git a/Cargo.toml b/Cargo.toml
+index a00248c..ea14421 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -286,7 +286,7 @@ strum = { version = "0.28.0", default-features = false, features = ["derive"] }
+ unicode-segmentation = "1.12.0"
+ unicode-properties = { version = "0.1.4", default-features = false, features = ["general-category"] }
+ unicode-width = "0.2.2"
+-image = { version = "0.25", default-features = false, features = ["bmp", "jpeg", "png", "tiff"] }
++image = { version = "0.25", default-features = false, features = ["bmp", "jpeg", "png", "tiff", "gif", "webp", "ico"] }
+ pcx = "0.2"
+ serde = { version = "1", features = ["derive"] }
+ serde_json = "1"
+@@ -330,8 +330,11 @@ pollster = { version = "1.0", optional = true }
+ resvg-gpu = { package = "resvg", version = "0.48", optional = true }
+ 
+ [target.'cfg(target_arch = "wasm32")'.dependencies]
++resvg-worker = { package = "resvg", version = "0.47", default-features = false, features = ["raster-images"] }
+ web-sys = { version = "0.3", features = [
+     "CanvasRenderingContext2d",
++    "OffscreenCanvas",
++    "OffscreenCanvasRenderingContext2d",
+     "CanvasGradient",
+     "CanvasPattern",
+     "HtmlCanvasElement",
+diff --git a/src/renderer/equation/mod.rs b/src/renderer/equation/mod.rs
+index 62e606d..348a78f 100644
+--- a/src/renderer/equation/mod.rs
++++ b/src/renderer/equation/mod.rs
+@@ -118,3 +118,6 @@ pub(crate) fn positioned_cjk_text(text: &str, font_size: f64, width: f64) -> Vec
+         })
+         .collect()
+ }
++
++#[cfg(target_arch = "wasm32")]
++pub mod offscreen_render;
+diff --git a/src/renderer/mod.rs b/src/renderer/mod.rs
+index 9f9251f..700a8ef 100644
+--- a/src/renderer/mod.rs
++++ b/src/renderer/mod.rs
+@@ -3971,3 +3971,6 @@ mod tests {
+         assert_eq!(format_number(12, NumberFormat::HangulNumber), "십이");
+     }
+ }
++
++#[cfg(target_arch = "wasm32")]
++pub mod offscreen_canvas;
+diff --git a/src/wasm_api.rs b/src/wasm_api.rs
+index 2031085..7fdcda4 100644
+--- a/src/wasm_api.rs
++++ b/src/wasm_api.rs
+@@ -800,6 +800,45 @@ impl HwpDocument {
+     ///
+     /// WASM 환경에서만 사용 가능하다. Canvas 크기는 페이지 크기 × scale로 설정된다.
+     /// scale이 0 이하이면 1.0으로 처리한다 (하위호환).
++    #[cfg(target_arch = "wasm32")]
++    #[wasm_bindgen(js_name = renderPageToOffscreenCanvas)]
++    pub fn render_page_to_offscreen_canvas(
++        &self,
++        page_num: u32,
++        canvas: &web_sys::OffscreenCanvas,
++        scale: f64,
++    ) -> Result<(), JsValue> {
++        use crate::renderer::layer_renderer::LayerRenderer;
++        use crate::renderer::offscreen_canvas::OffscreenCanvasRenderer;
++
++        let tree = self
++            .build_canvas_page_layer_tree_with_profile(
++                page_num,
++                crate::paint::RenderProfile::Screen,
++            )
++            .map_err(JsValue::from)?;
++
++        let scale = normalize_canvas_scale(tree.page_width, tree.page_height, scale)
++            .map_err(JsValue::from_str)?;
++
++        // 캔버스 크기 = 페이지 크기 × scale
++        canvas.set_width(scaled_canvas_extent(tree.page_width, scale));
++        canvas.set_height(scaled_canvas_extent(tree.page_height, scale));
++
++        crate::renderer::offscreen_canvas::reset_resources();
++        let mut renderer = OffscreenCanvasRenderer::new(canvas)?;
++        renderer.show_paragraph_marks = self.show_paragraph_marks;
++        renderer.show_control_codes = self.show_control_codes;
++        renderer.set_scale(scale);
++        let result = renderer.render_page(&tree).map_err(JsValue::from);
++        let failed = crate::renderer::offscreen_canvas::resources_failed();
++        crate::renderer::offscreen_canvas::reset_resources();
++        result?;
++        if failed { return Err(JsValue::from_str("Canvas image resource could not be decoded safely")); }
++        Ok(())
++    }
++
++
+     #[cfg(target_arch = "wasm32")]
+     #[wasm_bindgen(js_name = renderPageToCanvas)]
+     pub fn render_page_to_canvas(

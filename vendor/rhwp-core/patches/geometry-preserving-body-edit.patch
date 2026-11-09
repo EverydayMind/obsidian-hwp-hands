@@ -1,0 +1,372 @@
+diff --git a/src/document_core/commands/text_editing.rs b/src/document_core/commands/text_editing.rs
+index 9f6f809d..92016e82 100644
+--- a/src/document_core/commands/text_editing.rs
++++ b/src/document_core/commands/text_editing.rs
+@@ -1419,6 +1419,60 @@ impl DocumentCore {
+         self.stamp_caret(section_idx as u32, para_idx as u32, caret_utf16);
+     }
+ 
++    // Reuse pagination only after a previous reflow established the same line
++    // geometry. Stored import ladders, objects, normalization, batches and dirty
++    // sections retain the full path. Character offsets are recomposed, never cached.
++    fn stable_body_geometry(&self, si: usize, pi: usize) -> Option<Vec<LineSeg>> {
++        let para = &self.document.sections[si].paragraphs[pi];
++        if self.batch_mode
++            || self.dirty_sections.iter().any(|dirty| *dirty)
++            || self.pending_pagination_job.is_some()
++            || self.deferred_pagination_descriptor.is_some()
++            || self
++                .render_normalization
++                .sections
++                .get(si)
++                .is_some_and(|s| s.is_some())
++            || !para.controls.is_empty()
++            || !para.field_ranges.is_empty()
++            || para.text.trim().is_empty()
++            || para.text.chars().any(|c| c.is_control())
++            || self.composed[si][pi].numbering_text.is_some()
++            || para.line_segs.is_empty()
++            || para.layout_space_metrics.len() != para.line_segs.len()
++            || para.stored_text_partition_is_dirty()
++        {
++            return None;
++        }
++        Some(para.line_segs.clone())
++    }
++
++    fn reuse_body_geometry(&mut self, si: usize, pi: usize, before: Option<&[LineSeg]>) -> bool {
++        let Some(before) = before else {
++            return false;
++        };
++        let para = &self.document.sections[si].paragraphs[pi];
++        if para.text.trim().is_empty()
++            || para.text.chars().any(|c| c.is_control())
++            || before.len() != para.line_segs.len()
++            || !before.iter().zip(&para.line_segs).all(|(a, b)| {
++                let mut old = a.clone();
++                // Pagination owns line indices, composition owns UTF-16 text cuts.
++                old.text_start = b.text_start;
++                old == *b
++            })
++        {
++            return false;
++        }
++        self.composed[si][pi] =
++            crate::renderer::composer::compose_paragraph_with_horizontal_shaping(
++                para,
++                &self.styles,
++            );
++        self.invalidate_page_tree_cache();
++        true
++    }
++
+     pub fn insert_text_native(
+         &mut self,
+         section_idx: usize,
+@@ -1483,6 +1537,7 @@ impl DocumentCore {
+                 rebuild_char_offsets(para);
+             }
+         };
++        let stable_geometry = self.stable_body_geometry(section_idx, para_idx);
+         let picture_band_applied =
+             self.apply_body_edit_through_picture_band(section_idx, para_idx, &apply_insert)?;
+ 
+@@ -1506,34 +1561,7 @@ impl DocumentCore {
+                 &self.document.sections[section_idx].paragraphs[para_idx],
+             );
+             self.reflow_paragraph(section_idx, para_idx);
+-            let doc_hwp3_layout = self.document.layout_profile().hwp3_layout();
+-            crate::renderer::composer::recalculate_section_vpos(
+-                &mut self.document.sections[section_idx].paragraphs,
+-                para_idx,
+-                None,
+-                stored_end_for_reset,
+-                &self.styles,
+-                self.dpi,
+-                doc_hwp3_layout,
+-            );
+-            self.recompose_paragraph(section_idx, para_idx);
+-            self.paginate_if_needed();
+-
+-            for _ in 0..2 {
+-                let new_col = self
+-                    .para_column_map
+-                    .get(section_idx)
+-                    .and_then(|m| m.get(para_idx))
+-                    .copied()
+-                    .unwrap_or(0);
+-                if new_col == old_col {
+-                    break;
+-                }
+-                // [Task #2299] 리셋 판별용 — reflow 이전 저장 흐름 end 캡처.
+-                let stored_end_for_reset = crate::renderer::composer::paragraph_flow_end(
+-                    &self.document.sections[section_idx].paragraphs[para_idx],
+-                );
+-                self.reflow_paragraph(section_idx, para_idx);
++            if !self.reuse_body_geometry(section_idx, para_idx, stable_geometry.as_deref()) {
+                 let doc_hwp3_layout = self.document.layout_profile().hwp3_layout();
+                 crate::renderer::composer::recalculate_section_vpos(
+                     &mut self.document.sections[section_idx].paragraphs,
+@@ -1546,6 +1574,35 @@ impl DocumentCore {
+                 );
+                 self.recompose_paragraph(section_idx, para_idx);
+                 self.paginate_if_needed();
++
++                for _ in 0..2 {
++                    let new_col = self
++                        .para_column_map
++                        .get(section_idx)
++                        .and_then(|m| m.get(para_idx))
++                        .copied()
++                        .unwrap_or(0);
++                    if new_col == old_col {
++                        break;
++                    }
++                    // [Task #2299] 리셋 판별용 — reflow 이전 저장 흐름 end 캡처.
++                    let stored_end_for_reset = crate::renderer::composer::paragraph_flow_end(
++                        &self.document.sections[section_idx].paragraphs[para_idx],
++                    );
++                    self.reflow_paragraph(section_idx, para_idx);
++                    let doc_hwp3_layout = self.document.layout_profile().hwp3_layout();
++                    crate::renderer::composer::recalculate_section_vpos(
++                        &mut self.document.sections[section_idx].paragraphs,
++                        para_idx,
++                        None,
++                        stored_end_for_reset,
++                        &self.styles,
++                        self.dpi,
++                        doc_hwp3_layout,
++                    );
++                    self.recompose_paragraph(section_idx, para_idx);
++                    self.paginate_if_needed();
++                }
+             }
+         }
+ 
+@@ -1610,6 +1667,7 @@ impl DocumentCore {
+         let apply_delete = |para: &mut Paragraph| {
+             para.delete_text_at(char_offset, count);
+         };
++        let stable_geometry = self.stable_body_geometry(section_idx, para_idx);
+         let picture_band_applied =
+             self.apply_body_edit_through_picture_band(section_idx, para_idx, &apply_delete)?;
+ 
+@@ -1631,34 +1689,7 @@ impl DocumentCore {
+                 &self.document.sections[section_idx].paragraphs[para_idx],
+             );
+             self.reflow_paragraph(section_idx, para_idx);
+-            let doc_hwp3_layout = self.document.layout_profile().hwp3_layout();
+-            crate::renderer::composer::recalculate_section_vpos(
+-                &mut self.document.sections[section_idx].paragraphs,
+-                para_idx,
+-                None,
+-                stored_end_for_reset,
+-                &self.styles,
+-                self.dpi,
+-                doc_hwp3_layout,
+-            );
+-            self.recompose_paragraph(section_idx, para_idx);
+-            self.paginate_if_needed();
+-
+-            for _ in 0..2 {
+-                let new_col = self
+-                    .para_column_map
+-                    .get(section_idx)
+-                    .and_then(|m| m.get(para_idx))
+-                    .copied()
+-                    .unwrap_or(0);
+-                if new_col == old_col {
+-                    break;
+-                }
+-                // [Task #2299] 리셋 판별용 — reflow 이전 저장 흐름 end 캡처.
+-                let stored_end_for_reset = crate::renderer::composer::paragraph_flow_end(
+-                    &self.document.sections[section_idx].paragraphs[para_idx],
+-                );
+-                self.reflow_paragraph(section_idx, para_idx);
++            if !self.reuse_body_geometry(section_idx, para_idx, stable_geometry.as_deref()) {
+                 let doc_hwp3_layout = self.document.layout_profile().hwp3_layout();
+                 crate::renderer::composer::recalculate_section_vpos(
+                     &mut self.document.sections[section_idx].paragraphs,
+@@ -1671,6 +1702,35 @@ impl DocumentCore {
+                 );
+                 self.recompose_paragraph(section_idx, para_idx);
+                 self.paginate_if_needed();
++
++                for _ in 0..2 {
++                    let new_col = self
++                        .para_column_map
++                        .get(section_idx)
++                        .and_then(|m| m.get(para_idx))
++                        .copied()
++                        .unwrap_or(0);
++                    if new_col == old_col {
++                        break;
++                    }
++                    // [Task #2299] 리셋 판별용 — reflow 이전 저장 흐름 end 캡처.
++                    let stored_end_for_reset = crate::renderer::composer::paragraph_flow_end(
++                        &self.document.sections[section_idx].paragraphs[para_idx],
++                    );
++                    self.reflow_paragraph(section_idx, para_idx);
++                    let doc_hwp3_layout = self.document.layout_profile().hwp3_layout();
++                    crate::renderer::composer::recalculate_section_vpos(
++                        &mut self.document.sections[section_idx].paragraphs,
++                        para_idx,
++                        None,
++                        stored_end_for_reset,
++                        &self.styles,
++                        self.dpi,
++                        doc_hwp3_layout,
++                    );
++                    self.recompose_paragraph(section_idx, para_idx);
++                    self.paginate_if_needed();
++                }
+             }
+         }
+ 
+diff --git a/src/renderer/style_resolver.rs b/src/renderer/style_resolver.rs
+index 3ae32320..bede52eb 100644
+--- a/src/renderer/style_resolver.rs
++++ b/src/renderer/style_resolver.rs
+@@ -475,35 +475,18 @@ pub(crate) fn resolve_styles_for_document(document: &Document, dpi: f64) -> Reso
+     // [#7051] 계보 신호가 없는 저장본의 HFT ASCII 반각 판정은 로드 시 한 번 내려 출처에 둔다.
+     styles.hft_ascii_halfwidth |= document.provenance.hft_ascii_halfwidth_witnessed;
+     if profile.hwpx_stored_layout() {
+-        // 같은 14pt 한양신명조라도 일반 본문과 표 안의 공백 조판은 다르다.
+-        // 검증 HWPX의 일반 본문은 반각, 표 안은 기존 저장 메트릭을 쓴다.
+-        // 같은 글자 모양이 양쪽에 쓰이면 전역 스타일 보정으로 구분할 수
+-        // 없으므로 원래 측정을 유지한다.
+-        let mut body_space_styles = std::collections::HashSet::new();
+-        let mut table_space_styles = std::collections::HashSet::new();
+-        for section in &document.sections {
+-            for para in &section.paragraphs {
+-                if !para
+-                    .controls
+-                    .iter()
+-                    .any(|control| matches!(control, crate::model::control::Control::Table(_)))
+-                {
+-                    collect_paragraph_space_styles(para, &mut body_space_styles);
+-                }
+-                for control in &para.controls {
+-                    if let crate::model::control::Control::Table(table) = control {
+-                        collect_table_space_styles(table, &mut table_space_styles);
+-                    }
+-                }
+-            }
+-        }
+-        for (id, style) in styles.char_styles.iter_mut().enumerate() {
+-            if body_space_styles.contains(&(id as u32))
+-                && !table_space_styles.contains(&(id as u32))
+-                && style.font_size >= 56.0 / 3.0 - 0.01
+-                && style.font_family.split(',').next() == Some("한양신명조")
+-                && style.font_space_em.is_none()
+-            {
++        // HWPX to HTML2, docs/DECISIONS.md (2026-09-27): a normal space
++        // advances half an em; only useFontSpace selects the font's own width.
++        // Independent evidence: 0713AI PDF, 15pt spaces 2.61–2.67mm and
++        // 12pt Malgun Gothic spaces 2.15mm. Body/table, face and size are not
++        // conditions of this rule. Condense/justification acts later on this
++        // natural advance; compressed spaces must not become font metrics.
++        for (style, shape) in styles
++            .char_styles
++            .iter_mut()
++            .zip(&document.doc_info.char_shapes)
++        {
++            if !shape.use_font_space {
+                 style.font_space_em = Some(0.5);
+             }
+         }
+@@ -511,35 +494,6 @@ pub(crate) fn resolve_styles_for_document(document: &Document, dpi: f64) -> Reso
+     styles
+ }
+ 
+-fn collect_paragraph_space_styles(
+-    para: &crate::model::paragraph::Paragraph,
+-    ids: &mut std::collections::HashSet<u32>,
+-) {
+-    for (index, ch) in para.text.chars().enumerate() {
+-        if ch == ' ' {
+-            if let Some(id) = para.char_shape_id_at(index) {
+-                ids.insert(id);
+-            }
+-        }
+-    }
+-}
+-
+-fn collect_table_space_styles(
+-    table: &crate::model::table::Table,
+-    ids: &mut std::collections::HashSet<u32>,
+-) {
+-    for cell in &table.cells {
+-        for para in &cell.paragraphs {
+-            collect_paragraph_space_styles(para, ids);
+-            for control in &para.controls {
+-                if let crate::model::control::Control::Table(nested) = control {
+-                    collect_table_space_styles(nested, ids);
+-                }
+-            }
+-        }
+-    }
+-}
+-
+ /// The environment selects the same final face for measurement and every painter.
+ pub(crate) fn resolve_styles_with_environment(
+     document: &Document,
+diff --git a/src/wasm_api/tests.rs b/src/wasm_api/tests.rs
+--- a/src/wasm_api/tests.rs
++++ b/src/wasm_api/tests.rs
+@@ -21557,6 +21557,55 @@ fn test_batch_body_range_format_matches_unbatched_render() {
+     }
+ }
+ 
++/// 줄 기하가 그대로인 타자는 쪽 나눔을 다시 하지 않는다. 배치 안의 같은 편집은 항상
++/// 전체 쪽 나눔을 하므로, 두 경로의 쪽 수와 모든 쪽의 SVG가 같아야 한다.
++#[test]
++fn test_geometry_preserving_typing_matches_full_pagination() {
++    let mut direct = batch_body_format_doc();
++    let mut batched = batch_body_format_doc();
++    let grow = "줄을 넘겨 문단 높이를 바꾸는 긴 삽입입니다. ".repeat(8);
++    // (문단, 위치, 넣을 글, 지울 글자 수) — 같은 문단의 연속 타자, 줄이 느는 삽입, 줄이 주는 삭제.
++    let steps: Vec<(usize, usize, &str, usize)> = vec![
++        (3, 2, "가", 0),
++        (3, 3, "나", 0),
++        (3, 4, " ", 0),
++        (3, 2, "", 1),
++        (30, 5, "a", 0),
++        (30, 6, "b", 0),
++        (30, 0, grow.as_str(), 0),
++        (30, 1, "다", 0),
++        (30, 0, "", 150),
++        (30, 1, "라", 0),
++        (58, 1, "마", 0),
++        (58, 2, "바", 0),
++    ];
++    for (step, (para, offset, text, delete)) in steps.into_iter().enumerate() {
++        batched.begin_batch_native().unwrap();
++        if delete > 0 {
++            direct.delete_text_native(0, para, offset, delete).unwrap();
++            batched.delete_text_native(0, para, offset, delete).unwrap();
++        } else {
++            direct.insert_text_native(0, para, offset, text).unwrap();
++            batched.insert_text_native(0, para, offset, text).unwrap();
++        }
++        batched.end_batch_native().unwrap();
++        assert!(direct.dirty_sections.iter().all(|dirty| !*dirty), "step {step} left a dirty section");
++        assert_eq!(
++            direct.document.sections[0].paragraphs[para].line_segs,
++            batched.document.sections[0].paragraphs[para].line_segs,
++            "step {step} line segments"
++        );
++        assert_eq!(direct.page_count(), batched.page_count(), "step {step} page count");
++        for page in 0..direct.page_count() {
++            assert_eq!(
++                direct.render_page_svg_native(page).unwrap(),
++                batched.render_page_svg_native(page).unwrap(),
++                "step {step} page {page} differs between the normal and the batched edit"
++            );
++        }
++    }
++}
++
+ #[test]
+ fn test_serialize_event_log_format() {
+     let mut doc = create_editable_doc();

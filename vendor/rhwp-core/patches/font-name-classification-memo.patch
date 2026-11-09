@@ -1,0 +1,76 @@
+diff --git a/src/renderer/layout/text_measurement.rs b/src/renderer/layout/text_measurement.rs
+index 1a1c56b..db6e0a7 100644
+--- a/src/renderer/layout/text_measurement.rs
++++ b/src/renderer/layout/text_measurement.rs
+@@ -1013,10 +1013,32 @@ static KOPUB_BATANG_LATIN_0: [u16; 95] = [
+     288, 900, 612, 612, 632, 596, 416, 432, 350, 604, 506, 772, 588, 516, 476, 312, 468, 312, 648,
+ ];
+ 
++/// KoPub 계열 판정 `(돋움, 바탕)` — 글꼴 이름마다 한 번만 한다.
++///
++/// 글자 폭을 잴 때마다(`measure_char_width_embedded_decision_for_font`) 불리는데, 매번 이름
++/// 전체를 소문자로 바꾸고 부분 문자열을 네 번 찾으면 큰 문서에서 입력 한 번의 재조판 시간
++/// 절반 가까이가 이 판정에 들었다. 판정은 이름만의 함수라 결과가 같다.
++fn kopub_face_flags(primary_name: &str) -> (bool, bool) {
++    thread_local! {
++        static FLAGS: std::cell::RefCell<std::collections::HashMap<String, (bool, bool)>> =
++            std::cell::RefCell::new(std::collections::HashMap::new());
++    }
++    FLAGS.with(|flags| {
++        if let Some(found) = flags.borrow().get(primary_name) {
++            return *found;
++        }
++        let lower = primary_name.to_lowercase();
++        let found = (
++            primary_name.contains("KoPub돋움체") || lower.contains("kopub dotum"),
++            primary_name.contains("KoPub바탕체") || lower.contains("kopub batang"),
++        );
++        flags.borrow_mut().insert(primary_name.to_owned(), found);
++        found
++    })
++}
++
+ fn kopub_char_width(primary_name: &str, c: char, font_size: f64) -> Option<f64> {
+-    let lower = primary_name.to_lowercase();
+-    let is_dotum = primary_name.contains("KoPub돋움체") || lower.contains("kopub dotum");
+-    let is_batang = primary_name.contains("KoPub바탕체") || lower.contains("kopub batang");
++    let (is_dotum, is_batang) = kopub_face_flags(primary_name);
+     if !is_dotum && !is_batang {
+         return None;
+     }
+@@ -1081,10 +1103,10 @@ fn kopub_char_width(primary_name: &str, c: char, font_size: f64) -> Option<f64>
+ /// 저장 줄의 반각 전진폭은 유지하고, 재조판에서 압축 가능한 공백만 hmtx로 잰다.
+ pub(crate) fn kopub_space_advance_em(style: &TextStyle) -> Option<f64> {
+     let primary = style.font_family.split(',').next()?.trim();
+-    let lower = primary.to_lowercase();
+-    let units = if primary.contains("KoPub돋움체") || lower.contains("kopub dotum") {
++    let (is_dotum, is_batang) = kopub_face_flags(primary);
++    let units = if is_dotum {
+         290.0
+-    } else if primary.contains("KoPub바탕체") || lower.contains("kopub batang") {
++    } else if is_batang {
+         312.0
+     } else {
+         return None;
+@@ -2051,6 +2073,21 @@ pub(crate) fn vertical_substitute_char(c: char) -> Option<char> {
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn kopub_face_flags_match_the_per_call_name_test_and_are_stable() {
++        let direct = |name: &str| {
++            let lower = name.to_lowercase();
++            (
++                name.contains("KoPub돋움체") || lower.contains("kopub dotum"),
++                name.contains("KoPub바탕체") || lower.contains("kopub batang"),
++            )
++        };
++        for name in ["KoPub돋움체 Medium", "KoPub Dotum Light", "KOPUB BATANG", "KoPub바탕체 Bold", "함초롬바탕", "", "kopub dotum"] {
++            assert_eq!(kopub_face_flags(name), direct(name), "{name}");
++            assert_eq!(kopub_face_flags(name), direct(name), "cached {name}");
++        }
++    }
++
+     #[test]
+     fn issue_4442_noto_sans_kr_regular_ascii_shared_width_uses_tracked_advances() {
+         let style = TextStyle {

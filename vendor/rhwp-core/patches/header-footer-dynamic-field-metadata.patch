@@ -1,0 +1,244 @@
+diff --git a/src/document_core/commands/header_footer_ops.rs b/src/document_core/commands/header_footer_ops.rs
+index 5d5df58..1d2ce44 100644
+--- a/src/document_core/commands/header_footer_ops.rs
++++ b/src/document_core/commands/header_footer_ops.rs
+@@ -563,20 +563,30 @@ impl DocumentCore {
+         };
+ 
+         let para_count = paragraphs.len();
+-        let (char_count, text) = if let Some(paragraph) = paragraphs.get(hf_para_idx) {
+-            (paragraph.text.chars().count(), paragraph.text.as_str())
+-        } else {
+-            (0, "")
+-        };
++        let (char_count, text, logical_text, dynamic_fields) =
++            if let Some(paragraph) = paragraphs.get(hf_para_idx) {
++                let fields = header_footer_dynamic_fields(paragraph);
++                let logical_text = logical_header_footer_text(&paragraph.text, &fields);
++                (
++                    paragraph.text.chars().count(),
++                    paragraph.text.clone(),
++                    logical_text,
++                    fields,
++                )
++            } else {
++                (0, String::new(), String::new(), Vec::new())
++            };
+ 
+-        Ok(format!(
+-            "{{\"ok\":true,\"paraCount\":{},\"charCount\":{},\"text\":\"{}\"}}",
+-            para_count,
+-            char_count,
+-            super::super::helpers::json_escape(text)
+-        ))
++        Ok(serde_json::json!({
++            "ok": true,
++            "paraCount": para_count,
++            "charCount": char_count,
++            "text": text,
++            "logicalText": logical_text,
++            "dynamicFields": dynamic_fields,
++        })
++        .to_string())
+     }
+-
+     /// 머리말/꼬리말의 선택 범위를 평문으로 원자 치환한다.
+     ///
+     /// 범위는 문단/문자 사전식 순서로 정렬하고 모든 경계를 mutation 전에 검증한다.
+@@ -1456,6 +1466,137 @@ impl DocumentCore {
+     }
+ }
+ 
++/// 머리말/꼬리말 필드의 포맷 비종속 범위다. start/end는 실제 편집 텍스트의 문자
++/// 인덱스이고, marker는 저장 포맷 컨트롤을 식별하는 내부 토큰이다.
++#[derive(Debug, Clone, serde::Serialize)]
++#[serde(rename_all = "camelCase")]
++struct HeaderFooterDynamicField {
++    start: usize,
++    end: usize,
++    #[serde(rename = "type")]
++    field_type: &'static str,
++    marker: char,
++}
++
++/// 필드 토큰 문자열과 HWP/HWPX의 native 컨트롤을 같은 논리 필드로 조회한다.
++/// 원시 text와 범위는 편집 좌표를 위해 그대로 두고, logicalText에서만 native 필드
++/// 표시 문자열을 한 글자 토큰으로 접는다.
++fn header_footer_dynamic_fields(
++    paragraph: &crate::model::paragraph::Paragraph,
++) -> Vec<HeaderFooterDynamicField> {
++    use crate::model::control::{AutoNumberType, Control, FieldType};
++
++    let chars: Vec<char> = paragraph.text.chars().collect();
++    let mut fields = Vec::new();
++    for (index, ch) in chars.iter().copied().enumerate() {
++        let (field_type, marker) = match ch {
++            '\u{0015}' => ("pageNumber", ch),
++            '\u{0016}' => ("totalPages", ch),
++            '\u{0017}' => ("fileName", ch),
++            _ => continue,
++        };
++        fields.push(HeaderFooterDynamicField {
++            start: index,
++            end: index + 1,
++            field_type,
++            marker,
++        });
++    }
++
++    let control_positions = paragraph.control_text_positions();
++    for (control_index, control) in paragraph.controls.iter().enumerate() {
++        let start = control_positions.get(control_index).copied();
++        match control {
++            Control::AutoNumber(number) => {
++                let (field_type, marker) = match number.number_type {
++                    AutoNumberType::Page => ("pageNumber", '\u{0015}'),
++                    AutoNumberType::TotalPage => ("totalPages", '\u{0016}'),
++                    _ => continue,
++                };
++                // Parsed HWP/HWPX stores an automatic-number control after a trailing
++                // one-character placeholder. The generic edit coordinate therefore points
++                // just past the text; header/footer identity maps that control back to the
++                // placeholder without changing the renderer's or editor's raw coordinates.
++                let start = start
++                    .filter(|position| *position < chars.len())
++                    .or_else(|| {
++                        let trailing_units = paragraph
++                            .char_offsets
++                            .last()
++                            .zip(chars.last())
++                            .map_or(0, |(offset, ch)| {
++                                paragraph
++                                    .char_count
++                                    .saturating_sub(*offset + Paragraph::char_stream_len(*ch))
++                            });
++                        (start == Some(chars.len())
++                            && chars.last() == Some(&' ')
++                            && trailing_units >= 8)
++                            .then_some(chars.len() - 1)
++                    });
++                let Some(start) = start else { continue };
++                // Do not infer a field from a non-placeholder character.
++                if chars.get(start) != Some(&' ') {
++                    continue;
++                }
++                fields.push(HeaderFooterDynamicField {
++                    start,
++                    end: start + 1,
++                    field_type,
++                    marker,
++                });
++            }
++            Control::Field(field)
++                if field.field_type == FieldType::Path && field.command == "$F" =>
++            {
++                if let Some(range) = paragraph
++                    .field_ranges
++                    .iter()
++                    .find(|range| range.control_idx == control_index)
++                    .filter(|range| {
++                        range.start_char_idx < range.end_char_idx
++                            && range.end_char_idx <= chars.len()
++                    })
++                {
++                    fields.push(HeaderFooterDynamicField {
++                        start: range.start_char_idx,
++                        end: range.end_char_idx,
++                        field_type: "fileName",
++                        marker: '\u{0017}',
++                    });
++                }
++            }
++            _ => {}
++        }
++    }
++
++    fields.sort_by_key(|field| (field.start, field.end));
++    let mut non_overlapping = Vec::with_capacity(fields.len());
++    let mut end = 0;
++    for field in fields {
++        if field.start >= end {
++            end = field.end;
++            non_overlapping.push(field);
++        }
++    }
++    non_overlapping
++}
++
++fn logical_header_footer_text(text: &str, fields: &[HeaderFooterDynamicField]) -> String {
++    let chars: Vec<char> = text.chars().collect();
++    let mut logical = String::with_capacity(text.len());
++    let mut cursor = 0;
++    for field in fields {
++        if field.start < cursor || field.end > chars.len() {
++            continue;
++        }
++        logical.extend(chars[cursor..field.start].iter());
++        logical.push(field.marker);
++        cursor = field.end;
++    }
++    logical.extend(chars[cursor..].iter());
++    logical
++}
+ /// 머리말/꼬리말 필드 마커(쪽 번호 U+0015 · 전체 쪽수 U+0016 · 파일 이름 U+0017).
+ fn is_hf_field_marker(ch: char) -> bool {
+     matches!(ch, '\u{0015}'..='\u{0017}')
+@@ -2304,4 +2445,58 @@ mod tests {
+              새 para_shape_id 조회가 None이 되어 margin=0으로 폴백, after==before로 남는다)"
+         );
+     }
++
++    #[test]
++    fn header_footer_para_info_exposes_dynamic_field_identity() {
++        let mut core = make_test_core();
++        core.create_header_footer_native(0, true, 0).unwrap();
++        core.insert_field_in_hf_native(0, true, 0, 0, 0, 1).unwrap();
++        core.insert_field_in_hf_native(0, true, 0, 0, 1, 2).unwrap();
++        core.insert_field_in_hf_native(0, true, 0, 0, 2, 3).unwrap();
++
++        let info: serde_json::Value = serde_json::from_str(
++            &core
++                .get_header_footer_para_info_native(0, true, 0, 0)
++                .unwrap(),
++        )
++        .unwrap();
++        assert_eq!(info["text"], "\u{0015}\u{0016}\u{0017}");
++        assert_eq!(info["logicalText"], "\u{0015}\u{0016}\u{0017}");
++        assert_eq!(info["dynamicFields"][0]["type"], "pageNumber");
++        assert_eq!(info["dynamicFields"][1]["type"], "totalPages");
++        assert_eq!(info["dynamicFields"][2]["type"], "fileName");
++        assert_eq!(info["dynamicFields"][0]["start"], 0);
++        assert_eq!(info["dynamicFields"][2]["end"], 3);
++    }
++
++    #[test]
++    fn header_footer_dynamic_fields_survive_hwp_and_hwpx_round_trip() {
++        for hwpx in [false, true] {
++            let mut core = DocumentCore::new_empty();
++            core.create_blank_document_native().unwrap();
++            core.file_name = "header-footer-dynamic-4.hwp".to_string();
++            core.apply_hf_template_native(0, true, 0, 4).unwrap();
++            let bytes = if hwpx {
++                core.export_hwpx_native().unwrap()
++            } else {
++                core.export_hwp_with_adapter().unwrap()
++            };
++            let reopened = DocumentCore::from_bytes(&bytes).unwrap();
++            let paragraph = &reopened.get_hf_paragraphs_ref(0, true, 0).unwrap()[0];
++            let info: serde_json::Value = serde_json::from_str(
++                &reopened
++                    .get_header_footer_para_info_native(0, true, 0, 0)
++                    .unwrap(),
++            )
++            .unwrap();
++
++            assert_eq!(paragraph.text, " \theader-footer-dynamic-4.hwp");
++            assert_eq!(info["logicalText"], "\u{0015}\t\u{0017}");
++            assert_eq!(info["dynamicFields"].as_array().unwrap().len(), 2);
++            assert_eq!(info["dynamicFields"][0]["type"], "pageNumber");
++            assert_eq!(info["dynamicFields"][1]["type"], "fileName");
++            assert_eq!(info["dynamicFields"][1]["start"], 2);
++            assert_eq!(info["dynamicFields"][1]["end"], 29);
++        }
++    }
+ }

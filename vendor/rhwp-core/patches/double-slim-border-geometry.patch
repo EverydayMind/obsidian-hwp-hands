@@ -1,0 +1,83 @@
+diff --git a/src/renderer/layout/border_rendering.rs b/src/renderer/layout/border_rendering.rs
+index 517581a..1edb642 100644
+--- a/src/renderer/layout/border_rendering.rs
++++ b/src/renderer/layout/border_rendering.rs
+@@ -862,6 +862,21 @@ pub(crate) fn render_transparent_borders(
+     nodes
+ }
+ 
++/// 이중실선(DOUBLE_SLIM)의 (선 굵기, 경계선에서 각 선 중심까지 거리) px.
++///
++/// 선언 굵기 W의 이중실선은 W/4 선 두 개이고 중심은 경계선에서 ±3W/8이다(바깥 끝 ±W/2).
++/// 한컴 기준: 0.7mm → 0.18mm 두 선 0.53mm 간격, 0.5mm → 0.12mm/0.37mm,
++/// 0.12mm → 0.03mm/0.08mm (HWPX to HTML2 docs/DECISIONS.md). 픽셀 최소값으로
++/// 문서의 공칭 기하를 부풀리지 않는다.
++fn double_border_metrics(width_index: u8) -> (f64, f64) {
++    let mm = crate::model::style::BORDER_WIDTHS
++        .get(width_index as usize)
++        .unwrap_or(&crate::model::style::BORDER_WIDTHS[0])
++        .0;
++    let width = mm * 96.0 / 25.4;
++    (width / 4.0, width * 3.0 / 8.0)
++}
++
+ /// 테두리선 Line 노드 생성 (이중선/삼중선 지원)
+ /// None 타입이면 빈 벡터 반환
+ pub(crate) fn create_border_line_nodes(
+@@ -883,10 +898,7 @@ pub(crate) fn create_border_line_nodes(
+ 
+         // 이중선 (동일 굵기)
+         BorderLineType::Double => {
+-            let total = base_width.max(3.0);
+-            let sub_w = (total * 0.3).max(0.4);
+-            let gap = (total * 0.4).max(1.0);
+-            let offset = (gap + sub_w) / 2.0;
++            let (sub_w, offset) = double_border_metrics(border.width);
+             create_parallel_lines(
+                 tree,
+                 border.color,
+@@ -1148,10 +1160,7 @@ fn create_diagonal_line_nodes(
+     match line_type {
+         BorderLineType::None => vec![],
+         BorderLineType::Double => {
+-            let total = base_width.max(3.0);
+-            let sub_w = (total * 0.3).max(0.4);
+-            let gap = (total * 0.4).max(1.0);
+-            let offset = (gap + sub_w) / 2.0;
++            let (sub_w, offset) = double_border_metrics(width_index);
+             create_parallel_lines_perpendicular(
+                 tree,
+                 color,
+@@ -1618,6 +1627,32 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn double_slim_border_is_two_quarter_strokes_within_declared_width() {
++        for (index, mm) in [(1u8, 0.12), (7, 0.5), (9, 0.7)] {
++            let width = mm * 96.0 / 25.4;
++            let border = BorderLine {
++                line_type: BorderLineType::Double,
++                width: index,
++                color: 0x0012_3456,
++            };
++            let mut tree = PageLayoutContext::new(0, 200.0, 100.0);
++            let nodes = create_border_line_nodes(&mut tree, &border, 10.0, 20.0, 110.0, 20.0);
++            assert_eq!(nodes.len(), 2);
++            let mut ys: Vec<f64> = nodes
++                .iter()
++                .map(|node| {
++                    let line = line_node(node);
++                    assert!((line.style.width - width / 4.0).abs() < 1e-9);
++                    line.y1
++                })
++                .collect();
++            ys.sort_by(f64::total_cmp);
++            assert!((ys[0] - (20.0 - width * 3.0 / 8.0)).abs() < 1e-9);
++            assert!((ys[1] - (20.0 + width * 3.0 / 8.0)).abs() < 1e-9);
++        }
++    }
++
+     #[test]
+     fn render_hwpx_vertical_center_line_as_horizontal_bar() {
+         let mut tree = PageLayoutContext::new(0, 200.0, 100.0);

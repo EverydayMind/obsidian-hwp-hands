@@ -1,0 +1,43 @@
+--- a/src/document_core/queries/field_query.rs
++++ b/src/document_core/queries/field_query.rs
+@@ -2771,6 +2771,15 @@
+         para.controls.len()
+     }
+     .min(para.controls.len());
++    // The first text gap can also contain an empty field's END slot. Counting it
++    // as a control pulls a later field BEGIN in front of the first character.
++    // Controls are emitted in control_idx order, so one whose field starts later
++    // cannot be part of the leading controls, regardless of its ID.
++    let ctrls_before_text = para.field_ranges.iter()
++        .filter(|range| range.start_char_idx > 0)
++        .map(|range| range.control_idx)
++        .min()
++        .map_or(ctrls_before_text, |next| ctrls_before_text.min(next));
+ 
+     // FIELD_BEGIN: 이미 char_offsets의 첫 갭에 포함된 선행 컨트롤은 보존하고,
+     // 새로 삽입된 시작 위치 필드는 첫 문자 앞에도 갭을 추가해야 한다.
+@@ -3213,6 +3222,24 @@
+ 
+         // A=8(+1) B=9(+1) C=10(+1) → gap 8 for FIELD_BEGIN → X=19(+1) Y=20
+         assert_eq!(para.char_offsets, vec![8, 9, 10, 19, 20]);
++    }
++
++    #[test]
++    fn rebuild_does_not_move_later_field_begin_into_first_gap() {
++        let mut para = Paragraph {
++            text: "first second".into(),
++            controls: vec![Control::ColumnDef(Default::default()), make_field_control(100), make_field_control(100)],
++            field_ranges: vec![
++                FieldRange { start_char_idx: 0, end_char_idx: 0, control_idx: 1, ..Default::default() },
++                FieldRange { start_char_idx: 5, end_char_idx: 5, control_idx: 2, ..Default::default() },
++            ],
++            // First gap is column + field BEGIN + field END, not three controls.
++            char_offsets: (0..12).map(|n| 24 + n).collect(),
++            ..Default::default()
++        };
++        rebuild_char_offsets(&mut para);
++        assert_eq!(para.char_offsets[0], 24); // column + first BEGIN/END
++        assert_eq!(para.char_offsets[5], 45); // second BEGIN/END remain at index 5
+     }
+ 
+     #[test]

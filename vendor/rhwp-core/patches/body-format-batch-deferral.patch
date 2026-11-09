@@ -1,0 +1,210 @@
+diff --git a/src/document_core/commands/document.rs b/src/document_core/commands/document.rs
+index cf2a293..39a1e35 100644
+--- a/src/document_core/commands/document.rs
++++ b/src/document_core/commands/document.rs
+@@ -314,6 +314,7 @@ impl DocumentCore {
+             bin_data_epoch: 0,
+             batch_mode: false,
+             pending_cell_format_vpos: false,
++            batch_recompose_sections: Vec::new(),
+             event_log: Vec::new(),
+             overflow_links_cache: RefCell::new(HashMap::new()),
+             snapshot_store: Vec::new(),
+@@ -1785,6 +1786,7 @@ impl DocumentCore {
+ 
+         self.document = document;
+         self.pending_cell_format_vpos = false;
++        self.batch_recompose_sections.clear();
+         self.canvas_metrics = None;
+         self.render_normalization.text_reflowed_tables.clear();
+         self.bump_bin_data_epoch();
+@@ -2753,6 +2755,17 @@ impl DocumentCore {
+     /// 종료 시 paginate()를 1회 실행하여 모든 dirty 구역을 처리한다.
+     pub fn end_batch_native(&mut self) -> Result<String, HwpError> {
+         self.batch_mode = false;
++        // 본문 문단 서식이 미룬 구역은 `rebuild_section` 과 같은 순서로 한 번만 다시 만든다.
++        let sections = std::mem::take(&mut self.batch_recompose_sections);
++        if !sections.is_empty() {
++            self.rebuild_resolved_styles();
++            self.flush_cell_format_vpos();
++            for section_idx in sections {
++                if section_idx < self.document.sections.len() {
++                    self.recompose_section(section_idx);
++                }
++            }
++        }
+         self.flush_cell_format_vpos();
+         self.paginate();
+         let result = self.serialize_event_log();
+diff --git a/src/document_core/commands/formatting.rs b/src/document_core/commands/formatting.rs
+index 95cce1d..a672808 100644
+--- a/src/document_core/commands/formatting.rs
++++ b/src/document_core/commands/formatting.rs
+@@ -1083,7 +1083,7 @@ impl DocumentCore {
+         }
+ 
+         self.document.sections[sec_idx].raw_stream = None;
+-        self.rebuild_section(sec_idx);
++        self.rebuild_body_format_deferred_in_batch(sec_idx);
+         self.event_log.push(DocumentEvent::CharFormatChanged {
+             section: sec_idx,
+             para: para_idx,
+@@ -1196,6 +1196,30 @@ impl DocumentCore {
+         }
+     }
+ 
++    /// 본문 문단 서식 뮤테이터(글자·문단 모양 적용, 스타일 적용)의 꼬리.
++    ///
++    /// 배치 밖에서는 종전대로 전체 rebuild 이다. 배치 중에는 구역만 기록하고 스타일 해석·
++    /// 재조합·재페이지네이션을 `end_batch_native` 로 미룬다. 종전에는 배치 중에도 문단마다
++    /// 구역 전체를 다시 조합하고 페이지를 나눠서, 범위 서식이 문단 수 × 구역 크기만큼
++    /// 걸렸다.
++    ///
++    /// 그 문단만 다시 조합하는 `rebuild_paragraph_deferred_in_batch` 로는 부족하다. 문단
++    /// 모양·스타일 변경은 뒤 문단의 번호 문자열처럼 다른 문단에 걸친 파생 값을 바꾸므로,
++    /// 끝에서 구역 전체를 한 번 다시 조합해 배치 밖의 결과와 같게 한다. 이 뮤테이터들은
++    /// 줄 나눔에 새로 해석한 스타일(`resolve_render_styles`)을 쓰므로 배치 중에 옛
++    /// `self.styles` 를 읽지 않는다.
++    pub(crate) fn rebuild_body_format_deferred_in_batch(&mut self, sec_idx: usize) {
++        if self.batch_mode {
++            self.invalidate_page_tree_cache();
++            self.mark_section_dirty(sec_idx);
++            if !self.batch_recompose_sections.contains(&sec_idx) {
++                self.batch_recompose_sections.push(sec_idx);
++            }
++        } else {
++            self.rebuild_section(sec_idx);
++        }
++    }
++
+     /// 글자 서식 적용 (네이티브) — 셀 내 문단
+     pub fn apply_char_format_in_cell_native(
+         &mut self,
+@@ -1598,7 +1622,7 @@ impl DocumentCore {
+         }
+ 
+         self.document.sections[sec_idx].raw_stream = None;
+-        self.rebuild_section(sec_idx);
++        self.rebuild_body_format_deferred_in_batch(sec_idx);
+         self.event_log.push(DocumentEvent::ParaFormatChanged {
+             section: sec_idx,
+             para: para_idx,
+@@ -2125,7 +2149,7 @@ impl DocumentCore {
+ 
+             self.reflow_body_paragraph(sec_idx, para_idx);
+             self.document.sections[sec_idx].raw_stream = None;
+-            self.rebuild_section(sec_idx);
++            self.rebuild_body_format_deferred_in_batch(sec_idx);
+             self.event_log.push(DocumentEvent::CharFormatChanged {
+                 section: sec_idx,
+                 para: para_idx,
+@@ -2162,7 +2186,7 @@ impl DocumentCore {
+ 
+         self.reflow_body_paragraph(sec_idx, para_idx);
+         self.document.sections[sec_idx].raw_stream = None;
+-        self.rebuild_section(sec_idx);
++        self.rebuild_body_format_deferred_in_batch(sec_idx);
+         self.event_log.push(DocumentEvent::ParaFormatChanged {
+             section: sec_idx,
+             para: para_idx,
+diff --git a/src/document_core/mod.rs b/src/document_core/mod.rs
+index c7f2d2c..3cfc571 100644
+--- a/src/document_core/mod.rs
++++ b/src/document_core/mod.rs
+@@ -268,6 +268,9 @@ pub struct DocumentCore {
+     pub(crate) batch_mode: bool,
+     /// 셀 문단 서식으로 무효화된 vpos. RowBreak 조각별 첫 변경부터 한 번만 갱신한다.
+     pub(crate) pending_cell_format_vpos: bool,
++    /// 배치 중 본문 문단 서식(글자·문단 모양, 스타일)으로 재조합을 미룬 구역.
++    /// `end_batch_native` 가 구역마다 한 번 다시 조합한다.
++    pub(crate) batch_recompose_sections: Vec<usize>,
+     /// 이벤트 로그 (Command 실행 시 누적)
+     pub(crate) event_log: Vec<DocumentEvent>,
+     /// 글상자 오버플로우 연결 캐시 (섹션별, 지연 계산)
+@@ -546,6 +549,7 @@ impl DocumentCore {
+             bin_data_epoch: 0,
+             batch_mode: false,
+             pending_cell_format_vpos: false,
++            batch_recompose_sections: Vec::new(),
+             event_log: Vec::new(),
+             overflow_links_cache: RefCell::new(HashMap::new()),
+             snapshot_store: Vec::new(),
+diff --git a/src/document_core/queries/rendering.rs b/src/document_core/queries/rendering.rs
+index c435fd5..b80c927 100644
+--- a/src/document_core/queries/rendering.rs
++++ b/src/document_core/queries/rendering.rs
+@@ -4533,6 +4533,7 @@ impl DocumentCore {
+     /// 만들면 같은 패스 안에서 옛 값이 섞인다.
+     pub(crate) fn rebuild_derived_state(&mut self) {
+         self.pending_cell_format_vpos = false;
++        self.batch_recompose_sections.clear();
+         self.rebuild_resolved_styles();
+         self.rebuild_embedded_exact_font_sources();
+         self.recompose_all_with_horizontal_shaping();
+diff --git a/src/wasm_api/tests.rs b/src/wasm_api/tests.rs
+index 72adaf6..9668ac9 100644
+--- a/src/wasm_api/tests.rs
++++ b/src/wasm_api/tests.rs
+@@ -21501,6 +21501,62 @@ fn test_batch_multiple_edit_types() {
+     assert!(doc.page_count() >= 1);
+ }
+ 
++/// 배치 범위 서식 문서: 쪽이 여럿이고, 범위 뒤 문단에 이미 번호가 붙어 있다.
++fn batch_body_format_doc() -> HwpDocument {
++    let mut doc = create_editable_doc();
++    for index in 0..60 {
++        let text = format!("문단 {index} 배치 서식 결과가 배치 밖 결과와 같은지 확인하는 긴 본문입니다. ").repeat(3);
++        doc.insert_text_native(0, index, 0, &text).unwrap();
++        doc.split_paragraph_native(0, index, text.chars().count(), None).unwrap();
++    }
++    let numbering = doc.ensure_default_numbering();
++    let numbered = format!(r#"{{"headType":"Number","numberingId":{numbering},"paraLevel":0}}"#);
++    for para in 40..45 {
++        doc.apply_para_format_native(0, para, &numbered).unwrap();
++    }
++    doc
++}
++
++fn apply_body_range_formatting(doc: &mut HwpDocument, numbering: u16) {
++    let numbered = format!(r#"{{"headType":"Number","numberingId":{numbering},"paraLevel":0}}"#);
++    for para in 5..40 {
++        let length = doc.document.sections[0].paragraphs[para].text.chars().count();
++        doc.apply_char_format_native(0, para, 0, length, r#"{"bold":true,"fontSize":1600}"#).unwrap();
++        doc.apply_para_format_native(0, para, &numbered).unwrap();
++    }
++    for para in 45..50 {
++        doc.apply_style_native(0, para, 1).unwrap();
++    }
++}
++
++#[test]
++fn test_batch_body_range_format_matches_unbatched_render() {
++    let mut direct = batch_body_format_doc();
++    let mut batched = batch_body_format_doc();
++    let numbering = direct.ensure_default_numbering();
++    assert_eq!(numbering, batched.ensure_default_numbering());
++    let pages_before = direct.page_count();
++
++    apply_body_range_formatting(&mut direct, numbering);
++    batched.begin_batch_native().unwrap();
++    apply_body_range_formatting(&mut batched, numbering);
++    assert_eq!(batched.batch_recompose_sections, vec![0]);
++    let events = batched.end_batch_native().unwrap();
++    assert!(events.contains("\"type\":\"CharFormatChanged\""));
++    assert!(events.contains("\"type\":\"ParaFormatChanged\""));
++    assert!(batched.batch_recompose_sections.is_empty());
++
++    assert!(direct.page_count() > pages_before, "16pt bold text should reflow onto more pages");
++    assert_eq!(batched.page_count(), direct.page_count());
++    for page in 0..direct.page_count() {
++        assert_eq!(
++            batched.render_page_svg_native(page).unwrap(),
++            direct.render_page_svg_native(page).unwrap(),
++            "page {page} differs between batched and unbatched range formatting"
++        );
++    }
++}
++
+ #[test]
+ fn test_serialize_event_log_format() {
+     let mut doc = create_editable_doc();
