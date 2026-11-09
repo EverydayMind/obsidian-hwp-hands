@@ -1,4 +1,4 @@
-import { FileSystemAdapter, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder, type App, type Hotkey } from 'obsidian';
+import { FileSystemAdapter, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder, type App, type Hotkey, type WorkspaceLeaf } from 'obsidian';
 import { rename } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
@@ -107,8 +107,7 @@ export default class HwpHandsPlugin extends Plugin {
       async view => {
         const current = this.hwpViews().find(candidate => candidate === view);
         if (!current) throw new Error('편집 화면이 닫혔습니다.');
-        await this.app.workspace.revealLeaf(current.leaf);
-        this.app.workspace.setActiveLeaf(current.leaf, { focus: true });
+        await this.revealAndFocus(current.leaf);
       }, combined));
     const bindViews = () => viewContext.bind(this.hwpViews().map(view => ({ element: view.contentEl, read: () => view.readViewContext() })));
     this.registerEvent(this.app.workspace.on('layout-change', bindViews));
@@ -276,6 +275,12 @@ export default class HwpHandsPlugin extends Plugin {
     const css = await adapter.read(`${directory}/styles.css`);
     this.register(installPluginStyles(document, css));
   }
+  /** revealLeaf() exists from Obsidian 1.7.2 (it also expands a collapsed sidebar); older versions only activate the tab. */
+  private async revealAndFocus(leaf: WorkspaceLeaf): Promise<void> {
+    const workspace = this.app.workspace as { revealLeaf?: (leaf: WorkspaceLeaf) => Promise<void> };
+    if (typeof workspace.revealLeaf === 'function') await workspace.revealLeaf(leaf);
+    this.app.workspace.setActiveLeaf(leaf, { focus: true });
+  }
   createNewDocument(): void {
     const parent = this.app.workspace.getActiveFile()?.parent?.path;
     const prefix = parent && parent !== '/' ? `${parent}/` : '';
@@ -345,7 +350,7 @@ export default class HwpHandsPlugin extends Plugin {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) throw new Error(`문서를 찾을 수 없습니다: ${path}`);
     let view = this.hwpViews().find(item => item.file?.path === path);
-    if (view) { await this.app.workspace.revealLeaf(view.leaf); this.app.workspace.setActiveLeaf(view.leaf, { focus: true }); }
+    if (view) await this.revealAndFocus(view.leaf);
     else { await this.openInEditor(file); view = this.hwpViews().find(item => item.file?.path === path); }
     if (view && (target.address || target.page !== undefined)) await view.revealPlace(target);
   }

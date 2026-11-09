@@ -1,6 +1,6 @@
 {
   "name": "obsidian-hwp-hands",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Open and edit HWP and HWPX documents locally with a bundled RHWP engine, and expose a versioned document API to other plugins.",
   "main": "main.js",
   "private": true,
@@ -32,6 +32,8 @@
   "overrides": {
     "moment": "2.31.0",
     "minimatch@>=7.0.0 <11.0.1": "11.0.5",
-    "eslint-plugin-obsidianmd": { "obsidian": "$obsidian" }
+    "eslint-plugin-obsidianmd": {
+      "obsidian": "$obsidian"
+    }
   }
 }

@@ -68,4 +68,4 @@ MIT, see [LICENSE](LICENSE). Third-party licenses are listed in [THIRD_PARTY_NOT
 
 ---
 
-Coming soon: **Verbex**, an AI agent plugin for Obsidian that works together with this plugin, will be released in the future.
+**Verbex**, an AI agent plugin for Obsidian that works together with this plugin, is planned for public release.

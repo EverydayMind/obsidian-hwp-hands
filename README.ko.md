@@ -66,4 +66,4 @@ MIT. [LICENSE](LICENSE)를 보세요. 제3자 라이선스는 [THIRD_PARTY_NOTIC
 
 ---
 
-예정: 이 플러그인과 함께 동작하는 Obsidian용 AI 에이전트 플러그인 **Verbex**를 앞으로 공개할 예정입니다.
+이 플러그인과 함께 동작하는 Obsidian용 AI 에이전트 플러그인 **Verbex**를 앞으로 공개할 예정입니다.
