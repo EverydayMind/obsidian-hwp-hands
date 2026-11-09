@@ -9,6 +9,9 @@ const worker = await build({
   platform: 'browser', target: 'es2022', define: { 'import.meta.url': '"file:///rhwp.js"' },
 });
 const wasm = await readFile('node_modules/@rhwp/core/rhwp_bg.wasm');
+// The gzip header records the build OS (byte 9); pin it to Unix so main.js is identical on every OS.
+const wasmGzip = gzipSync(wasm, { level: 9 });
+wasmGzip[9] = 3;
 const notices = (await readFile('THIRD_PARTY_NOTICES.md', 'utf8')).replaceAll('*/', '* /');
 await build({
   entryPoints: ['src/main.ts'], bundle: true, outfile: 'main.js', format: 'cjs',
@@ -16,7 +19,7 @@ await build({
   define: {
     'import.meta.url': '"file:///rhwp.js"',
     __HWP_WORKER_SOURCE__: JSON.stringify(worker.outputFiles[0].text),
-    __HWP_WASM_GZIP__: JSON.stringify(gzipSync(wasm, { level: 9 }).toString('base64')),
+    __HWP_WASM_GZIP__: JSON.stringify(wasmGzip.toString('base64')),
     __HWP_WASM_SHA256__: JSON.stringify(createHash('sha256').update(wasm).digest('hex')),
   },
   banner: { js: `/*! ${manifest.name} ${manifest.version} | Third-party notices:\n${notices}\n*/` },
