@@ -45,7 +45,7 @@ export const DESCRIPTOR_TOOLS: JsonObject[] = [
     annotations: { readOnlyHint: true }, _meta: meta(),
   },
 ];
-const sessionMeta = (group = 'text', keywords = ['문구', '문단', '고쳐', '바꾸', '수정', '추가', '삽입', '삭제', '지워', '되돌', 'replace', 'paragraph']): JsonObject => ({ ...meta(), 'dev.agentinterop/effect': 'session', 'dev.agentinterop/group': group, 'dev.agentinterop/keywords': keywords });
+const sessionMeta = (group = 'text', keywords = ['문구', '문단', '고쳐', '바꾸', '수정', '추가', '삽입', '삭제', '지워', '되돌', 'replace', 'paragraph', '바꿔', '바꿀', '바꾼', '변경', '교체', '치환', '고칠', '고친', '지울', '지운', '넣어', '넣을', 'change']): JsonObject => ({ ...meta(), 'dev.agentinterop/effect': 'session', 'dev.agentinterop/group': group, 'dev.agentinterop/keywords': keywords });
 export const EDIT_TOOLS: JsonObject[] = [
   {
     name: 'apply_draft', title: '한글 문서 초안 채택',
@@ -214,7 +214,8 @@ export const EDIT_TOOLS: JsonObject[] = [
         deleteTable: { type: 'boolean', enum: [true], description: '표 전체를 지운다. 전체 칸 관측과 표 문단 전체 선택이 필요하다. 개체가 있으면 거절한다.' },
       },
     },
-    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'table', 'dev.agentinterop/keywords': ["표 2", "표에서", "표를", "표의", "표에", "표 수정", "표 삽입", "새 표", "표 추가", "표 하나", "표 만들", "표 넣", "표의 문장", "표의 문단", "셀", "table"] },
+    // Verbex checks trim() only for emptiness, then matches the original keyword; leading spaces avoid compounds such as 발표는 and 목표로, but do not match at the start of a request.
+    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'table', 'dev.agentinterop/keywords': ["표 2", "표에서", "표를", "표의", "표에", "표 수정", "표 삽입", "새 표", "표 추가", "표 하나", "표 만들", "표 넣", "표의 문장", "표의 문단", "셀", "table", " 표로", " 표는", " 표도", " 표와", " 표 형식"] },
   },
   {
     name: 'insert_table', title: '한글 문서에 표 넣기',
@@ -230,7 +231,7 @@ export const EDIT_TOOLS: JsonObject[] = [
         caption: { type: 'string', minLength: 1, maxLength: 1000, description: '표 다음 문단에 넣을 설명. 줄바꿈 없음.' },
       },
     },
-    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'table', 'dev.agentinterop/keywords': ["표 2", "표에서", "표를", "표의", "표에", "표 수정", "표 삽입", "새 표", "표 추가", "표 하나", "표 만들", "표 넣", "표의 문장", "표의 문단", "셀", "table"] },
+    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'table', 'dev.agentinterop/keywords': ["표 2", "표에서", "표를", "표의", "표에", "표 수정", "표 삽입", "새 표", "표 추가", "표 하나", "표 만들", "표 넣", "표의 문장", "표의 문단", "셀", "table", " 표로", " 표는", " 표도", " 표와", " 표 형식"] },
   },
   {
     name: 'fill_fields', title: '한글 문서 누름틀 채우기',
