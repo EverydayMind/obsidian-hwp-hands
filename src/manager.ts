@@ -238,6 +238,23 @@ interface Session { path: string; sessionId: string; engine: EnginePort; followi
 interface PathTransition { prefixes: string[]; promise: Promise<void>; release: () => void }
 type VerificationDetails = Omit<VerificationReport, keyof State>;
 interface PreservationBuckets { buckets: Record<string, unknown>; coverageWarnings: string[] }
+
+export function preservationStructureEqual(before: unknown, after: unknown): boolean {
+  if (!before || !after || typeof before !== 'object' || typeof after !== 'object') return JSON.stringify(before) === JSON.stringify(after);
+  const source = before as Record<string, unknown>, exported = after as Record<string, unknown>;
+  if (!Array.isArray(source.controls) || !Array.isArray(exported.controls) || source.controls.length !== exported.controls.length) return JSON.stringify(before) === JSON.stringify(after);
+  const controls = exported.controls.map((control: unknown, index: number) => {
+    const original = source.controls as Array<Record<string, unknown>>;
+    if (!control || typeof control !== 'object' || !original[index] || original[index].ctrlId !== 'tbl') return control;
+    const copy = control as Record<string, unknown>;
+    if (copy.ctrlId !== 'tbl' || !copy.props || typeof copy.props !== 'object' || !original[index].props || typeof original[index].props !== 'object') return control;
+    const oldProps = original[index].props as Record<string, unknown>, newProps = copy.props as Record<string, unknown>;
+    // RHWP 0.9.0 writes a grown table height in the saved copy (grown_table_heights.rs); a shrink or any other change is still a loss.
+    if (typeof oldProps.Height !== 'number' || typeof newProps.Height !== 'number' || !Number.isFinite(oldProps.Height) || !Number.isFinite(newProps.Height) || newProps.Height < oldProps.Height) return control;
+    return { ...copy, props: { ...newProps, Height: oldProps.Height } };
+  });
+  return JSON.stringify(source) === JSON.stringify({ ...exported, controls });
+}
 export class DocumentManager {
   readonly api: HwpHandsApiV1;
   private readonly sessions = new Map<string, Session>();
@@ -1242,7 +1259,9 @@ export class DocumentManager {
       }
       catch (error) { return fail(new HwpHandsError('VERIFY_FAILED', `보존 지문을 완성하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`), await copy.pages()); }
       const categories = Object.keys(before.buckets);
-      const differences = categories.filter(category => JSON.stringify(before.buckets[category]) !== JSON.stringify(after.buckets[category]));
+      const differences = categories.filter(category => category === 'structure'
+        ? !preservationStructureEqual(before.buckets[category], after.buckets[category])
+        : JSON.stringify(before.buckets[category]) !== JSON.stringify(after.buckets[category]));
       const afterCount = await copy.pages();
       if (targetFormat === sourceFormat && beforeCount !== afterCount) differences.push('pageCount');
       if (targetFormat !== sourceFormat && beforeCount !== afterCount) warnings.push(`형식 변환 중 페이지 수가 ${beforeCount}쪽에서 ${afterCount}쪽으로 바뀌었습니다.`);

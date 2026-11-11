@@ -1,6 +1,6 @@
 import { HwpHandsError } from './api';
 
-export const ENGINE_VERSION = '0.8.7-hwp-editor.10';
+export const ENGINE_VERSION = '0.9.0-hwp-editor.1';
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export function imageBase64ByteLength(value: unknown): number {

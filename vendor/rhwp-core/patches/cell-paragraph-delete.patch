@@ -1,6 +1,8 @@
+diff --git a/src/document_core/commands/text_editing.rs b/src/document_core/commands/text_editing.rs
+index 38c0834943c63f51650f717fae1923c7b5b477cd..a4f348d3ccbdcf1381064ac61ec0decbde2d74ee 100644
 --- a/src/document_core/commands/text_editing.rs
 +++ b/src/document_core/commands/text_editing.rs
-@@ -6077,6 +6077,38 @@
+@@ -6626,6 +6626,38 @@ impl DocumentCore {
          )))
      }
  
@@ -39,14 +41,14 @@
      /// path 기반 셀 문단 분할 (중첩 표 지원)
      ///
      /// `restore_meta` 는 병합 undo 전용이다 — 평면 형제와 같은 규약이다 (Task #2342).
+diff --git a/src/wasm_api.rs b/src/wasm_api.rs
+index 7858aeee62f37f83031d690424d90b82a246fec3..7793c6a1eb56f342d2233ea3d795c04a52d6eee8 100644
 --- a/src/wasm_api.rs
 +++ b/src/wasm_api.rs
-@@ -1813,6 +1813,15 @@
-             end_offset as usize,
-         )
+@@ -2195,6 +2195,15 @@ impl HwpDocument {
          .map_err(|e| e.into())
-+    }
-+
+     }
+ 
 +    #[wasm_bindgen(js_name = deleteParagraphInCellByPath)]
 +    pub fn delete_paragraph_in_cell_by_path_api(
 +        &mut self, section_idx: u32, parent_para_idx: u32, path_json: &str,
@@ -54,6 +56,8 @@
 +        let path = DocumentCore::parse_cell_path(path_json)?;
 +        self.delete_paragraph_in_cell_by_path(section_idx as usize, parent_para_idx as usize, &path)
 +            .map_err(|e| e.into())
-     }
- 
++    }
++
      #[wasm_bindgen(js_name = splitParagraphInCellByPath)]
+     pub fn split_paragraph_in_cell_by_path_api(
+         &mut self,

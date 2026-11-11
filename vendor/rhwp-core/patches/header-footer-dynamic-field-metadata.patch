@@ -1,5 +1,5 @@
 diff --git a/src/document_core/commands/header_footer_ops.rs b/src/document_core/commands/header_footer_ops.rs
-index 5d5df58..1d2ce44 100644
+index bf314e322d191c6ceac584b4269ce10fdd2835b9..7a22d53e72a0c524eb9ed42746cf9b28677fb951 100644
 --- a/src/document_core/commands/header_footer_ops.rs
 +++ b/src/document_core/commands/header_footer_ops.rs
 @@ -563,20 +563,30 @@ impl DocumentCore {
@@ -45,7 +45,7 @@ index 5d5df58..1d2ce44 100644
      /// 머리말/꼬리말의 선택 범위를 평문으로 원자 치환한다.
      ///
      /// 범위는 문단/문자 사전식 순서로 정렬하고 모든 경계를 mutation 전에 검증한다.
-@@ -1456,6 +1466,137 @@ impl DocumentCore {
+@@ -1455,6 +1465,137 @@ impl DocumentCore {
      }
  }
  
@@ -183,7 +183,7 @@ index 5d5df58..1d2ce44 100644
  /// 머리말/꼬리말 필드 마커(쪽 번호 U+0015 · 전체 쪽수 U+0016 · 파일 이름 U+0017).
  fn is_hf_field_marker(ch: char) -> bool {
      matches!(ch, '\u{0015}'..='\u{0017}')
-@@ -2304,4 +2445,58 @@ mod tests {
+@@ -2305,4 +2446,58 @@ mod tests {
               새 para_shape_id 조회가 None이 되어 margin=0으로 폴백, after==before로 남는다)"
          );
      }

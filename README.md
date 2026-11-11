@@ -60,7 +60,7 @@ The API shares the editor's document session, so a person and another plugin see
 
 - **Files:** reads and writes the HWP/HWPX documents you open in the vault, and the `.index.md` files when the search index is enabled. Backups, recovery journals and unsaved input drafts are stored in the plugin folder.
 - **Network:** none. The plugin makes no network requests and does not download or run remote code.
-- **Bundled engine:** `main.js` contains the RHWP WebAssembly engine and its worker. The engine is built from RHWP 0.8.7 with local patches; origin, patches and build instructions are in [vendor/rhwp-core/UPSTREAM.md](vendor/rhwp-core/UPSTREAM.md). The engine's SHA-256 is checked before it starts.
+- **Bundled engine:** `main.js` contains the RHWP WebAssembly engine and its worker. The engine is built from RHWP 0.9.0 with local patches; origin, patches and build instructions are in [vendor/rhwp-core/UPSTREAM.md](vendor/rhwp-core/UPSTREAM.md). The engine's SHA-256 is checked before it starts.
 
 ## License
 

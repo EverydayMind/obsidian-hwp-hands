@@ -1,39 +1,8 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: pblsketch <239486537+pblsketch@users.noreply.github.com>
-Date: Fri, 23 Oct 2026 00:00:00 +0900
-Subject: [PATCH 13/13] =?UTF-8?q?fix(style):=20=EC=8A=A4=ED=83=80=EC=9D=BC?=
- =?UTF-8?q?=20=EA=B1=B8=EA=B8=B0=C2=B7=EA=B3=A0=EC=B9=98=EA=B8=B0=EB=A5=BC?=
- =?UTF-8?q?=20=EC=86=8D=EC=84=B1=EB=A7=88=EB=8B=A4=20=EB=A7=9E=EC=B6=94?=
- =?UTF-8?q?=EA=B3=A0=20=EB=AA=A8=EB=93=A0=20=EB=AC=B8=EB=8B=A8=EC=97=90=20?=
- =?UTF-8?q?=ED=8D=BC=EB=9C=A8=EB=A6=B0=EB=8B=A4?=
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
-
-한컴 한글 2024 와 같게 한다.
-
-- 스타일을 걸 때 직접 서식이 있는 문단은 옛 스타일과 다른 속성만 남기고 나머지는
-  새 스타일을 따른다. 종전엔 문단 모양을 통째로 남겼다. 글자 모양도 같은 규칙이고,
-  글자 스타일을 건 글자는 그대로 둔다.
-- 스타일을 고치면 표(겹친 표 포함)·글상자·머리말·꼬리말·각주의 문단까지 같은
-  규칙으로 바꾼다. 종전엔 본문과 바깥 표 칸 문단 가운데 문단 모양이 스타일과 똑같은
-  것만 바꿨다.
-- 글자 스타일을 고치면 그 글자 모양을 쓰는 글자가 따라 바뀐다. 다른 스타일과 글자
-  모양을 나눠 쓰는 글자 스타일은 가릴 수 없어 그대로 둔다.
----
- src/document_core/commands/formatting.rs | 262 +++++++++++++++++++++--
- src/model/document.rs                    |  75 +++++++
- src/model/paragraph.rs                   |  26 +++
- src/model/style.rs                       | 124 +++++++++++
- src/wasm_api.rs                          |  86 +-------
- src/wasm_api/tests.rs                    | 163 ++++++++++++++
- 6 files changed, 631 insertions(+), 105 deletions(-)
-
 diff --git a/src/document_core/commands/formatting.rs b/src/document_core/commands/formatting.rs
-index 95cce1d58..33a3f2788 100644
+index bd2b7a130db4adbcd6ce7d8fb2ca2d14e5bb1307..bdd480935fe2ac96d0ec3746514065622d31ded8 100644
 --- a/src/document_core/commands/formatting.rs
 +++ b/src/document_core/commands/formatting.rs
-@@ -1993,6 +1993,194 @@ impl DocumentCore {
+@@ -2235,6 +2235,218 @@ impl DocumentCore {
          base_psid
      }
  
@@ -142,6 +111,26 @@ index 95cce1d58..33a3f2788 100644
 +        };
 +
 +        // 2. 문단에 건다.
++        // Preserve stored cell fragment origins before changing paragraph shapes.
++        let mut cell_origins = Vec::new();
++        if !char_style {
++            for (si, section) in self.document.sections.iter().enumerate() {
++                for (pi, para) in section.paragraphs.iter().enumerate() {
++                    let mut found = Vec::new();
++                    cell_paragraphs(&para.controls, &mut Vec::new(), &|p| p.style_id == sid, &mut found);
++                    for (path, _) in found {
++                        if let Ok(p) = self.resolve_paragraph_by_path(si, pi, &path) {
++                            if let Some(&new_id) = para_ids.get(&p.para_shape_id) {
++                                cell_origins.push((si, pi, path, p.para_shape_id, new_id));
++                            }
++                        }
++                    }
++                }
++            }
++            for (si, pi, path, old_id, new_id) in &cell_origins {
++                let _ = self.restamp_cell_format_origin_by_path(*si, *pi, path, *old_id, *new_id);
++            }
++        }
 +        let doc_info = &self.document.doc_info;
 +        let indent = |id: u16| {
 +            doc_info
@@ -213,6 +202,10 @@ index 95cce1d58..33a3f2788 100644
 +            self.reflow_body_paragraph(si, pi);
 +        }
 +        for (si, pi, path, k) in cells {
++            if let Ok(p) = self.get_cell_paragraph_mut_by_path(si, pi, &path) {
++                p.cell_format_vpos_dirty = true;
++                self.pending_cell_format_vpos = true;
++            }
 +            self.reflow_cell_paragraph_by_path(si, pi, &path, k);
 +            self.mark_cell_control_dirty(si, pi, path[0].0);
 +        }
@@ -228,7 +221,7 @@ index 95cce1d58..33a3f2788 100644
      /// 본문 문단의 LineSeg를 현재 CharShape/ParaShape 기준으로 다시 계산한다.
      pub(crate) fn reflow_body_paragraph(&mut self, sec_idx: usize, para_idx: usize) {
          let para_shape_id = match self
-@@ -2135,10 +2323,25 @@ impl DocumentCore {
+@@ -2381,10 +2593,25 @@ impl DocumentCore {
              return Ok("{\"ok\":true}".to_string());
          }
  
@@ -258,7 +251,7 @@ index 95cce1d58..33a3f2788 100644
  
          let para = self
              .document
-@@ -2151,13 +2354,11 @@ impl DocumentCore {
+@@ -2397,13 +2624,11 @@ impl DocumentCore {
  
          para.style_id = style_id as u8;
          para.para_shape_id = new_para_shape_id;
@@ -277,44 +270,26 @@ index 95cce1d58..33a3f2788 100644
          }
  
          self.reflow_body_paragraph(sec_idx, para_idx);
-@@ -2239,11 +2440,30 @@ impl DocumentCore {
-             return Ok("{\"ok\":true}".to_string());
+@@ -2488,10 +2713,15 @@ impl DocumentCore {
          }
  
--        let new_para_shape_id = match old_style.as_ref() {
+         let new_para_shape_id = match old_style.as_ref() {
 -            Some(old) if current_psid != old.para_shape_id => current_psid,
--            _ => self.resolve_style_para_shape_id(style_id, current_psid),
--        };
-+        // [ieum] 직접 서식이 있는 문단도 속성마다 새 스타일을 따르고, 직접 정한 속성만 남긴다
-+        // (한컴 방식). 종전엔 문단 모양을 통째로 남겨 새 스타일의 여백·간격이 하나도 안 들어갔다.
-+        let new_para_shape_id =
-+            match old_style.as_ref() {
-+                Some(old) if current_psid != old.para_shape_id => self
-+                    .document
-+                    .restyled_para_shape_id(current_psid, old.para_shape_id, style.para_shape_id),
-+                _ => self.resolve_style_para_shape_id(style_id, current_psid),
-+            };
++            Some(old) if current_psid != old.para_shape_id => self.document
++                .restyled_para_shape_id(current_psid, old.para_shape_id, style.para_shape_id),
+             _ => self.resolve_style_para_shape_id(style_id, current_psid),
+         };
          let (old_indent, new_indent) = self.para_shape_indents(current_psid, new_para_shape_id);
-+        let runs: Vec<u32> = self
-+            .get_cell_paragraph_ref(
-+                sec_idx,
-+                parent_para_idx,
-+                control_idx,
-+                cell_idx,
-+                cell_para_idx,
-+            )
-+            .map(|p| p.char_shapes.iter().map(|r| r.char_shape_id).collect())
-+            .unwrap_or_default();
-+        let char_ids = old_style.as_ref().map(|old| {
-+            self.document
-+                .restyled_char_shape_ids(runs, old.char_shape_id as u32, new_char_shape_id)
-+        });
- 
-         {
-             let cell_para = self.get_cell_paragraph_mut(
-@@ -2256,13 +2476,11 @@ impl DocumentCore {
-             cell_para.style_id = style_id as u8;
++        let runs: Vec<u32> = self.get_cell_paragraph_ref(sec_idx, parent_para_idx, control_idx, cell_idx, cell_para_idx)
++            .map(|p| p.char_shapes.iter().map(|r| r.char_shape_id).collect()).unwrap_or_default();
++        let char_ids = old_style.as_ref().map(|old| self.document
++            .restyled_char_shape_ids(runs, old.char_shape_id as u32, new_char_shape_id));
+         self.restamp_cell_format_origin(
+             (
+                 sec_idx,
+@@ -2516,13 +2746,9 @@ impl DocumentCore {
              cell_para.para_shape_id = new_para_shape_id;
+             cell_para.cell_format_vpos_dirty = true;
              restamp_indentation(&mut cell_para.line_segs, old_indent, new_indent);
 -            if let Some(old) = old_style {
 -                cell_para.replace_style_char_shape_preserving_overrides(
@@ -324,18 +299,16 @@ index 95cce1d58..33a3f2788 100644
 -            } else {
 -                cell_para.set_single_char_shape(new_char_shape_id);
 +            match char_ids {
-+                Some(ids) => {
-+                    cell_para.remap_char_shapes(&ids, new_char_shape_id);
-+                }
++                Some(ids) => { cell_para.remap_char_shapes(&ids, new_char_shape_id); }
 +                None => cell_para.set_single_char_shape(new_char_shape_id),
              }
          }
  
 diff --git a/src/model/document.rs b/src/model/document.rs
-index a83677f76..9ef723925 100644
+index 587a2337236a86299eb5190c58c5688ec4e0106e..9c2b319d9a721b866a05985aa0d0462f4988b896 100644
 --- a/src/model/document.rs
 +++ b/src/model/document.rs
-@@ -632,6 +632,81 @@ impl Document {
+@@ -754,6 +754,81 @@ impl Document {
          new_id
      }
  
@@ -418,10 +391,10 @@ index a83677f76..9ef723925 100644
      pub fn find_or_create_tab_def(&mut self, new_td: super::style::TabDef) -> u16 {
          // 동일한 TabDef가 이미 있는지 검색
 diff --git a/src/model/paragraph.rs b/src/model/paragraph.rs
-index 601e696c5..823dba631 100644
+index 743cfd6d6abf869df6f8c001fa42f84cc90bff16..c8444900df4b96bfbbb263c0b21e6d9ad4291680 100644
 --- a/src/model/paragraph.rs
 +++ b/src/model/paragraph.rs
-@@ -2704,6 +2704,32 @@ impl Paragraph {
+@@ -3907,6 +3907,32 @@ impl Paragraph {
          }
      }
  
@@ -455,10 +428,10 @@ index 601e696c5..823dba631 100644
      pub fn apply_char_shape_to_entire_text(&mut self, char_shape_id: u32) {
          let text_len = self.text.chars().count();
 diff --git a/src/model/style.rs b/src/model/style.rs
-index cf7344f1e..72c765c92 100644
+index ca1e5e29aa6621599e3ac50dde3bd64c7538980b..8a38108c7e86b6e98cdf43f45b947c2ca1a14f5a 100644
 --- a/src/model/style.rs
 +++ b/src/model/style.rs
-@@ -1171,6 +1171,130 @@ impl ParaShapeMods {
+@@ -1224,6 +1224,130 @@ impl ParaShapeMods {
      }
  }
  
@@ -511,7 +484,7 @@ index cf7344f1e..72c765c92 100644
 +        out.raw_data = None;
 +        keep_own_each!(out, current, old; font_ids, ratios, spacings, relative_sizes, char_offsets);
 +        keep_own!(out, current, old;
-+            base_size, italic, bold, underline_type, outline_type, shadow_type,
++            text_paint, base_size, italic, bold, underline_type, outline_type, shadow_type,
 +            shadow_offset_x, shadow_offset_y, text_color, underline_color, shade_color,
 +            shadow_color, border_fill_id, strike_color, strikethrough, emboss, engrave,
 +            emphasis_dot, underline_shape, strike_shape, kerning, use_font_space);
@@ -589,11 +562,33 @@ index cf7344f1e..72c765c92 100644
  #[cfg(test)]
  mod tests {
      use super::*;
+@@ -1320,6 +1444,21 @@ mod tests {
+         assert_eq!(cs.text_color, 0);
+     }
+ 
++    #[test]
++    fn style_merge_preserves_direct_text_paint() {
++        let old = CharShape::default();
++        let mut new = old.clone();
++        new.base_size = 1600;
++        let mut current = old.clone();
++        current.text_paint = Some(crate::model::text_paint::TextPaint {
++            fill: true, width_mpt: 500, stroke_color: 0, fill_alpha: 255,
++            stroke_alpha: 255, line_join: 0, miter_limit_milli: 1000,
++        });
++        let merged = current.restyled(&old, &new);
++        assert_eq!(merged.text_paint, current.text_paint);
++        assert_eq!(merged.base_size, 1600);
++    }
++
+     #[test]
+     fn test_alignment_variants() {
+         assert_eq!(Alignment::default(), Alignment::Justify);
 diff --git a/src/wasm_api.rs b/src/wasm_api.rs
-index 059f72c8e..6631e51ce 100644
+index 7793c6a1eb56f342d2233ea3d795c04a52d6eee8..6436d2ee22bc9cc335a3d8271a013a7e7305f43b 100644
 --- a/src/wasm_api.rs
 +++ b/src/wasm_api.rs
-@@ -7370,7 +7370,6 @@ impl HwpDocument {
+@@ -8137,7 +8137,6 @@ impl HwpDocument {
          };
          let old_csid = style.char_shape_id as u32;
          let old_psid = style.para_shape_id;
@@ -601,7 +596,7 @@ index 059f72c8e..6631e51ce 100644
  
          // CharShape 수정
          if !char_mods_json.is_empty() && char_mods_json != "{}" {
-@@ -7411,88 +7410,9 @@ impl HwpDocument {
+@@ -8202,88 +8201,9 @@ impl HwpDocument {
          self.core.document.doc_info.styles[style_id as usize].raw_data = None;
          self.core.document.doc_info.raw_stream_dirty = true;
  
@@ -694,10 +689,10 @@ index 059f72c8e..6631e51ce 100644
          // 스타일 캐시 무효화 + 전체 리빌드
          let num_sections = self.core.document.sections.len();
 diff --git a/src/wasm_api/tests.rs b/src/wasm_api/tests.rs
-index a1c0f32fe..1ee4bd173 100644
+index e9e82431b7199f98c0af101b5e63308b631425a8..2907a2d0699031553c3ecb5ba7be69b6863f764f 100644
 --- a/src/wasm_api/tests.rs
 +++ b/src/wasm_api/tests.rs
-@@ -28124,3 +28124,166 @@ fn issue_4576_rebuild_derived_state_recomputes_composition_and_pagination() {
+@@ -26876,3 +26876,229 @@ fn issue_4576_rebuild_derived_state_recomputes_composition_and_pagination() {
          "페이지 트리가 기준선과 같아야 한다 (옛 코드 잔재 없음)"
      );
  }
@@ -710,7 +705,7 @@ index a1c0f32fe..1ee4bd173 100644
 +    use crate::model::style::{Alignment, ParaShapeMods};
 +
 +    pub(super) fn table_para(doc: &HwpDocument) -> usize {
-+        doc.document.sections[0]
++        doc.core.document.sections[0]
 +            .paragraphs
 +            .iter()
 +            .position(|p| p.controls.iter().any(|c| matches!(c, Control::Table(_))))
@@ -718,7 +713,7 @@ index a1c0f32fe..1ee4bd173 100644
 +    }
 +
 +    pub(super) fn table(doc: &mut HwpDocument, para: usize) -> &mut crate::model::table::Table {
-+        doc.document.sections[0].paragraphs[para]
++        doc.core.document.sections[0].paragraphs[para]
 +            .controls
 +            .iter_mut()
 +            .find_map(|c| match c {
@@ -729,7 +724,7 @@ index a1c0f32fe..1ee4bd173 100644
 +    }
 +
 +    pub(super) fn centered(doc: &mut HwpDocument, base: u16) -> u16 {
-+        doc.document.find_or_create_para_shape(
++        doc.core.document.find_or_create_para_shape(
 +            base,
 +            &ParaShapeMods {
 +                alignment: Some(Alignment::Center),
@@ -766,9 +761,9 @@ index a1c0f32fe..1ee4bd173 100644
 +
 +    doc.apply_style_native(0, 0, wide as usize).unwrap();
 +
-+    let info = &doc.document.doc_info;
++    let info = &doc.core.document.doc_info;
 +    let style = &info.styles[wide as usize];
-+    let para = &doc.document.sections[0].paragraphs[0];
++    let para = &doc.core.document.sections[0].paragraphs[0];
 +    let ps = &info.para_shapes[para.para_shape_id as usize];
 +    let style_ps = &info.para_shapes[style.para_shape_id as usize];
 +    assert_eq!(ps.alignment, Alignment::Center, "직접 정한 정렬은 남는다");
@@ -802,7 +797,7 @@ index a1c0f32fe..1ee4bd173 100644
 +    doc.create_blank_document_native().unwrap();
 +    doc.create_table_native(0, 0, 0, 2, 2).expect("표 삽입");
 +    let tp = restyle::table_para(&doc);
-+    let control = doc.document.sections[0].paragraphs[tp]
++    let control = doc.core.document.sections[0].paragraphs[tp]
 +        .controls
 +        .iter()
 +        .position(|c| matches!(c, crate::model::control::Control::Table(_)))
@@ -812,8 +807,8 @@ index a1c0f32fe..1ee4bd173 100644
 +    let emph = doc.create_style(r#"{"name":"강조","type":1}"#) as u32;
 +    assert!(doc.update_style_shapes(emph, r#"{"bold":true}"#, ""));
 +
-+    let base = doc.document.doc_info.styles[0].clone();
-+    let emph_cs = doc.document.doc_info.styles[emph as usize].char_shape_id as u32;
++    let base = doc.core.document.doc_info.styles[0].clone();
++    let emph_cs = doc.core.document.doc_info.styles[emph as usize].char_shape_id as u32;
 +    assert_ne!(emph_cs, base.char_shape_id as u32);
 +    let own = restyle::centered(&mut doc, base.para_shape_id);
 +    {
@@ -830,8 +825,8 @@ index a1c0f32fe..1ee4bd173 100644
 +
 +    assert!(doc.update_style_shapes(0, r#"{"fontSize":1600}"#, r#"{"marginLeft":6000}"#));
 +
-+    let edited = doc.document.doc_info.styles[0].clone();
-+    let info = doc.document.doc_info.clone();
++    let edited = doc.core.document.doc_info.styles[0].clone();
++    let info = doc.core.document.doc_info.clone();
 +    let table = restyle::table(&mut doc, tp).clone();
 +    let nested = match &table.cells[0].paragraphs[0].controls[0] {
 +        crate::model::control::Control::Table(t) => t.cells[0].paragraphs[0].clone(),
@@ -857,10 +852,73 @@ index a1c0f32fe..1ee4bd173 100644
 +    assert_eq!(mixed[1].char_shape_id, emph_cs, "글자 스타일 글자는 그대로");
 +
 +    assert!(doc.update_style_shapes(emph, r#"{"italic":true}"#, ""));
-+    let emph_now = doc.document.doc_info.styles[emph as usize].char_shape_id as u32;
++    let emph_now = doc.core.document.doc_info.styles[emph as usize].char_shape_id as u32;
 +    let table = restyle::table(&mut doc, tp).clone();
 +    let run = table.cells[2].paragraphs[0].char_shapes[1].char_shape_id;
 +    assert_eq!(run, emph_now, "글자 스타일을 고치면 그 글자도 바뀐다");
-+    let cs = &doc.document.doc_info.char_shapes[run as usize];
++    let cs = &doc.core.document.doc_info.char_shapes[run as usize];
 +    assert!(cs.bold && cs.italic);
++}
++
++#[test]
++fn style_update_and_apply_merge_cell_and_body_attributes() {
++    use crate::model::style::{Alignment, ParaShapeMods};
++    let mut doc = HwpDocument::create_empty();
++    doc.create_blank_document_native().unwrap();
++    doc.insert_text_native(0, 0, 0, "body").unwrap();
++    doc.create_table_native(0, 0, 4, 1, 1).unwrap();
++    let tp = restyle::table_para(&doc);
++    let control = doc.core.document.sections[0].paragraphs[tp].controls.iter()
++        .position(|c| matches!(c, crate::model::control::Control::Table(_))).unwrap();
++    let style = doc.create_style(r#"{"name":"test","type":0}"#) as usize;
++    doc.apply_style_native(0, 0, style).unwrap();
++    doc.apply_cell_style_native(0, tp, control, 0, 0, style).unwrap();
++    let base = doc.core.document.doc_info.styles[style].para_shape_id;
++    let own = doc.core.document.find_or_create_para_shape(base, &ParaShapeMods {
++        indent: Some(1500), ..Default::default()
++    });
++    doc.core.document.sections[0].paragraphs[0].para_shape_id = own;
++    restyle::table(&mut doc, tp).cells[0].paragraphs[0].para_shape_id = own;
++    assert!(doc.update_style_shapes(style as u32, "", r#"{"alignment":"right"}"#));
++    let body_id = doc.core.document.sections[0].paragraphs[0].para_shape_id;
++    let cell_id = restyle::table(&mut doc, tp).cells[0].paragraphs[0].para_shape_id;
++    for id in [body_id, cell_id] {
++        let shape = &doc.core.document.doc_info.para_shapes[id as usize];
++        assert_eq!(shape.indent, 1500);
++        assert_eq!(shape.alignment, Alignment::Right);
++    }
++    let next = doc.create_style(r#"{"name":"next","type":0}"#) as usize;
++    assert!(doc.update_style_shapes(next as u32, "", r#"{"alignment":"center"}"#));
++    doc.apply_cell_style_native(0, tp, control, 0, 0, next).unwrap();
++    let cell_id = restyle::table(&mut doc, tp).cells[0].paragraphs[0].para_shape_id;
++    let shape = &doc.core.document.doc_info.para_shapes[cell_id as usize];
++    assert_eq!(shape.indent, 1500);
++    assert_eq!(shape.alignment, Alignment::Center);
++}
++
++#[test]
++fn style_update_reaches_headers_and_footers() {
++    use crate::model::control::Control;
++    use crate::model::style::Alignment;
++    let mut doc = HwpDocument::create_empty();
++    doc.create_blank_document_native().unwrap();
++    doc.create_header_footer_native(0, true, 0).unwrap();
++    doc.create_header_footer_native(0, false, 0).unwrap();
++    assert!(doc.update_style_shapes(0, "", r#"{"alignment":"right"}"#));
++    let info = &doc.core.document.doc_info;
++    let mut count = 0;
++    for para in &doc.core.document.sections[0].paragraphs {
++        for ctrl in &para.controls {
++            let paragraphs = match ctrl {
++                Control::Header(h) => &h.paragraphs,
++                Control::Footer(f) => &f.paragraphs,
++                _ => continue,
++            };
++            for p in paragraphs {
++                assert_eq!(info.para_shapes[p.para_shape_id as usize].alignment, Alignment::Right);
++                count += 1;
++            }
++        }
++    }
++    assert_eq!(count, 2);
 +}

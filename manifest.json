@@ -1,7 +1,7 @@
 {
   "id": "hwp-hands",
   "name": "HWP Hands",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "minAppVersion": "1.5.0",
   "description": "Open and edit HWP and HWPX documents locally with a bundled RHWP engine, and expose a versioned document API to other plugins.",
   "author": "everydaymind",

@@ -58,7 +58,7 @@ API는 편집기와 같은 문서 세션을 쓰므로 사람과 다른 플러그
 
 - **파일:** Vault에서 연 HWP/HWPX 문서를 읽고 쓰며, 검색 인덱스를 켜면 `.index.md` 파일을 씁니다. 백업, 복구 기록, 저장하지 않은 입력 초안은 플러그인 폴더에 둡니다.
 - **네트워크:** 쓰지 않습니다. 네트워크 요청을 하지 않고 원격 코드를 내려받거나 실행하지 않습니다.
-- **내장 엔진:** `main.js`에 RHWP WebAssembly 엔진과 워커가 들어 있습니다. 엔진은 RHWP 0.8.7에 로컬 패치를 더해 빌드했으며, 출처·패치·빌드 방법은 [vendor/rhwp-core/UPSTREAM.md](vendor/rhwp-core/UPSTREAM.md)에 있습니다. 엔진을 시작하기 전에 SHA-256을 확인합니다.
+- **내장 엔진:** `main.js`에 RHWP WebAssembly 엔진과 워커가 들어 있습니다. 엔진은 RHWP 0.9.0에 로컬 패치를 더해 빌드했으며, 출처·패치·빌드 방법은 [vendor/rhwp-core/UPSTREAM.md](vendor/rhwp-core/UPSTREAM.md)에 있습니다. 엔진을 시작하기 전에 SHA-256을 확인합니다.
 
 ## 라이선스
 
