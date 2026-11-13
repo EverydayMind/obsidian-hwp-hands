@@ -67,6 +67,7 @@ const MAX_OBSERVATIONS = 256, MAX_COMMANDS = 500, MAX_CANDIDATES = 5, SNIPPET_RA
 export const addressKey = (address: BodyAddress): string => JSON.stringify([address.section, address.paragraph, address.cellPath ?? []]);
 const conversationOf = (caller: Caller): string => JSON.stringify([caller.pluginId, caller.conversationId]);
 export const PREVIEW_CHARS = 200;
+const OBSERVED_RETRY_SUGGESTION = '아직 적용되지 않았다. 같은 인자로 같은 도구를 다시 호출하면 적용된다. 그 사이 다른 편집을 했다면 다시 읽고 새 핸들로 호출하라.';
 export const clip = (value: string): string => { const points = Array.from(value); return points.length > PREVIEW_CHARS ? `${points.slice(0, PREVIEW_CHARS).join('')}…` : value; };
 /** Where a supplied expectedText departs from a paragraph the model has fully read. A soft line break at the end of a
  * paragraph reads as an empty line and edge spaces are hard to count, so the exact current text is returned as JSON
@@ -156,6 +157,8 @@ type Receipter = (applied: 'yes' | 'no' | 'unknown', extra?: JsonObject) => Json
 type Fail = (code: string, message: string, retryable: boolean, extra?: JsonObject, meta?: JsonObject) => never;
 type CallerContext = EditContext & { caller: Caller };
 type Change = { handle: string; before: string; after: string };
+type NextRole = 'inserted' | 'changed' | 'before' | 'after' | 'table';
+type NextHandle = { handle: string; text: string; role: NextRole };
 interface Logged { sessionId: string; revision: number; tool: string; summary: string }
 // eslint-disable-next-line no-control-regex -- HWP text validation rejects control characters.
 const control = (value: unknown): boolean => typeof value !== 'string' || /[\u0000-\u001f\u007f]/.test(value);
@@ -428,8 +431,8 @@ export class AgentEdits {
     const unseen = found.filter(match => !shown.get(addressKey(match.paragraph.address))?.has(match.paragraph.text));
     if (unseen.length) {
       const list = unseen.slice(0, MAX_CANDIDATES);
-      return fail('OBSERVATION_REQUIRED', '바꾸려는 문단의 지금 내용을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
-        { candidates: candidates(list) }, shownMeta(list));
+      return fail('OBSERVATION_REQUIRED', '아직 적용되지 않았다. 바꾸려는 문단의 지금 내용을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
+        { candidates: candidates(list), suggestion: OBSERVED_RETRY_SUGGESTION }, shownMeta(list));
     }
     const needleLength = Array.from(find).length;
     const edits = found.map(match => {
@@ -545,8 +548,8 @@ export class AgentEdits {
       const clipped = blocks.filter(block => Array.from(block.text).length > PREVIEW_CHARS * 5);
       return fail('OBSERVATION_REQUIRED', clipped.length
         ? '고치려는 문단을 전부 확인하지 않았다. read_document로 그 문단을 읽은 뒤 다시 요청하라.'
-        : '고치려는 문단의 지금 내용 전체를 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
-        { blocks: blocks.filter(block => !clipped.includes(block)).map(block => ({ handle: block.handle, text: block.text })) },
+        : '아직 적용되지 않았다. 고치려는 문단의 지금 내용 전체를 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
+        { blocks: blocks.filter(block => !clipped.includes(block)).map(block => ({ handle: block.handle, text: block.text })), ...(!clipped.length ? { suggestion: OBSERVED_RETRY_SUGGESTION } : {}) },
         this.observations.record(ctx.caller, epoch, blocks.filter(block => !clipped.includes(block))));
     }
     const expectedTextLeadingSpaceAdjusted: Array<{ handle: string; expected: number; current: number }> = [];
@@ -669,20 +672,95 @@ export class AgentEdits {
     ], structural.length ? { section: section, changes: moves } : undefined);
     else this.env.marks?.clear(epoch.path);
     let observed: JsonObject = {};
+    let continuation: Awaited<ReturnType<AgentEdits['nextHandles']>>;
     if (structural.length) this.env.expire(epoch.path); // Paragraph numbers moved: every handle and observation of this document is stale.
     else {
       this.env.advance(epoch, applied.revision);
       this.observations.advance(epoch, state.revision, applied.revision);
       observed = this.observations.record(ctx.caller, epoch, sets.map(item => ({ handle: item.target, address: item.paragraph.address, text: item.text!, full: Array.from(item.text!).length <= PREVIEW_CHARS })));
     }
+    if (structural.length && !source) {
+      const changesFor = (address: BodyAddress) => structural.filter(item => address.section === item.paragraph.address.section
+        && containerOf(address) === containerOf(item.paragraph.address)).map(item => ({ action: item.action as 'insert_after' | 'insert_before' | 'delete', index: orderOf(item.paragraph.address), count: item.lines?.length ?? 1 }));
+      const relocated = (address: BodyAddress): BodyAddress | undefined => {
+        const rootMoves = structural.filter(item => !item.paragraph.address.cellPath?.length && item.paragraph.address.section === address.section)
+          .map(item => ({ action: item.action as 'insert_after' | 'insert_before' | 'delete', index: item.paragraph.address.paragraph, count: item.lines?.length ?? 1 }));
+        const paragraph = shiftedParagraph(address.paragraph, rootMoves);
+        if (paragraph === undefined) return undefined;
+        const moved = { ...structuredClone(address), paragraph };
+        if (address.cellPath?.length) {
+          const index = shiftedParagraph(orderOf(address), changesFor(address));
+          if (index === undefined) return undefined;
+          moved.cellPath!.at(-1)!.cellParaIndex = index;
+        }
+        return moved;
+      };
+      const selected = new Map<string, NextRole>();
+      const select = (address: BodyAddress | undefined, role: NextRole) => { if (address) selected.set(addressKey(address), role); };
+      for (const item of [...sets, ...styled]) select(relocated(item.paragraph.address), 'changed');
+      for (const item of structural) {
+        const address = item.paragraph.address, anchor = relocated(address);
+        if (item.action === 'delete') {
+          const siblings = all.filter(p => p.address.section === address.section && containerOf(p.address) === containerOf(address));
+          const at = siblings.findIndex(p => addressKey(p.address) === addressKey(address));
+          for (const [step, role] of [[-1, 'before'], [1, 'after']] as const) {
+            for (let i = at + step; i >= 0 && i < siblings.length; i += step) {
+              const survivor = relocated(siblings[i].address);
+              if (survivor) { if (!selected.has(addressKey(survivor))) select(survivor, role); break; }
+            }
+          }
+        } else if (anchor) for (let offset = 0; offset < item.lines!.length; offset++) {
+          const added = structuredClone(anchor), index = orderOf(anchor) + (item.action === 'insert_after' ? 1 : -item.lines!.length) + offset;
+          if (added.cellPath?.length) added.cellPath.at(-1)!.cellParaIndex = index;
+          else added.paragraph = index;
+          select(added, 'inserted');
+        }
+      }
+      continuation = await this.nextHandles(ctx, epoch.path, applied, selected, true);
+      observed = continuation?.observed ?? {};
+    }
     const pages = applied.changedPages.map(page => page + 1);
     return {
-      content: [{ type: 'text', text: `문단 ${sets.length}개 고침, ${inserted}개 넣음, ${deleted}개 지움.${styled.length ? ` ${styled.length}개에 스타일 지정.` : ''}${structural.length ? ' 문단 번호가 바뀌었으니 계속 편집하려면 문서를 다시 읽어라.' : ''}` }],
-      structuredContent: { ok: true, expectedTextLeadingSpaceAdjusted, changed: changed.slice(0, 20), inserted, deleted, changedPages: pages.slice(0, 50), undoAvailable: applied.canUndo, ...(structural.length ? { handlesExpired: true } : {}) },
+      content: [{ type: 'text', text: `문단 ${sets.length}개 고침, ${inserted}개 넣음, ${deleted}개 지움.${styled.length ? ` ${styled.length}개에 스타일 지정.` : ''}${structural.length ? continuation ? ' 핸들이 바뀌었다. 아래 새 핸들로 바로 이어서 편집할 수 있다. 다른 곳을 편집할 때만 다시 읽는다.' : ' 문단 번호가 바뀌었으니 계속 편집하려면 문서를 다시 읽어라.' : ''}${continuation ? this.nextLines(continuation.handles) : ''}` }],
+      structuredContent: { ok: true, expectedTextLeadingSpaceAdjusted, changed: changed.slice(0, 20), inserted, deleted, changedPages: pages.slice(0, 50), undoAvailable: applied.canUndo, ...(structural.length ? { handlesExpired: true } : {}), ...(continuation ? { next: { handles: continuation.handles } } : {}) },
       _meta: { ...receipt('yes', { revisionAfter: applied.revision, undo: { available: applied.canUndo, revision: applied.revision }, changedHandles: changed.map(item => item.handle), changedPages: pages.slice(0, 5000), operationId: operation }),
         'dev.agentinterop/changePreview': changed.slice(0, 50), ...observed },
     };
   }
+
+  /** Optional continuation: failure to read a stable post-edit snapshot must never undo a successful edit. */
+  private async nextHandles(ctx: CallerContext, path: string, applied: Receipt, selected: Map<string, NextRole>, neighbors = false): Promise<{ handles: NextHandle[]; observed: JsonObject } | undefined> {
+    try {
+      const { state, epoch } = await this.env.open(path, ctx.caller);
+      const stable = (current: Pick<State, 'sessionId' | 'revision'>) => current.sessionId === applied.sessionId && current.revision === applied.revision;
+      if (!stable(state)) return undefined;
+      const snapshot = { ...epoch };
+      const all = await this.env.api.query.paragraphs(path, { includeCells: true });
+      const handles = await this.env.handles(epoch, all);
+      const chosen = new Map(selected);
+      if (neighbors) {
+        const roots = all.filter(p => !p.address.cellPath?.length);
+        const affected = new Set(all.filter(p => ['inserted', 'changed'].includes(selected.get(addressKey(p.address)) ?? '')).map(p => `${p.address.section}:${p.address.paragraph}`));
+        for (let i = 0; i < roots.length; i++) if (affected.has(`${roots[i].address.section}:${roots[i].address.paragraph}`)) {
+          for (const [index, role] of [[i - 1, 'before'], [i + 1, 'after']] as const) {
+            const neighbor = roots[index];
+            if (neighbor && !affected.has(`${neighbor.address.section}:${neighbor.address.paragraph}`) && !chosen.has(addressKey(neighbor.address))) chosen.set(addressKey(neighbor.address), role);
+          }
+        }
+      }
+      const shown = all.flatMap((paragraph, i) => {
+        const role = chosen.get(addressKey(paragraph.address));
+        return role ? [{ ...paragraph, handle: handles[i], role }] : [];
+      }).slice(0, 12);
+      const current = await this.env.open(path, ctx.caller);
+      if (!stable(current.state) || current.epoch.id !== snapshot.id || epoch.revision !== snapshot.revision) return undefined;
+      if (!shown.length) return undefined;
+      return { handles: shown.map(p => ({ handle: p.handle, text: clip(p.text), role: p.role })),
+        observed: this.observations.record(ctx.caller, epoch, shown.filter(p => Array.from(p.text).length <= PREVIEW_CHARS).map(p => ({ handle: p.handle, address: p.address, text: p.text }))) };
+    } catch { return undefined; }
+  }
+
+  private nextLines(handles: NextHandle[]): string { return `\n${handles.map(item => `[${item.handle}] ${item.text}`).join('\n')}`; }
 
   private failer(receipt: Receipter, operation: string): Fail {
     return (code, message, retryable, extra = {}, meta = {}) => { throw new EditError(code, message, retryable, extra, { ...receipt('no', { operationId: operation }), ...meta }); };
@@ -1026,8 +1104,8 @@ export class AgentEdits {
     for (const item of guard ? resolved : []) if (!fieldOf(item).address || !guard!.whole(fieldOf(item).address!)) return await this.outside(guard!, epoch, fail, `누름틀 "${fieldOf(item).name}"은`);
     const shown = this.observations.shown(ctx.caller, ctx.observations, state);
     const unseen = resolved.filter(item => shown.get(item.key)?.get(fieldOf(item).value) !== true);
-    if (unseen.length) return fail('OBSERVATION_REQUIRED', '채우려는 누름틀의 지금 값을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
-      { fields: unseen.map(item => ({ field: item.name, value: fieldOf(item).value })) },
+    if (unseen.length) return fail('OBSERVATION_REQUIRED', '아직 적용되지 않았다. 채우려는 누름틀의 지금 값을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
+      { fields: unseen.map(item => ({ field: item.name, value: fieldOf(item).value })), suggestion: OBSERVED_RETRY_SUGGESTION },
       this.observations.record(ctx.caller, epoch, unseen.map(item => ({ handle: item.handle, key: item.key, text: fieldOf(item).value }))));
     const edits = resolved.filter(item => item.value !== fieldOf(item).value);
     if (!edits.length) return { content: [{ type: 'text', text: '누름틀이 이미 같은 값이다. 바꾼 것이 없다.' }], structuredContent: { ok: true, changed: [], undoAvailable: false }, _meta: receipt('no', { operationId: operation }) };
@@ -1069,8 +1147,8 @@ export class AgentEdits {
     if (anchor.address.cellPath?.length) return fail('UNSUPPORTED_TARGET', '표는 본문 문단 뒤에만 넣는다. 표 칸이나 글상자 안에는 넣지 않는다.', false, inputAt('after'));
     if (guard && !guard.insertion(anchor.address, false)) return await this.outside(guard, epoch, fail, `${after} 뒤는`);
     if (this.observations.shown(ctx.caller, ctx.observations, state).get(addressKey(anchor.address))?.get(anchor.text) === undefined)
-      return fail('OBSERVATION_REQUIRED', '표를 넣을 자리의 문단을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
-        { blocks: [{ handle: after, text: clip(anchor.text) }] }, this.observations.record(ctx.caller, epoch, [{ handle: after, address: anchor.address, text: anchor.text, full: Array.from(anchor.text).length <= PREVIEW_CHARS }]));
+      return fail('OBSERVATION_REQUIRED', '아직 적용되지 않았다. 표를 넣을 자리의 문단을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
+        { blocks: [{ handle: after, text: clip(anchor.text) }], suggestion: OBSERVED_RETRY_SUGGESTION }, this.observations.record(ctx.caller, epoch, [{ handle: after, address: anchor.address, text: anchor.text, full: Array.from(anchor.text).length <= PREVIEW_CHARS }]));
     const { section, paragraph: index } = anchor.address, at = index + 1, cells = rows as string[][];
     const table = { section, paragraph: at, control: 0 };
     // Where the engine puts a table depends on the paragraph it is created in. A new empty paragraph after the anchor makes it
@@ -1092,8 +1170,14 @@ export class AgentEdits {
       { structural: true, summary: `${cells.length}행×${width}열 표 넣음`, moved: { section, changes: [{ action: 'insert_after', index, count: added }] },
         marks: [{ address: { section, paragraph: at }, table: 0 }, ...(caption !== undefined ? [{ address: { section, paragraph: at + 1 } }] : [])] });
     guard?.restructured([{ action: 'insert_after', index, count: added }], applied.revision);
-    return { content: [{ type: 'text', text: `${after} 뒤에 ${cells.length}행×${width}열 표를 넣었다. 핸들이 바뀌었으니 계속 편집하려면 문서를 다시 읽어라.` }],
-      structuredContent: { ok: true, changed, rows: cells.length, cols: width, changedPages: pages.slice(0, 50), undoAvailable: applied.canUndo, handlesExpired: true }, _meta: meta };
+    const selected = new Map<string, NextRole>([
+      [addressKey({ kind: 'body', section, paragraph: at }), 'table'],
+      [addressKey({ kind: 'body', section, paragraph: at + 1 }), caption !== undefined ? 'inserted' : 'after'],
+      ...(caption !== undefined ? [[addressKey({ kind: 'body', section, paragraph: at + 2 }), 'after'] as [string, NextRole]] : []),
+    ]);
+    const continuation = await this.nextHandles(ctx, epoch.path, applied, selected);
+    return { content: [{ type: 'text', text: `${after} 뒤에 ${cells.length}행×${width}열 표를 넣었다.${continuation ? ' 핸들이 바뀌었다. 아래 새 핸들로 바로 이어서 편집할 수 있다. 다른 곳을 편집할 때만 다시 읽는다.' + this.nextLines(continuation.handles) : ' 핸들이 바뀌었으니 계속 편집하려면 문서를 다시 읽어라.'}` }],
+      structuredContent: { ok: true, changed, rows: cells.length, cols: width, changedPages: pages.slice(0, 50), undoAvailable: applied.canUndo, handlesExpired: true, ...(continuation ? { next: { handles: continuation.handles } } : {}) }, _meta: { ...meta, ...continuation?.observed } };
   }
 
   private async table(args: JsonObject, ctx: CallerContext, state: State, epoch: EditEpoch, receipt: Receipter, guard?: SelectionGuard): Promise<ToolResult> {
@@ -1122,8 +1206,11 @@ export class AgentEdits {
       const missing = cells.filter(cell => cell.paragraphs.some(paragraph => full ? seen(paragraph) !== true : seen(paragraph) === undefined));
       if (!missing.length) return;
       const list = blocks(missing).slice(0, MAX_CELLS);
-      fail('OBSERVATION_REQUIRED', '고치려는 표 칸의 지금 내용을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
-        { blocks: list.map(item => ({ handle: item.handle, text: clip(item.text) })) }, this.observations.record(ctx.caller, epoch, list.filter(item => Array.from(item.text).length <= PREVIEW_CHARS)));
+      const complete = list.every(item => Array.from(item.text).length <= PREVIEW_CHARS);
+      fail('OBSERVATION_REQUIRED', complete
+        ? '아직 적용되지 않았다. 고치려는 표 칸의 지금 내용을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.'
+        : '고치려는 표 칸의 지금 내용 일부를 아래에 보여 주었다. 긴 칸은 read_document(mode=table)로 끝까지 읽은 뒤 다시 호출하라.', true,
+        { blocks: list.map(item => ({ handle: item.handle, text: clip(item.text) })), ...(complete ? { suggestion: OBSERVED_RETRY_SUGGESTION } : {}) }, this.observations.record(ctx.caller, epoch, list.filter(item => Array.from(item.text).length <= PREVIEW_CHARS)));
     };
     const position = (value: unknown, limit: number, label: string): number => {
       if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > limit) return fail('INVALID_ARGUMENT', `${label}은 1부터 ${limit}까지의 정수다. 이 표는 ${table.rows}행×${table.cols}열이다.`, true,
@@ -1479,8 +1566,8 @@ export class AgentEdits {
     const seen = this.observations.shown(ctx.caller, ctx.observations, state).get(addressKey(found.address))?.get(found.text);
     if (find === undefined ? seen !== true : seen === undefined) {
       const long = Array.from(found.text).length > PREVIEW_CHARS * 5;
-      return fail('OBSERVATION_REQUIRED', long ? '서식을 바꾸려는 문단을 전부 확인하지 않았다. read_document로 그 문단을 읽은 뒤 다시 요청하라.' : '서식을 바꾸려는 문단의 지금 내용을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
-        long ? {} : { blocks: [{ handle, text: found.text }] }, long ? {} : this.observations.record(ctx.caller, epoch, [{ handle, address: found.address, text: found.text }]));
+      return fail('OBSERVATION_REQUIRED', long ? '서식을 바꾸려는 문단을 전부 확인하지 않았다. read_document로 그 문단을 읽은 뒤 다시 요청하라.' : '아직 적용되지 않았다. 서식을 바꾸려는 문단의 지금 내용을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', true,
+        long ? {} : { blocks: [{ handle, text: found.text }], suggestion: OBSERVED_RETRY_SUGGESTION }, long ? {} : this.observations.record(ctx.caller, epoch, [{ handle, address: found.address, text: found.text }]));
     }
     const address = target(found.address), commands: Command[] = [];
     if (style !== undefined) { commands.push({ type: 'setParagraphStyle', target: address, styleId: await this.styleId(epoch, style as string, fail, 'style') }); labels.unshift(`style=${style as string}`); }

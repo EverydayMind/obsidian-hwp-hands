@@ -425,6 +425,7 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
 
   async function read(args: JsonObject, ctx?: InvocationContext): Promise<ToolResult> {
     const { state, epoch } = await open(args.path, ctx?.caller);
+    if ((args.mode === undefined || args.mode === 'blocks') && args.target !== undefined) throw new ToolError('INVALID_ARGUMENT', 'blocks 모드는 target을 받지 않는다. 처음부터 cursor로 이어 읽거나 find_text로 위치를 찾아라.', true, epoch, inputAt('target'));
     if (args.layoutSummary === true && (args.mode !== 'layout' || args.target !== undefined)) throw new ToolError('INVALID_ARGUMENT', 'layoutSummary는 target 없는 layout 모드에서만 사용한다.', true, epoch, inputAt('layoutSummary'));
     if (args.mode === 'sections') {
       const snapshot = { ...epoch }, offset = resumed(args.cursor, 'sections', snapshot, 'sections');

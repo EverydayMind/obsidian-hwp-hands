@@ -20,7 +20,7 @@ export const DESCRIPTOR_TOOLS: JsonObject[] = [
         path: PATH,
         mode: { type: 'string', enum: ['blocks', 'outline', 'formatting', 'quality', 'notes', 'styles', 'sections', 'layout', 'table'], description: '기본값 blocks. notes는 각주·미주, styles는 스타일, sections는 구역·쪽 설정과 머리말/꼬리말의 논리 텍스트·동적 필드를 읽는다. quality는 작성 점검, layout은 쪽 수·마지막 쪽 사용률이다. table은 target 표의 셀 텍스트를 cursor로 나누어 읽는다.' },
         placeholders: { type: 'array', minItems: 1, maxItems: 20, description: 'quality에서만. 남았는지 찾을 정확한 문자열(예: {{성명}}). 공백만 있는 문자열은 제외한다. 제목·일반 빈 문단은 결함으로 추정하지 않는다.', items: { type: 'string', minLength: 1, maxLength: 200 } },
-        target: { type: 'string', minLength: 1, maxLength: 128, description: 'formatting 또는 layout의 문단·셀 문단 핸들, table의 표 읽기용 핸들. layout은 해당 문단의 추정 줄 수를 반환한다.' },
+        target: { type: 'string', minLength: 1, maxLength: 128, description: 'formatting 또는 layout의 문단·셀 문단 핸들, table의 표 읽기용 핸들. blocks에서는 쓰지 않는다(특정 문단·쪽으로 건너뛸 수 없고 처음부터 cursor로 읽는다).' },
         layoutSummary: { type: 'boolean', description: 'layout 문단별 추정. target 불가, limit 최대 20, cursor로 이어 읽음.' },
         runOffset: { type: 'integer', minimum: 0, description: 'formatting 모드의 서식 구간 시작 번호. nextRunOffset으로 이어 읽는다.' },
         cursor: { type: 'string', minLength: 1, maxLength: 128, description: '앞선 결과가 준 cursor. 처음에는 생략한다.' },
@@ -49,7 +49,7 @@ const sessionMeta = (group = 'text', keywords = ['문구', '문단', '고쳐', '
 export const EDIT_TOOLS: JsonObject[] = [
   {
     name: 'apply_draft', title: '한글 문서 초안 채택',
-    description: 'host가 완성한 문단 초안에서 accept에 지정한 문단만 관측한 본문 target 앞이나 뒤에 넣는다. paragraphs는 초안 순서이며 accept는 1부터 센 문단 번호다. 지정 순서와 관계없이 초안 순서를 보존한다. preview:true로 실제 엔진에서 미리 볼 수 있다. 한 호출은 전부 적용되거나 복원되는 한 undo 단계이며 스트림을 작업본에 누적하지 않는다. 결과는 채택/남은 문단 번호와 revision, saved:false를 구분한다. 미채택 초안은 host가 보관한다. 취소는 host AbortSignal을 따르며 적용 후 취소는 undo_last_edit를 사용한다. 새 문서는 create_document로 만든 뒤 읽어 target을 얻는다. 반복 호출은 중복 삽입할 수 있으므로 성공 뒤 다시 읽고 남은 문단만 요청한다.',
+    description: '완성한 문단 초안에서 accept에 지정한 문단만 읽은 본문 문단 target(표 칸 불가) 앞이나 뒤에 넣는다. paragraphs는 초안 순서이며 accept는 1부터 센 문단 번호다. 지정 순서와 관계없이 초안 순서를 보존한다. preview:true로 실제 엔진에서 미리 볼 수 있다. 한 호출은 전부 적용되거나 전혀 적용되지 않는다. 결과는 채택/남은 문단 번호와 revision, saved:false를 구분한다. 적용 뒤 취소는 undo_last_edit를 쓴다. 반복 호출은 중복 삽입할 수 있으므로 성공 뒤 다시 읽고 남은 문단만 요청한다.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['path', 'target', 'position', 'paragraphs', 'accept'], properties: {
       path: PATH, target: { type: 'string', minLength: 1, maxLength: 128 },
       position: { type: 'string', enum: ['before', 'after'] },
@@ -59,7 +59,7 @@ export const EDIT_TOOLS: JsonObject[] = [
   },
   {
     name: 'update_section', title: '한글 문서 구역·쪽 설정',
-    description: '현재 구역 핸들 target 하나의 쪽 설정(page), 구역 정의(definition), 새 머리말/꼬리말(header) 중 하나만 변경한다. 파일에 저장하지 않는다. sections로 설정과 기존 동적 필드를, blocks로 해당 구역의 본문·표 전체를 먼저 읽어야 한다. 선택 턴은 그 구역의 본문 문단 전체가 선택되어야 한다. page의 모든 길이는 mm이며 HWP 단위로 변환한다. 생략한 설정과 다른 구역은 보존한다. header는 없는 적용 쪽 종류에만 템플릿을 새로 만든다. 기존 story 덮어쓰기·삭제·내부 텍스트 편집은 미지원이다. 성공 뒤 핸들을 다시 읽는다.',
+    description: '현재 구역 핸들 target 하나의 쪽 설정(page), 구역 정의(definition), 새 머리말/꼬리말(header) 중 하나만 변경한다. 파일에 저장하지 않는다. sections로 설정과 기존 동적 필드를, blocks로 해당 구역의 본문·표 전체를 먼저 읽어야 한다. 사용자가 범위를 선택해 보낸 요청은 그 구역의 본문 문단 전체가 선택되어야 한다. page의 모든 길이는 mm이며 HWP 단위로 변환한다. 생략한 설정과 다른 구역은 보존한다. header는 없는 적용 쪽 종류에만 템플릿을 새로 만든다. 기존 story 덮어쓰기·삭제·내부 텍스트 편집은 미지원이다. 성공하면 핸들이 모두 만료되므로 문서를 다시 읽는다.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['path', 'target'], properties: {
       path: PATH, target: { type: 'string', minLength: 1, maxLength: 128 },
       page: { type: 'object', additionalProperties: false, properties: {
@@ -82,7 +82,7 @@ export const EDIT_TOOLS: JsonObject[] = [
   },
   {
     name: 'edit_styles', title: '한글 문서 스타일 정의',
-    description: '문단 스타일을 새로 정의(create)하거나 관측한 정의만 패치(patch)한다. 파일에 저장하지 않는다. 적용은 format_text의 style로 한다. patch의 target은 read_document(mode=styles)가 준 핸들이다. 생략한 속성은 유지하고 fontLanguage로 한 언어 글꼴만 바꿀 수 있다. 같은 이름은 임의 선택하지 않는다. 정의는 문서 전체에 영향을 주므로 선택 턴에서는 거절한다. patch는 영향받는 모든 본문·표 문단을 먼저 전체 조회해야 한다. story·중첩 컨테이너의 스타일 사용 여부가 불명확하면 거절한다. 문자 스타일 정의/적용은 미지원이다.',
+    description: '문단 스타일을 새로 정의(create)하거나 관측한 정의만 패치(patch)한다. 파일에 저장하지 않는다. 적용은 format_text의 style로 한다. patch의 target은 read_document(mode=styles)가 준 핸들이다. 생략한 속성은 유지하고 fontLanguage로 한 언어 글꼴만 바꿀 수 있다. 같은 이름은 임의 선택하지 않는다. 정의는 문서 전체에 영향을 주므로 사용자가 범위를 선택해 보낸 요청에서는 거절한다. patch는 영향받는 모든 본문·표 문단을 먼저 전체 조회해야 한다. story·중첩 컨테이너의 스타일 사용 여부가 불명확하면 거절한다. 문자 스타일 정의/적용은 미지원이다.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['path', 'action'], properties: {
       path: PATH, action: { type: 'string', enum: ['create', 'patch'] },
       target: { type: 'string', minLength: 1, maxLength: 128 }, name: { type: 'string', minLength: 1, maxLength: 60 },
@@ -101,10 +101,10 @@ export const EDIT_TOOLS: JsonObject[] = [
   },
   {
     name: 'edit_notes', title: '한글 문서 각주·미주 편집',
-    description: '작업본에 빈 각주·미주를 넣거나 기존 각주·미주 문단 끝에 글을 추가한다. 파일에는 저장하지 않는다. insert는 전체를 읽은 본문 문단 target과 Unicode code point offset, kind가 필요하다. 삽입 뒤 notes를 다시 읽고 append로 내용을 채운다. append는 read_document(mode=notes)가 준 문단 핸들 target과 text를 받으며 그 각주 전체를 먼저 읽어야 한다. 기존 번호·구분자·본문은 다시 쓰지 않는다. 문자 서식은 조회/엄격 보존 미지원이며 추가 글은 native 삽입 서식을 따른다. 선택 턴에서는 본문 앵커 문단 전체가 선택되어야 한다. 중첩 앵커·기존 텍스트 치환·각주 삭제는 미지원이다. 성공 뒤 핸들은 만료되므로 다시 읽는다.',
+    description: '작업본에 빈 각주·미주를 넣거나 기존 각주·미주 문단 끝에 글을 추가한다. 파일에는 저장하지 않는다. insert는 전체를 읽은 본문 문단 target과 Unicode code point offset, kind가 필요하다. 삽입 뒤 notes를 다시 읽고 append로 내용을 채운다. append는 read_document(mode=notes)가 준 문단 핸들 target과 text를 받으며 그 각주 전체를 먼저 읽어야 한다. 기존 번호·구분자·본문은 다시 쓰지 않는다. 추가 글의 서식은 지정할 수 없다. 사용자가 범위를 선택해 보낸 요청에서는 본문 앵커 문단 전체가 선택되어야 한다. 이미 각주·누름틀·개체가 있는 문단과 표 칸 안에는 넣지 못한다. 기존 텍스트 치환·각주 삭제는 미지원이다. 성공 뒤 핸들은 만료되므로 다시 읽는다.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['path', 'action', 'target'], properties: {
       path: PATH, action: { type: 'string', enum: ['insert', 'append'] },
-      target: { type: 'string', minLength: 1, maxLength: 128, description: 'insert: 본문 문단 핸들. append: notes가 준 각주·미주 문단 핸들.' },
+      target: { type: 'string', minLength: 1, maxLength: 128, description: 'insert: 본문 문단 핸들. append: notes 결과의 paragraphs[].handle(….p1). 각주 자체의 handle은 안 된다.' },
       kind: { type: 'string', enum: ['footnote', 'endnote'] },
       offset: { type: 'integer', minimum: 0, description: 'insert에서만. 본문 문단 안 Unicode code point 위치.' },
       text: { type: 'string', minLength: 1, maxLength: 2000, description: 'append에서만. 줄바꿈 없음. 탭은 유지한다.' },
@@ -113,7 +113,7 @@ export const EDIT_TOOLS: JsonObject[] = [
   },
   {
     name: 'replace_text', title: '한글 문서 문구 바꾸기',
-    description: '한글 문서의 작업본에서 문구를 바꾼다. 파일에는 저장하지 않는다. 본문과 표 셀의 한 문단 안에서 find와 정확히 같은 문구(대소문자·공백 구분)를 replace로 바꾼다. 기본은 일치가 정확히 한 곳일 때만 바꾼다. 여러 곳이면 바꾸지 않고 후보를 돌려주니 within(핸들)이나 occurrence로 좁힌다. 바꾸기 전에 find_text나 read_document로 그 부분을 확인해야 한다. 누름틀·표·그림 같은 개체가 있는 문단은 바꾸지 않는다.',
+    description: '한글 문서의 작업본에서 문구를 바꾼다. 파일에는 저장하지 않는다. find와 정확히 같은 문구(대소문자·공백 구분)를 찾아 replace로 바꾼다. 찾는 범위는 기본 문서 전체(본문과 표 셀)이며 within과 사용자 선택 범위로 좁혀진다. 기본은 그 범위에서 일치가 정확히 한 곳일 때만 바꾼다. 여러 곳이면 바꾸지 않고 후보를 돌려주니 within(핸들)이나 occurrence로 좁힌다. 바꾸기 전에 find_text나 read_document로 그 부분을 확인해야 한다. 누름틀·표·그림 같은 개체가 있는 문단은 바꾸지 않는다.',
     inputSchema: {
       type: 'object', additionalProperties: false, required: ['path', 'find', 'replace'],
       properties: {
@@ -121,7 +121,7 @@ export const EDIT_TOOLS: JsonObject[] = [
         find: { type: 'string', minLength: 1, maxLength: 1000, description: '바꿀 문구. 한 문단 안에 있어야 한다.' },
         replace: { type: 'string', maxLength: 2000, description: '새 문구. 줄바꿈은 넣을 수 없다. 빈 문자열이면 지운다.' },
         within: { type: 'string', minLength: 1, maxLength: 128, description: '찾을 범위를 좁히는 핸들(문단 d…:p3, 표 d…:t1, 셀 d…:t1:r2c1).' },
-        occurrence: { type: 'string', enum: ['only', 'all', 'nth'], description: '기본값 only(정확히 한 곳). all은 모두, nth는 occurrenceIndex번째.' },
+        occurrence: { type: 'string', enum: ['only', 'all', 'nth'], description: '기본값 only(정확히 한 곳). all은 찾는 범위(기본 문서 전체)의 모두, nth는 occurrenceIndex번째.' },
         occurrenceIndex: { type: 'integer', minimum: 1, maximum: 100000, description: 'occurrence가 nth일 때만 준다. 1부터 센다.' },
       },
     },
@@ -129,7 +129,7 @@ export const EDIT_TOOLS: JsonObject[] = [
   },
   {
     name: 'edit_paragraphs', title: '한글 문서 문단 편집',
-    description: '한글 문서 작업본의 본문이나 직접 표 셀 문단을 고치고, 넣고, 지운다. 파일에는 저장하지 않는다. operations는 action과 읽은 문단 target을 가진다. set은 전체 text를 바꾸므로 대상 원문을 expectedText에 그대로 넣고 변경안과 대조한다. 문단 핸들은 페이지 번호가 아니다. 부분 수정은 replace_text를 쓴다. insert_after·insert_before는 paragraphs를 문단 하나씩 넣는다. 새 문단은 target의 서식을 받는다. delete는 target을 지운다. 셀 마지막 문단은 지울 수 없다. set과 삽입에는 style을 줄 수 있다. 고치거나 지울 문단은 먼저 전체를 읽는다. 모든 작업은 한 번에 적용되거나 복원된다. 구조가 바뀌면 다시 읽는다. 누름틀·표·그림이 있는 문단은 고치거나 지우지 않는다.',
+    description: '한글 문서 작업본의 본문이나 직접 표 셀 문단을 고치고, 넣고, 지운다. 파일에는 저장하지 않는다. operations는 action과 읽은 문단 target을 가진다. set은 전체 text를 바꾸므로 대상 원문을 expectedText에 그대로 넣고 변경안과 대조한다. 문단 핸들은 페이지 번호가 아니다. 부분 수정은 replace_text를 쓴다. insert_after·insert_before는 paragraphs를 문단 하나씩 넣는다. 새 문단은 target의 서식을 받는다. delete는 target을 지운다. 셀 마지막 문단은 지울 수 없다. set과 삽입에는 style을 줄 수 있다. 고치거나 지울 문단은 먼저 전체를 읽는다. 모든 작업은 한 번에 적용되거나 복원된다. 성공 결과의 새 핸들로 바로 이어서 편집할 수 있다. 누름틀·표·그림이 있는 문단은 고치거나 지우지 않는다.',
     inputSchema: {
       type: 'object', additionalProperties: false, required: ['path', 'operations'],
       properties: {
@@ -154,12 +154,12 @@ export const EDIT_TOOLS: JsonObject[] = [
   },
   {
     name: 'rewrite_paragraphs', title: '한글 문서 연속 문단 윤문',
-    description: '같은 구역의 연속 본문 범위를 읽은 뒤 문단 배열로 윤문한다. 빈 간격 문단은 유지하고 문단 삭제는 거절한다. 표·누름틀·개체·강제 줄바꿈 문단은 범위에서 제외하고 나누어 호출한다. 변경 전후와 서식 출처를 확인하고 필요하면 preview를 쓴다. 적용은 작업본에 한 번의 undo로 남으며 파일 저장은 별도다.',
+    description: '같은 구역의 연속 본문 범위를 읽은 뒤 문단 배열로 윤문한다. 빈 간격 문단은 유지한다. paragraphs의 항목 수는 범위의 내용 문단 수보다 적을 수 없다(문단을 합치거나 지우지 못한다). 구역 첫 문단과 표·누름틀·개체·강제 줄바꿈 문단은 범위에서 제외하고 나누어 호출한다. 변경 전후와 서식 출처를 확인하고 필요하면 preview를 쓴다. 적용은 작업본에 한 번의 undo로 남으며 파일 저장은 별도다.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['path', 'from', 'to', 'paragraphs'], properties: {
       path: PATH,
       from: { type: 'string', minLength: 1, maxLength: 128, description: '현재 읽기에서 얻은 첫 본문 문단 핸들.' },
       to: { type: 'string', minLength: 1, maxLength: 128, description: '현재 읽기에서 얻은 마지막 본문 문단 핸들.' },
-      paragraphs: { type: 'array', minItems: 1, maxItems: 50, description: '빈 간격을 제외한 변경 후 논리 문단 배열. 항목에 줄바꿈을 넣지 않는다.', items: { type: 'string', minLength: 1, maxLength: 4000 } },
+      paragraphs: { type: 'array', minItems: 1, maxItems: 50, description: '빈 간격을 제외한 변경 후 문단 배열. 범위의 내용 문단마다 순서대로 하나 이상 있어야 한다. 항목에 줄바꿈을 넣지 않는다.', items: { type: 'string', minLength: 1, maxLength: 2000 } },
       splitHints: { type: 'array', maxItems: 40, description: '분할 출처가 모호할 때 원문 핸들과 출력의 0부터인 반열린 인덱스 범위를 원문 순서로 지정한다.', items: { type: 'object', additionalProperties: false, required: ['source', 'outputStart', 'outputEnd'], properties: {
         source: { type: 'string', minLength: 1, maxLength: 128 }, outputStart: { type: 'integer', minimum: 0, maximum: 49 }, outputEnd: { type: 'integer', minimum: 2, maximum: 50 },
       } } },
@@ -191,7 +191,7 @@ export const EDIT_TOOLS: JsonObject[] = [
             row: { type: 'integer', minimum: 1, maximum: 10000 }, col: { type: 'integer', minimum: 1, maximum: 1000 },
             text: { type: 'string', maxLength: 20000, description: '칸의 새 전체 내용. 줄바꿈 없음.' } } },
         },
-        match: { type: 'object', additionalProperties: false, required: ['column', 'equals'], description: 'set과 함께 준다. 바꿀 행을 고른다.', properties: {
+        match: { type: 'object', additionalProperties: false, required: ['column', 'equals'], description: 'set과 함께 준다. 바꿀 행을 고른다. 병합 칸이 없는 표에서만 쓴다.', properties: {
           column: { type: 'string', minLength: 1, maxLength: 1000, description: '첫 행의 머리글.' }, equals: { type: 'string', maxLength: 1000, description: '그 열에서 이 내용과 같은 행.' } } },
         set: {
           type: 'array', minItems: 1, maxItems: 100, description: 'match와 함께 준다. 고른 행에서 바꿀 칸들.',
@@ -219,7 +219,7 @@ export const EDIT_TOOLS: JsonObject[] = [
   },
   {
     name: 'insert_table', title: '한글 문서에 표 넣기',
-    description: '한글 문서 작업본의 본문 문단 뒤에 새 표를 넣고 칸을 채운다. 파일에는 저장하지 않는다. after는 그 뒤에 표를 넣을 본문 문단 핸들이다. rows는 행의 배열이고 각 행은 칸 내용의 배열이다. 모든 행의 칸 수가 같아야 한다. headerRow가 true면 첫 행을 굵게 가운데 정렬한다. caption을 주면 표 바로 다음 문단에 그 글을 넣는다. after 문단을 먼저 read_document나 find_text로 확인해야 한다. 넣으면 핸들이 바뀌므로 다시 읽는다.',
+    description: '한글 문서 작업본의 본문 문단 뒤에 새 표를 넣고 칸을 채운다. 파일에는 저장하지 않는다. after는 그 뒤에 표를 넣을 본문 문단 핸들이다. rows는 행의 배열이고 각 행은 칸 내용의 배열이다. 모든 행의 칸 수가 같아야 한다. headerRow가 true면 첫 행을 굵게 가운데 정렬한다. caption을 주면 표 바로 다음 문단에 그 글을 넣는다. after 문단을 먼저 read_document나 find_text로 확인해야 한다. 성공 결과의 새 핸들로 바로 이어서 편집할 수 있다.',
     inputSchema: {
       type: 'object', additionalProperties: false, required: ['path', 'after', 'rows'],
       properties: {
@@ -228,7 +228,7 @@ export const EDIT_TOOLS: JsonObject[] = [
         rows: { type: 'array', minItems: 1, maxItems: 50, description: '표의 행들. 첫 행부터.',
           items: { type: 'array', minItems: 1, maxItems: 20, description: '한 행의 칸 내용들. 왼쪽부터.', items: { type: 'string', maxLength: 2000, description: '칸 내용. 줄바꿈 없음. 빈 문자열이면 빈 칸.' } } },
         headerRow: { type: 'boolean', description: 'true면 첫 행을 머리글로 꾸민다.' },
-        caption: { type: 'string', minLength: 1, maxLength: 1000, description: '표 다음 문단에 넣을 설명. 줄바꿈 없음.' },
+        caption: { type: 'string', minLength: 1, maxLength: 1000, description: '표 다음의 일반 문단에 넣을 설명(캡션 개체 아님). 줄바꿈 없음.' },
       },
     },
     annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'table', 'dev.agentinterop/keywords': ["표 2", "표에서", "표를", "표의", "표에", "표 수정", "표 삽입", "새 표", "표 추가", "표 하나", "표 만들", "표 넣", "표의 문장", "표의 문단", "셀", "table", " 표로", " 표는", " 표도", " 표와", " 표 형식"] },
@@ -258,7 +258,7 @@ export const EDIT_TOOLS: JsonObject[] = [
         path: PATH,
         target: { type: 'string', minLength: 1, maxLength: 128, description: '문단 핸들(d…:p3) 또는 칸 문단 핸들(d…:t1:r2c1.p1).' },
         find: { type: 'string', minLength: 1, maxLength: 1000, description: '이 문구에만 글자 서식을 준다. 생략하면 문단 전체.' },
-        match: { type: 'object', additionalProperties: false, description: '관측한 글자 서식 구간의 조건. 지정한 조건을 모두 만족하는 구간만 변경한다. formatting으로 모든 후보 구간을 먼저 읽고 본문도 전체 조회해야 한다. find·문단 서식·style과 함께 쓰지 않는다.', properties: {
+        match: { type: 'object', additionalProperties: false, description: '바꿀 구간을 고르는 지금 서식 조건(예: {"color":"#ff0000"}은 지금 빨간 글자). 새 서식은 바깥 인자로 준다. 먼저 문단 본문 전체를 읽고, read_document(mode=formatting)으로 조건에 맞는 모든 서식 구간을 끝까지 읽는다. find·문단 서식·style과 함께 쓰지 않는다.', properties: {
           color: { type: 'string', minLength: 7, maxLength: 7 }, fontSizePt: { type: 'number', minimum: 1, maximum: 400 },
         } },
         style: { type: 'string', minLength: 1, maxLength: 200, description: '문단 스타일 이름(예: 본문, 개요 1). find와 함께 줄 수 없다.' },
@@ -279,7 +279,7 @@ export const EDIT_TOOLS: JsonObject[] = [
   },
   {
     name: 'undo_last_edit', title: '마지막 AI 편집 되돌리기',
-    description: '이 대화가 이 문서에 한 마지막 AI 편집 하나를 되돌린다. 그 뒤에 사람이나 다른 편집이 있었으면 되돌리지 않는다. 되돌리면 핸들이 모두 바뀌므로 다시 읽어야 한다.',
+    description: '이 대화가 이 문서에 한 마지막 편집 도구 호출 하나만 되돌린다(연달아 불러도 그 앞은 되돌리지 못한다). 그 뒤에 사람이나 다른 편집이 있었으면 되돌리지 않는다. 되돌리면 핸들이 모두 바뀌므로 다시 읽어야 한다.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['path'], properties: { path: PATH } },
     annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('history', ['되돌', '취소', 'undo']),
   },

@@ -1,6 +1,6 @@
 {
   "name": "obsidian-hwp-hands",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Open and edit HWP and HWPX documents locally with a bundled RHWP engine, and expose a versioned document API to other plugins.",
   "main": "main.js",
   "private": true,
