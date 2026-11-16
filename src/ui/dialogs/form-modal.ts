@@ -1,3 +1,4 @@
+import { LT, L } from '../../i18n/locale';
 import { Notice, type App } from 'obsidian';
 import { FocusReturnModal } from './index';
 import { initialFormValues, parseFormValues, type FormField, type FormValue, type FormValues } from './form-values';
@@ -77,17 +78,17 @@ export class FormModal extends FocusReturnModal {
     if (options.preview) this.preview = new DialogSvgPreview(this.contentEl.createDiv({ cls: 'hwp-equation-preview', attr: { role: 'status', 'aria-live': 'polite' } }), options.preview);
     refreshEnabled();
     const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
-    buttons.createEl('button', { text: '취소' }).addEventListener('click', () => this.close());
-    const apply = buttons.createEl('button', { text: options.submitLabel ?? '적용', cls: 'mod-cta' });
+    buttons.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }).addEventListener('click', () => this.close());
+    const apply = buttons.createEl('button', { text: options.submitLabel ?? L({ ko: '적용', en: "Apply" }), cls: 'mod-cta' });
     const submit = (): void => {
       if (apply.disabled) return;
       const parsed = parseFormValues(options.fields, read());
       if (parsed.error) { status.setText(parsed.error.message); inputs.get(parsed.error.key)?.focus(); return; }
       const message = options.validate?.(parsed.values);
       if (message) { status.setText(message); return; }
-      apply.disabled = true; status.setText('적용하는 중…');
+      apply.disabled = true; status.setText(L({ ko: '적용하는 중…', en: "Applying…" }));
       void this.action(parsed.values).then(() => this.close()).catch(error => {
-        status.setText(`적용하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`);
+        status.setText(LT({ ko: () => `적용하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`, en: () => `Could not apply: ${error instanceof Error ? error.message : String(error)}` }));
         new Notice(`${options.title}: ${error instanceof Error ? error.message : String(error)}`, 8000);
         apply.disabled = false;
       });

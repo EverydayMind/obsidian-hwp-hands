@@ -1,3 +1,5 @@
+import { LT, L } from './i18n/locale';
+import './i18n/app-locale';
 import { FileSystemAdapter, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder, type App, type Hotkey, type WorkspaceLeaf } from 'obsidian';
 import { rename } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -82,7 +84,7 @@ export default class HwpHandsPlugin extends Plugin {
     const adapter = this.app.vault.adapter;
     await this.ensurePluginStyles(directory, adapter);
     this.inputDraftStore = new InputDraftStore(adapter, `${directory}/input-drafts`, async (source, destination) => {
-      if (!(adapter instanceof FileSystemAdapter)) throw new Error('입력 복구본에는 데스크톱 파일 시스템이 필요합니다.');
+      if (!(adapter instanceof FileSystemAdapter)) throw new Error(L({ ko: '입력 복구본에는 데스크톱 파일 시스템이 필요합니다.', en: "Input recovery copies require the desktop file system." }));
       await rename(adapter.getFullPath(source), adapter.getFullPath(destination));
     });
     this.engineProvider = new WorkerEngineProvider(
@@ -95,7 +97,7 @@ export default class HwpHandsPlugin extends Plugin {
     const inspectOpenOutput = this.api.query.outputAnchorCandidatesIfOpen?.bind(this.api.query);
     if (inspectOpenOutput) this.api.query.outputAnchorCandidatesIfOpen = (path, hash, anchors) =>
       this.agentPrivacy.run([path], undefined, async signal => {
-        if (signal.aborted) throw new Error('문단 후보 조회가 취소됐습니다.');
+        if (signal.aborted) throw new Error(L({ ko: '문단 후보 조회가 취소됐습니다.', en: "Paragraph candidate query was cancelled." }));
         return inspectOpenOutput(path, hash, anchors);
       });
     const viewContext = new ViewContextService(this.api);
@@ -106,7 +108,7 @@ export default class HwpHandsPlugin extends Plugin {
       path => this.hwpViews().find(view => view.file?.path === path),
       async view => {
         const current = this.hwpViews().find(candidate => candidate === view);
-        if (!current) throw new Error('편집 화면이 닫혔습니다.');
+        if (!current) throw new Error(L({ ko: '편집 화면이 닫혔습니다.', en: "The editor view was closed." }));
         await this.revealAndFocus(current.leaf);
       }, combined));
     const bindViews = () => viewContext.bind(this.hwpViews().map(view => ({ element: view.contentEl, read: () => view.readViewContext() })));
@@ -140,13 +142,13 @@ export default class HwpHandsPlugin extends Plugin {
     // A working copy can stay unsaved with no view on it, for example after an agent edited a document nobody opened.
     const offscreenStatus = this.addStatusBarItem();
     offscreenStatus.addClass('mod-clickable');
-    offscreenStatus.setAttribute('aria-label', '화면에 없는 미저장 HWP 문서 보기');
+    offscreenStatus.setAttribute('aria-label', L({ ko: '화면에 없는 미저장 HWP 문서 보기', en: "Show unsaved HWP documents without views" }));
     offscreenStatus.onclick = () => new OffscreenDocumentsModal(this.app, this).open();
     const updateOffscreenStatus = () => { const label = offscreenStatusText(this.offscreenDocuments()); offscreenStatus.setText(label); offscreenStatus.toggle(!!label); };
     this.register(this.api.events.on('*', updateOffscreenStatus));
     this.registerEvent(this.app.workspace.on('layout-change', updateOffscreenStatus));
     this.app.workspace.onLayoutReady(updateOffscreenStatus);
-    this.addCommand({ id: 'offscreen-unsaved-documents', name: '화면에 없는 미저장 HWP 문서 보기', callback: () => new OffscreenDocumentsModal(this.app, this).open() });
+    this.addCommand({ id: 'offscreen-unsaved-documents', name: L({ ko: '화면에 없는 미저장 HWP 문서 보기', en: "Show unsaved HWP documents without views" }), callback: () => new OffscreenDocumentsModal(this.app, this).open() });
     // After a restart the leases are gone and unsaved AI edits live only in recovery records; say so once, without opening anything.
     this.app.workspace.onLayoutReady(() => {
       const timer = window.setTimeout(() => {
@@ -164,32 +166,32 @@ export default class HwpHandsPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on('file-menu', (menu, file, _source, leaf) => {
       if (!(file instanceof TFile) || !/^(hwp|hwpx)$/i.test(file.extension)) return;
       // A document tab passes its own menu on as a file menu (addFilePaneMenuItems); it is already open there.
-      if (!(leaf?.view instanceof HwpView && leaf.view.file === file)) menu.addItem(item => item.setTitle('HWP Hands로 열기').setIcon('file-pen-line').onClick(() => {
+      if (!(leaf?.view instanceof HwpView && leaf.view.file === file)) menu.addItem(item => item.setTitle(L({ ko: 'HWP Hands로 열기', en: "Open with HWP Hands" })).setIcon('file-pen-line').onClick(() => {
         void this.openInEditor(file).catch(error => this.report(error));
       }));
-      menu.addItem(item => item.setTitle(this.isAiPrivate(file.path) ? 'HWP Hands AI 비공개 해제' : 'HWP Hands AI 비공개로 설정').setIcon('shield').onClick(() => {
+      menu.addItem(item => item.setTitle(this.isAiPrivate(file.path) ? L({ ko: 'HWP Hands AI 비공개 해제', en: "Remove HWP Hands AI privacy" }) : L({ ko: 'HWP Hands AI 비공개로 설정', en: "Set HWP Hands AI privacy" })).setIcon('shield').onClick(() => {
         void this.setAiPrivate(file.path, !this.isAiPrivate(file.path)).catch(error => this.report(error));
       }));
     }));
-    this.addCommand({ id: 'new-hwpx', name: '새 HWPX 문서 만들기', callback: () => this.createNewDocument() });
+    this.addCommand({ id: 'new-hwpx', name: L({ ko: '새 HWPX 문서 만들기', en: "Create new HWPX document" }), callback: () => this.createNewDocument() });
     for (const hidden of [true, false]) this.addCommand({ id: hidden ? 'hide-document-from-ai' : 'show-document-to-ai',
-      name: hidden ? '현재 한글 문서를 AI 비공개로 설정' : '현재 한글 문서의 AI 비공개 해제', checkCallback: checking => {
+      name: hidden ? L({ ko: '현재 한글 문서를 AI 비공개로 설정', en: "Set current HWP document as AI-private" }) : L({ ko: '현재 한글 문서의 AI 비공개 해제', en: "Remove AI privacy from current HWP document" }), checkCallback: checking => {
         const view = this.app.workspace.getActiveViewOfType(HwpView), path = view?.file?.path;
         if (!path || this.isAiPrivate(path) === hidden || this.agentPrivacy.needsRepair) return false;
         if (!checking) void this.setAiPrivate(path, hidden).catch(error => this.report(error));
         return true;
       } });
-    this.addCommand({ id: 'toggle-editor-menu', name: 'HWP: 메뉴 접기/펴기', checkCallback: checking => {
+    this.addCommand({ id: 'toggle-editor-menu', name: L({ ko: 'HWP: 메뉴 접기/펴기', en: "HWP: Collapse/expand menus" }), checkCallback: checking => {
       const view = this.app.workspace.getActiveViewOfType(HwpView);
       if (!view) return false;
       if (!checking) view.toggleAllChrome();
       return true;
     } });
-    this.addCommand({ id: 'save-document', name: '현재 한글 문서 저장', hotkeys: [editorHotkey('Mod+S')], checkCallback: checking => {
+    this.addCommand({ id: 'save-document', name: L({ ko: '현재 한글 문서 저장', en: "Save current HWP document" }), hotkeys: [editorHotkey('Mod+S')], checkCallback: checking => {
       const view = this.app.workspace.getActiveViewOfType(HwpView);
       if (!view || !view.canRunEditorCommand('file.save')) return false; if (!checking) view.runSaveCommand(); return true;
     } });
-    this.addCommand({ id: 'refresh-index', name: '현재 한글 문서의 Markdown 인덱스 생성', checkCallback: checking => {
+    this.addCommand({ id: 'refresh-index', name: L({ ko: '현재 한글 문서의 Markdown 인덱스 생성', en: "Create Markdown index for current HWP document" }), checkCallback: checking => {
       const view = this.app.workspace.getActiveViewOfType(HwpView);
       if (!view || !view.canRunEditorCommand('file.refresh-index')) return false; if (!checking) view.runRefreshIndexCommand(); return true;
     } });
@@ -221,16 +223,16 @@ export default class HwpHandsPlugin extends Plugin {
       const shortcuts = [...('shortcut' in command && command.shortcut ? [command.shortcut] : []), ...('aliases' in command ? command.aliases : [])];
       if (command.id !== 'file.save' && command.id !== 'file.refresh-index') addActiveEditorCommand(command.id, command.label, shortcuts);
     }
-    this.addCommand({ id: 'open-document', name: 'HWP/HWPX 문서 열기', callback: () => {
+    this.addCommand({ id: 'open-document', name: L({ ko: 'HWP/HWPX 문서 열기', en: "Open HWP/HWPX document" }), callback: () => {
       this.openDocumentPicker();
     } });
-    this.addCommand({ id: 'cancel-engine-operation', name: '현재 HWP 엔진 작업 취소', checkCallback: checking => {
+    this.addCommand({ id: 'cancel-engine-operation', name: L({ ko: '현재 HWP 엔진 작업 취소', en: "Cancel current HWP engine operation" }), checkCallback: checking => {
       if (!this.engineProvider.canCancelCurrent) return false;
       if (!checking) this.engineProvider.cancelCurrent();
       return true;
     } });
-    this.addCommand({ id: 'recover-input-drafts', name: '미적용 입력 복구', callback: () => new InputDraftRecoveryModal(this.app, this).open() });
-    this.addCommand({ id: 'cleanup-plugin-storage', name: 'HWP Hands 보관 파일 정리', callback: () => new StorageCleanupModal(this.app, this).open() });
+    this.addCommand({ id: 'recover-input-drafts', name: L({ ko: '미적용 입력 복구', en: "Recover unapplied input" }), callback: () => new InputDraftRecoveryModal(this.app, this).open() });
+    this.addCommand({ id: 'cleanup-plugin-storage', name: L({ ko: 'HWP Hands 보관 파일 정리', en: "Clean up HWP Hands stored files" }), callback: () => new StorageCleanupModal(this.app, this).open() });
     this.registerEvent(this.app.vault.on('modify', file => {
       if (file instanceof TFile && /^(hwp|hwpx)$/i.test(file.extension)) void this.manager.handleExternalModify(file.path).catch(error => this.report(error));
     }));
@@ -263,7 +265,7 @@ export default class HwpHandsPlugin extends Plugin {
   async setAiPrivate(path: string, hidden: boolean): Promise<void> {
     await this.agentPrivacy.set(path, hidden, data => this.persistAiPrivacy(data));
     this.app.workspace.trigger(PROVIDERS_CHANGED_EVENT);
-    new Notice(hidden ? '이 문서는 HWP Hands AI 도구에 제공하지 않습니다. 이미 전달된 내용과 별도 Markdown 인덱스·파일 접근에는 적용되지 않습니다.' : '이 문서의 HWP Hands AI 비공개를 해제했습니다. 새로 조회한 뒤 사용할 수 있습니다.', 10000);
+    new Notice(hidden ? L({ ko: '이 문서는 HWP Hands AI 도구에 제공하지 않습니다. 이미 전달된 내용과 별도 Markdown 인덱스·파일 접근에는 적용되지 않습니다.', en: "This document will not be provided to HWP Hands AI tools. This does not affect previously shared content, separate Markdown indexes, or file access." }) : L({ ko: '이 문서의 HWP Hands AI 비공개를 해제했습니다. 새로 조회한 뒤 사용할 수 있습니다.', en: "HWP Hands AI privacy was removed from this document. Read it again before use." }), 10000);
   }
   private async ensurePluginStyles(directory: string, adapter: App['vault']['adapter']): Promise<void> {
     const stylePath = `${this.manifest.id}/styles.css`.toLocaleLowerCase();
@@ -284,7 +286,7 @@ export default class HwpHandsPlugin extends Plugin {
   createNewDocument(): void {
     const parent = this.app.workspace.getActiveFile()?.parent?.path;
     const prefix = parent && parent !== '/' ? `${parent}/` : '';
-    new PathModal(this.app, '새 HWPX 문서 경로', `${prefix}새 문서.hwpx`, async path => {
+    new PathModal(this.app, L({ ko: '새 HWPX 문서 경로', en: "New HWPX document path" }), LT({ ko: () => `${prefix}새 문서.hwpx`, en: () => `${prefix}New document.hwpx` }), async path => {
       const result = await this.api.documents.create(path);
       for (const warning of result.warnings ?? []) new Notice(warning, 8000);
       const file = this.app.vault.getAbstractFileByPath(path);
@@ -297,11 +299,11 @@ export default class HwpHandsPlugin extends Plugin {
     }).open();
   }
   async openInEditor(file: TFile, target?: HwpLinkTarget): Promise<void> {
-    if (!/^(hwp|hwpx)$/i.test(file.extension)) throw new Error('HWP 또는 HWPX 파일만 HWP Hands에서 열 수 있습니다.');
+    if (!/^(hwp|hwpx)$/i.test(file.extension)) throw new Error(L({ ko: 'HWP 또는 HWPX 파일만 HWP Hands에서 열 수 있습니다.', en: "Only HWP or HWPX files can be opened in HWP Hands." }));
     const leaf = this.app.workspace.getLeaf('tab');
     await leaf.setViewState({ type: EDITOR_VIEW_TYPE, state: { file: file.path }, active: true });
     const view = leaf.view;
-    if (!(view instanceof HwpView)) throw new Error('HWP Hands 화면을 열지 못했습니다.');
+    if (!(view instanceof HwpView)) throw new Error(L({ ko: 'HWP Hands 화면을 열지 못했습니다.', en: "Could not open the HWP Hands view." }));
     if (target) await view.navigateToLinkedTarget(target);
   }
   /**
@@ -334,10 +336,10 @@ export default class HwpHandsPlugin extends Plugin {
       if (choice === 'save') {
         const result = await this.manager.saveUnheld(path, options);
         for (const warning of result.warnings) new Notice(warning, 8000);
-        new Notice(`한글 문서를 저장했습니다: ${path}`);
+        new Notice(LT({ ko: () => `한글 문서를 저장했습니다: ${path}`, en: () => `Saved HWP document: ${path}` }));
       } else await this.manager.discardUnheld(path, options);
     } catch (error) {
-      new Notice(`${choice === 'save' ? '저장하지 못했습니다' : '변경을 버리지 못했습니다'}. 변경은 그대로 남아 있어 문서를 다시 엽니다. ${error instanceof Error ? error.message : String(error)}`, 12000);
+      new Notice(LT({ ko: () => `${choice === 'save' ? '저장하지 못했습니다' : '변경을 버리지 못했습니다'}. 변경은 그대로 남아 있어 문서를 다시 엽니다. ${error instanceof Error ? error.message : String(error)}`, en: () => `${choice === 'save' ? 'Could not save' : 'Could not discard changes'}. Changes remain; reopening the document. ${error instanceof Error ? error.message : String(error)}` }), 12000);
       await reopen();
     }
   }
@@ -348,7 +350,7 @@ export default class HwpHandsPlugin extends Plugin {
   /** Brings the document's view to the front, opening a tab if it has none, then moves to the paragraph or page (from 1). */
   async revealDocument(path: string, target: { address?: BodyAddress; page?: number }): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof TFile)) throw new Error(`문서를 찾을 수 없습니다: ${path}`);
+    if (!(file instanceof TFile)) throw new Error(LT({ ko: () => `문서를 찾을 수 없습니다: ${path}`, en: () => `Document not found: ${path}` }));
     let view = this.hwpViews().find(item => item.file?.path === path);
     if (view) await this.revealAndFocus(view.leaf);
     else { await this.openInEditor(file); view = this.hwpViews().find(item => item.file?.path === path); }
@@ -397,7 +399,7 @@ export default class HwpHandsPlugin extends Plugin {
         this.engineNoticeTimer = setTimeout(() => {
           this.engineNoticeTimer = undefined;
           if (!this.engineTasks.size) return;
-          this.engineNotice = new Notice('HWP 문서 작업 처리 중입니다. 명령 팔레트에서 작업을 취소할 수 있습니다.', 0);
+          this.engineNotice = new Notice(L({ ko: 'HWP 문서 작업 처리 중입니다. 명령 팔레트에서 작업을 취소할 수 있습니다.', en: "An HWP document operation is running. You can cancel it from the command palette." }), 0);
         }, 250);
       }
       return;
@@ -422,12 +424,12 @@ export default class HwpHandsPlugin extends Plugin {
   async restoreInputDraftAsCopy(id: string, inputPath: string): Promise<string> {
     const path = validateInputDraftCopyPath(inputPath);
     const record = await this.inputDraftStore.read(id);
-    if (this.app.vault.getAbstractFileByPath(path)) throw new Error(`같은 경로에 파일이 있습니다: ${path}`);
+    if (this.app.vault.getAbstractFileByPath(path)) throw new Error(LT({ ko: () => `같은 경로에 파일이 있습니다: ${path}`, en: () => `A file exists at the same path: ${path}` }));
     const parts = path.split('/'); parts.pop(); let folder = '';
     for (const part of parts) {
       folder = folder ? `${folder}/${part}` : part;
       const existing = this.app.vault.getAbstractFileByPath(folder);
-      if (existing && !(existing instanceof TFolder)) throw new Error(`폴더 경로에 파일이 있습니다: ${folder}`);
+      if (existing && !(existing instanceof TFolder)) throw new Error(LT({ ko: () => `폴더 경로에 파일이 있습니다: ${folder}`, en: () => `A file exists at the folder path: ${folder}` }));
       if (!existing) await this.app.vault.createFolder(folder);
     }
     await this.app.vault.create(path, record.value);
@@ -451,43 +453,43 @@ class HwpSettings extends PluginSettingTab {
   constructor(app: App, private readonly plugin: HwpHandsPlugin) { super(app, plugin); }
   display(): void {
     this.containerEl.empty();
-    this.containerEl.createEl('p', { text: '문서는 로컬에서 처리됩니다. 화면의 글꼴과 복잡한 배치는 한컴 한글과 다를 수 있습니다.' });
-    this.containerEl.createEl('p', { text: `진단 정보: HWP Hands ${this.plugin.manifest.version} · RHWP ${this.plugin.api.engineVersion} · API v${this.plugin.api.version}. Obsidian 버전은 설정의 정보 화면에서 확인할 수 있습니다.` });
-    new Setting(this.containerEl).setName('HWP/HWPX 기본 열기').setDesc('켜면 파일 탐색기와 일반 링크가 HWP Hands를 기본 보기로 사용합니다. 다른 플러그인과 충돌하거나 기본 보기를 바꾸려면 끄세요. 변경은 플러그인을 다시 불러온 뒤 적용됩니다. 파일 메뉴의 “HWP Hands로 열기”는 항상 사용할 수 있습니다.').addToggle(t => t.setValue(this.plugin.settings.autoOpenWithEditor).onChange(async value => {
-      this.plugin.settings.autoOpenWithEditor = value; await this.persist(); new Notice('파일 기본 열기 설정을 적용하려면 HWP Hands 플러그인을 다시 불러오세요.');
+    this.containerEl.createEl('p', { text: L({ ko: '문서는 로컬에서 처리됩니다. 화면의 글꼴과 복잡한 배치는 한컴 한글과 다를 수 있습니다.', en: "Documents are processed locally. Fonts and complex layouts may differ from Hancom Hangul." }) });
+    this.containerEl.createEl('p', { text: LT({ ko: () => `진단 정보: HWP Hands ${this.plugin.manifest.version} · RHWP ${this.plugin.api.engineVersion} · API v${this.plugin.api.version}. Obsidian 버전은 설정의 정보 화면에서 확인할 수 있습니다.`, en: () => `Diagnostics: HWP Hands ${this.plugin.manifest.version} · RHWP ${this.plugin.api.engineVersion} · API v${this.plugin.api.version}. Check the Obsidian version in Settings → About.` }) });
+    new Setting(this.containerEl).setName(L({ ko: 'HWP/HWPX 기본 열기', en: "Open HWP/HWPX by default" })).setDesc(L({ ko: '켜면 파일 탐색기와 일반 링크가 HWP Hands를 기본 보기로 사용합니다. 다른 플러그인과 충돌하거나 기본 보기를 바꾸려면 끄세요. 변경은 플러그인을 다시 불러온 뒤 적용됩니다. 파일 메뉴의 “HWP Hands로 열기”는 항상 사용할 수 있습니다.', en: "When enabled, the file explorer and ordinary links use HWP Hands as the default view. Disable to resolve plugin conflicts or change the default view. Changes apply after reloading the plugin. The file menu's “Open with HWP Hands” remains available." })).addToggle(t => t.setValue(this.plugin.settings.autoOpenWithEditor).onChange(async value => {
+      this.plugin.settings.autoOpenWithEditor = value; await this.persist(); new Notice(L({ ko: '파일 기본 열기 설정을 적용하려면 HWP Hands 플러그인을 다시 불러오세요.', en: "Reload HWP Hands to apply the default file opening setting." }));
     }));
-    new Setting(this.containerEl).setName('편집 화면 도구 표시').setDesc('메뉴와 도구 상자를 접어 문서 공간을 넓힙니다. 열린 HWP 탭에 바로 적용됩니다.').addDropdown(dropdown => dropdown
-      .addOption('expanded', '모두 펼침').addOption('basic-collapsed', '기본 도구 상자 접음').addOption('all-collapsed', '모두 접음').addOption('custom', '개별 설정')
+    new Setting(this.containerEl).setName(L({ ko: '편집 화면 도구 표시', en: "Editor tool visibility" })).setDesc(L({ ko: '메뉴와 도구 상자를 접어 문서 공간을 넓힙니다. 열린 HWP 탭에 바로 적용됩니다.', en: "Collapse menus and toolboxes to increase document space. Applies immediately to open HWP tabs." })).addDropdown(dropdown => dropdown
+      .addOption('expanded', L({ ko: '모두 펼침', en: "Expand all" })).addOption('basic-collapsed', L({ ko: '기본 도구 상자 접음', en: "Collapse basic toolbox" })).addOption('all-collapsed', L({ ko: '모두 접음', en: "Collapse all" })).addOption('custom', L({ ko: '개별 설정', en: "Custom settings" }))
       .setValue(editorChromePreset(this.plugin.settings.editorChrome)).onChange(async value => {
         if (value === 'custom') return;
         await this.plugin.setEditorChrome(value === 'expanded' ? { menu: true, basicToolbox: true, formatToolbox: true }
           : value === 'basic-collapsed' ? { menu: true, basicToolbox: false, formatToolbox: true }
             : { menu: false, basicToolbox: false, formatToolbox: false });
       }));
-    new Setting(this.containerEl).setName('입력 수신기 배치').setDesc('쪽 위에서 입력을 받는 보이지 않는 수신기의 위치입니다. 기본은 캐럿 위치입니다. IME 후보창이나 스크린리더에 문제가 있으면 투명 줄 상자를 사용하세요.').addDropdown(dropdown => dropdown
-      .addOption('caret', '캐럿 위치 (권장)').addOption('line', '투명 줄 상자').setValue(this.plugin.settings.inputReceiverPlacement).onChange(async value => {
+    new Setting(this.containerEl).setName(L({ ko: '입력 수신기 배치', en: "Input receiver placement" })).setDesc(L({ ko: '쪽 위에서 입력을 받는 보이지 않는 수신기의 위치입니다. 기본은 캐럿 위치입니다. IME 후보창이나 스크린리더에 문제가 있으면 투명 줄 상자를 사용하세요.', en: "Position of the invisible input receiver over the page. Defaults to the caret position. Use the transparent line box if IME candidate windows or screen readers have problems." })).addDropdown(dropdown => dropdown
+      .addOption('caret', L({ ko: '캐럿 위치 (권장)', en: "Caret position (recommended)" })).addOption('line', L({ ko: '투명 줄 상자', en: "Transparent line box" })).setValue(this.plugin.settings.inputReceiverPlacement).onChange(async value => {
         await this.plugin.setInputMode({ ...this.plugin.settings, inputReceiverPlacement: value === 'line' ? 'line' : 'caret' });
       }));
-    new Setting(this.containerEl).setName('입력 미리보기').setDesc('문서에 반영되기 전의 글자와 한글 조합을 쪽 위에 즉시 표시합니다. 끄면 엔진 쪽 이미지가 갱신될 때까지 기다립니다.').addToggle(toggle => toggle
+    new Setting(this.containerEl).setName(L({ ko: '입력 미리보기', en: "Input preview" })).setDesc(L({ ko: '문서에 반영되기 전의 글자와 한글 조합을 쪽 위에 즉시 표시합니다. 끄면 엔진 쪽 이미지가 갱신될 때까지 기다립니다.', en: "Immediately shows characters and Korean IME composition over the page before they reach the document. When disabled, waits for the engine page image to refresh." })).addToggle(toggle => toggle
       .setValue(this.plugin.settings.editPreviewEnabled).onChange(async editPreviewEnabled => {
         await this.plugin.setInputMode({ ...this.plugin.settings, editPreviewEnabled });
       }));
-    new Setting(this.containerEl).setName('저장 전 원본 백업').setDesc('플러그인 폴더에 저장 전 파일을 문서별 최신 3개까지 보관합니다. 저장이 확인되면 그보다 오래된 백업은 지웁니다.').addToggle(t => t.setValue(this.plugin.settings.backup).onChange(async value => { this.plugin.settings.backup = value; await this.persist(); }));
-    new Setting(this.containerEl).setName('저장·외부 변경 후 검색 인덱스 자동 생성').setDesc('원본 옆 .index.md를 저장, 외부 수정, 이름 변경 뒤 갱신합니다. 직접 편집하거나 사용자 소유로 확인되는 인덱스는 보존합니다.').addToggle(t => t.setValue(this.plugin.settings.autoIndex).onChange(async value => { this.plugin.settings.autoIndex = value; await this.persist(); }));
+    new Setting(this.containerEl).setName(L({ ko: '저장 전 원본 백업', en: "Back up original before saving" })).setDesc(L({ ko: '플러그인 폴더에 저장 전 파일을 문서별 최신 3개까지 보관합니다. 저장이 확인되면 그보다 오래된 백업은 지웁니다.', en: "Keeps up to three latest pre-save backups per document in the plugin folder. Deletes older backups after saving is verified." })).addToggle(t => t.setValue(this.plugin.settings.backup).onChange(async value => { this.plugin.settings.backup = value; await this.persist(); }));
+    new Setting(this.containerEl).setName(L({ ko: '저장·외부 변경 후 검색 인덱스 자동 생성', en: "Automatically create search index after saving/external changes" })).setDesc(L({ ko: '원본 옆 .index.md를 저장, 외부 수정, 이름 변경 뒤 갱신합니다. 직접 편집하거나 사용자 소유로 확인되는 인덱스는 보존합니다.', en: "Updates the adjacent .index.md after saving, external edits, or renaming. Preserves indexes edited directly or identified as user-owned." })).addToggle(t => t.setValue(this.plugin.settings.autoIndex).onChange(async value => { this.plugin.settings.autoIndex = value; await this.persist(); }));
     const privatePaths = this.plugin.aiPrivatePaths();
-    new Setting(this.containerEl).setName('문서 전체 AI 비공개').setHeading();
+    new Setting(this.containerEl).setName(L({ ko: '문서 전체 AI 비공개', en: "Entire-document AI privacy" })).setHeading();
     this.containerEl.createEl('p', { text: privatePaths === null
-      ? '비공개 설정을 읽을 수 없어 HWP Hands AI 접근을 모두 차단했습니다. 정상 비공개 설정을 복구한 뒤 플러그인을 다시 불러오세요.'
-      : '파일 메뉴나 명령 팔레트에서 지정합니다. HWP Hands AI 도구의 조회·검색·편집·저장을 차단합니다. 이미 전달한 내용, 별도 Markdown 인덱스와 다른 도구의 파일 접근에는 적용되지 않습니다. 이동 전 경로도 확인 후 해제할 때까지 유지합니다.' });
-    if (this.plugin.aiPrivacyNeedsReview()) this.containerEl.createEl('p', { text: '비공개 문서가 기록된 경로에 없어 모든 HWP Hands AI 접근을 차단했습니다. 이동한 문서를 먼저 비공개로 지정한 뒤 이전 경로를 해제하세요. 삭제했다면 이전 경로를 확인하고 해제하세요.' });
-    for (const path of privatePaths ?? []) new Setting(this.containerEl).setName(path).addButton(button => button.setButtonText('비공개 해제').onClick(async () => {
+      ? L({ ko: '비공개 설정을 읽을 수 없어 HWP Hands AI 접근을 모두 차단했습니다. 정상 비공개 설정을 복구한 뒤 플러그인을 다시 불러오세요.', en: "Could not read privacy settings; all HWP Hands AI access was blocked. Restore valid privacy settings and reload the plugin." })
+      : L({ ko: '파일 메뉴나 명령 팔레트에서 지정합니다. HWP Hands AI 도구의 조회·검색·편집·저장을 차단합니다. 이미 전달한 내용, 별도 Markdown 인덱스와 다른 도구의 파일 접근에는 적용되지 않습니다. 이동 전 경로도 확인 후 해제할 때까지 유지합니다.', en: "Set through the file menu or command palette. Blocks HWP Hands AI reads, searches, edits, and saves. Does not affect previously shared content, separate Markdown indexes, or other tools' file access. Retains previous paths after moves until checked and cleared." }) });
+    if (this.plugin.aiPrivacyNeedsReview()) this.containerEl.createEl('p', { text: L({ ko: '비공개 문서가 기록된 경로에 없어 모든 HWP Hands AI 접근을 차단했습니다. 이동한 문서를 먼저 비공개로 지정한 뒤 이전 경로를 해제하세요. 삭제했다면 이전 경로를 확인하고 해제하세요.', en: "A private document is missing from its recorded path; all HWP Hands AI access was blocked. Mark the moved document private before clearing the old path. If deleted, verify and clear the old path." }) });
+    for (const path of privatePaths ?? []) new Setting(this.containerEl).setName(path).addButton(button => button.setButtonText(L({ ko: '비공개 해제', en: "Remove privacy" })).onClick(async () => {
       try { await this.plugin.setAiPrivate(path, false); this.display(); }
-      catch { new Notice('비공개 설정을 저장하지 못해 차단을 유지합니다.'); }
+      catch { new Notice(L({ ko: '비공개 설정을 저장하지 못해 차단을 유지합니다.', en: "Could not save privacy settings; blocking remains active." })); }
     }));
-    new Setting(this.containerEl).setName('문서 최대 크기 (MB)').addText(t => t.setValue(String(this.plugin.settings.maxFileBytes / 1024 / 1024)).onChange(async value => {
+    new Setting(this.containerEl).setName(L({ ko: '문서 최대 크기 (MB)', en: "Maximum document size (MB)" })).addText(t => t.setValue(String(this.plugin.settings.maxFileBytes / 1024 / 1024)).onChange(async value => {
       const size = Number(value); if (Number.isFinite(size) && size >= 1 && size <= 200) { this.plugin.settings.maxFileBytes = size * 1024 * 1024; await this.persist(); }
     }));
-    this.containerEl.createEl('p', { text: '다른 플러그인: app.plugins.plugins["hwp-hands"].api (version = 1). 배포 폴더의 API.md에서 계약을 확인할 수 있습니다.' });
+    this.containerEl.createEl('p', { text: L({ ko: '다른 플러그인: app.plugins.plugins["hwp-hands"].api (version = 1). 배포 폴더의 API.md에서 계약을 확인할 수 있습니다.', en: "Other plugins: app.plugins.plugins[\"hwp-hands\"].api (version = 1). See API.md in the distribution folder for the contract." }) });
   }
   private async persist(): Promise<void> { this.plugin.manager.options = managerOptions(this.plugin.settings); await this.plugin.saveData(this.plugin.settings); }
 }

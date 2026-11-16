@@ -1,3 +1,4 @@
+import { LT, L } from '../i18n/locale';
 import type { Json, State } from '../api';
 import { HwpHandsError } from '../api';
 import { bytesHash, canonicalSaveJson, type PreparedSave, type PreparedSavePermit, type PreparedSaveReceipt, type PreparedSaveTicket } from '../prepared-save';
@@ -59,20 +60,20 @@ export class AgentCommits {
   constructor(private env: CommitEnvironment) {}
 
   async resolveTarget(name: string, args: JsonObject, ctx: CommitContext): Promise<CommitTarget> {
-    if (ctx.signal?.aborted) throw new HwpHandsError('CANCELLED', '대상 확인이 취소됐다.');
+    if (ctx.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '대상 확인이 취소됐다.', en: "Target resolution was cancelled." }));
     const issue = validateToolInput(name, args);
     if (issue) throw new HwpHandsError('INVALID_ARGUMENT', issue.message, issue.details);
     if (name === 'create_document') {
-      if (!this.env.bridge.resolveNew || !this.env.bridge.prepareNew) throw new HwpHandsError('INVALID_ARGUMENT', '새 문서 생성을 지원하지 않는다.');
+      if (!this.env.bridge.resolveNew || !this.env.bridge.prepareNew) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '새 문서 생성을 지원하지 않는다.', en: "Creating a new document is not supported." }));
       const destination = documentPath(args?.path as string), template = args?.template === undefined ? undefined : documentPath(args.template as string);
-      if (template && extension(template) !== extension(destination)) throw new HwpHandsError('INVALID_ARGUMENT', '템플릿과 새 문서는 같은 형식이어야 한다.');
+      if (template && extension(template) !== extension(destination)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '템플릿과 새 문서는 같은 형식이어야 한다.', en: "The template and new document must use the same format." }));
       return { kind: 'new', ...await this.env.bridge.resolveNew(destination, template) };
     }
     const { state } = await this.env.open(args?.path, ctx.caller);
     if (args?.destination !== undefined) {
       const destination = documentPath(args.destination as string);
       if (!this.env.bridge.resolveNew || !this.env.bridge.prepareNew || extension(destination) !== extension(state.path) || destination.toLowerCase() === state.path.toLowerCase())
-        throw new HwpHandsError('INVALID_ARGUMENT', '같은 형식의 새 경로를 사용하라.');
+        throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '같은 형식의 새 경로를 사용하라.', en: "Use a new path with the same format." }));
       await this.env.bridge.resolveNew(destination);
       return { kind: 'existing', document: this.env.ref(state), revision: state.revision, destination };
     }
@@ -81,10 +82,10 @@ export class AgentCommits {
 
   /** Fixes the bytes that would be written. Changes no user file, backup or journal. */
   async prepare(request: { tool: string; args: JsonObject; target: CommitTarget }, ctx: CommitContext): Promise<CommitPreparation> {
-    if (!COMMIT_TOOL_NAMES.includes(request?.tool)) throw new HwpHandsError('INVALID_ARGUMENT', `저장 도구가 아니다: ${String(request?.tool)}`);
-    if (!ctx?.caller) throw new HwpHandsError('INVALID_ARGUMENT', '저장 대상이 확정되지 않았다.');
+    if (!COMMIT_TOOL_NAMES.includes(request?.tool)) throw new HwpHandsError('INVALID_ARGUMENT', LT({ ko: () => `저장 도구가 아니다: ${String(request?.tool)}`, en: () => `Not a save tool: ${String(request?.tool)}` }));
+    if (!ctx?.caller) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '저장 대상이 확정되지 않았다.', en: "The save target has not been resolved." }));
     const resolved = await this.resolveTarget(request.tool, request.args, ctx);
-    if (canonicalSaveJson(resolved) !== canonicalSaveJson(request.target)) throw new HwpHandsError('REVISION_CONFLICT', '확정한 문서·템플릿과 지금 대상이 다르다. 다시 준비하라.');
+    if (canonicalSaveJson(resolved) !== canonicalSaveJson(request.target)) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '확정한 문서·템플릿과 지금 대상이 다르다. 다시 준비하라.', en: "The current target differs from the resolved document or template. Prepare again." }));
     const destination = resolved.kind === 'new' ? resolved.destination : resolved.destination ?? resolved.document.path;
     for (const record of this.prepared.values()) if (record.state === 'open' && record.caller === owner(ctx.caller) && record.shown.destination === destination) this.drop(record);
     const internal = resolved.kind === 'new'
@@ -98,8 +99,8 @@ export class AgentCommits {
       ...(internal.template ? { template: internal.template } : {}),
       destination: internal.destination, format: internal.format, saveOptions: { ...internal.saveOptions },
       writeSet: internal.writeSet.map(entry => entry.kind === 'folder' ? entry : ({ kind: 'file' as const, path: entry.path, op: entry.op, role: entry.role, sha256Before: entry.sha256Before, sha256Expected: entry.sha256Expected, sizeBytes: entry.sizeBytes })),
-      providerInternalWrites: internal.mode === 'overwrite' && internal.writeSet.length ? [`HWP Hands 폴더에 ${internal.saveOptions.backup ? '저장 전 원본 백업과 ' : ''}복구 기록을 남긴다.`] : [],
-      report: { summary: [...(ai ? [`저장되는 내용에 사람이 아직 저장하지 않은 AI 편집 ${ai}건이 들어 있다.`] : []), ...(unknown ? [`주체를 알 수 없는 편집 ${unknown}건이 들어 있다.`] : [])], warnings: internal.report.warnings.slice(0, 20).map(item => item.slice(0, 300)) },
+      providerInternalWrites: internal.mode === 'overwrite' && internal.writeSet.length ? [LT({ ko: () => `HWP Hands 폴더에 ${internal.saveOptions.backup ? '저장 전 원본 백업과 ' : ''}복구 기록을 남긴다.`, en: () => `Keeps ${internal.saveOptions.backup ? 'a pre-save original backup and ' : ''}recovery records in the HWP Hands folder.` })] : [],
+      report: { summary: [...(ai ? [LT({ ko: () => `저장되는 내용에 사람이 아직 저장하지 않은 AI 편집 ${ai}건이 들어 있다.`, en: () => `The saved content includes ${ai} AI edits that a person has not yet saved.` })] : []), ...(unknown ? [LT({ ko: () => `주체를 알 수 없는 편집 ${unknown}건이 들어 있다.`, en: () => `Includes ${unknown} edits with unknown actors.` })] : [])], warnings: internal.report.warnings.slice(0, 20).map(item => item.slice(0, 300)) },
       expiresAt: internal.expiresAt,
     };
     // Sorted-key JSON, so the host recomputes the same digest from the fields it shows a person.
@@ -118,14 +119,14 @@ export class AgentCommits {
    */
   async execute(ticket: CommitTicket, ctx: CommitContext): Promise<CommitReceipt> {
     const record = this.prepared.get(ticket?.preparationId);
-    if (!record) throw new HwpHandsError('NOT_FOUND', '저장 준비를 찾을 수 없다. 다시 실행하지 말고 host의 체크포인트로 확인하라.');
+    if (!record) throw new HwpHandsError('NOT_FOUND', L({ ko: '저장 준비를 찾을 수 없다. 다시 실행하지 말고 host의 체크포인트로 확인하라.', en: "The save preparation was not found. Do not execute again; check the host checkpoint." }));
     const { internal, shown } = record;
     const refuse = (code: string, message: string): CommitReceipt => ({ preparationId: shown.preparationId, ticketId: String(ticket.ticketId), preparationDigest: shown.preparationDigest,
       state: 'not_written', entries: shown.writeSet.map(entry => ({ path: entry.path, kind: entry.kind, state: 'not_written' })), warnings: [], error: { code: code.slice(0, 64), message: message.slice(0, 1000) } });
-    if (!ctx?.caller || owner(ctx.caller) !== record.caller || !ticket.caller || owner(ticket.caller) !== record.caller) return refuse('TARGET_MISMATCH', '저장을 준비한 대화·실행과 다른 호출이다. 저장하지 않았다.');
-    if (record.state === 'dropped') return refuse('REVISION_CONFLICT', '이 저장 준비는 새 준비로 대체됐거나 쓸 내용이 없었다. 저장하지 않았다.');
+    if (!ctx?.caller || owner(ctx.caller) !== record.caller || !ticket.caller || owner(ticket.caller) !== record.caller) return refuse('TARGET_MISMATCH', L({ ko: '저장을 준비한 대화·실행과 다른 호출이다. 저장하지 않았다.', en: "This call belongs to a different conversation or run than the save preparation. Nothing was saved." }));
+    if (record.state === 'dropped') return refuse('REVISION_CONFLICT', L({ ko: '이 저장 준비는 새 준비로 대체됐거나 쓸 내용이 없었다. 저장하지 않았다.', en: "This save preparation was superseded or had no content to write. Nothing was saved." }));
     if (ticket.preparationDigest !== shown.preparationDigest || ticket.destination !== shown.destination || canonicalSaveJson(ticket.source) !== canonicalSaveJson(shown.source) || canonicalSaveJson(ticket.writeSet) !== canonicalSaveJson(shown.writeSet))
-      return refuse('INVALID_ARGUMENT', '저장 ticket이 승인한 준비 상태와 일치하지 않는다. 저장하지 않았다.');
+      return refuse('INVALID_ARGUMENT', L({ ko: '저장 ticket이 승인한 준비 상태와 일치하지 않는다. 저장하지 않았다.', en: "The save ticket does not match the approved preparation. Nothing was saved." }));
     const signal = ctx.signal ?? new AbortController().signal;
     const first = record.state === 'open'; record.state = 'executed';
     let receipt: PreparedSaveReceipt;
@@ -134,14 +135,14 @@ export class AgentCommits {
         { ticketId: ticket.ticketId, preparationId: internal.preparationId, preparationDigest: internal.preparationDigest, source: structuredClone(internal.source),
           destination: internal.destination, writeSet: structuredClone(internal.writeSet), expiresAt: ticket.expiresAt },
         // The host persisted its checkpoint and its run reference before it issued this ticket (agentinterop v1 commit order).
-        { signal, assertAuthorized: () => { if (signal.aborted) throw new HwpHandsError('CANCELLED', '저장이 취소됐다.'); }, persistCheckpoint: async () => undefined });
+        { signal, assertAuthorized: () => { if (signal.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '저장이 취소됐다.', en: "Saving was cancelled." })); }, persistCheckpoint: async () => undefined });
     } catch (error) {
       // The manager refuses a mismatched or reused ticket before it queues anything.
       return refuse(error instanceof HwpHandsError ? error.code : 'VERIFY_FAILED', error instanceof Error ? error.message : String(error));
     }
     if (first && shown.mode !== 'overwrite' && receipt.state === 'written' && this.env.created) {
       try { await this.env.created(shown.destination, ctx.caller); }
-      catch { receipt.warnings.push('파일은 저장됐지만 화면을 열지 못했습니다. 문서 경로에서 직접 여세요.'); }
+      catch { receipt.warnings.push(L({ ko: '파일은 저장됐지만 화면을 열지 못했습니다. 문서 경로에서 직접 여세요.', en: "The file was saved, but its view could not be opened. Open it directly from the document path." })); }
     }
     return this.shown(record, receipt);
   }

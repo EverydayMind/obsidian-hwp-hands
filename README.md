@@ -4,7 +4,7 @@
 
 Open and edit Hangul HWP and HWPX documents inside Obsidian Desktop. Documents are parsed, laid out and saved locally by a bundled RHWP WebAssembly engine; nothing leaves your computer.
 
-The user interface is in Korean.
+The interface and the agent tool wording follow the app language: Korean when Obsidian is set to Korean, English otherwise.
 
 ## Features
 

@@ -1,3 +1,4 @@
+import { LT, L } from '../i18n/locale';
 import type { Field, Json, Paragraph } from '../api';
 import type { ImageInspection } from './quality-images';
 import { hyperlinkTarget, isInputField, linkVerdict } from './field-kinds';
@@ -29,7 +30,7 @@ export function inspectQuality(input: {
   input.fields.forEach((field, index) => {
     if (!isInputField(field) || field.value !== '') return;
     add({ code: 'unfilled_field', severity: 'info', handle: `${input.epoch}:f${index + 1}`,
-      context: contextOf(field.name), suggest: '사용자가 값을 제공했는지 확인하라. 의도적인 빈 입력란일 수 있다. 채우려면 read_document로 현재 값을 확인한 뒤 fill_fields를 사용하라.' });
+      context: contextOf(field.name), suggest: L({ ko: '사용자가 값을 제공했는지 확인하라. 의도적인 빈 입력란일 수 있다. 채우려면 read_document로 현재 값을 확인한 뒤 fill_fields를 사용하라.', en: "Check whether the user provided a value. The blank field may be intentional. To fill it, inspect its current value with read_document, then use fill_fields." }) });
   });
   let links = 0, linksUnchecked = 0;
   input.fields.forEach((field, index) => {
@@ -40,7 +41,7 @@ export function inspectQuality(input: {
     if (verdict === 'unchecked') { linksUnchecked++; return; }
     if (verdict === 'valid') return;
     add({ code: 'invalid_link', severity: 'warning', handle: `${input.epoch}:f${index + 1}`, reason: verdict,
-      context: contextOf(target), suggest: '링크 주소 형식이 올바르지 않다. 표시 문자열과 링크 대상을 사람이 확인해 고쳐야 한다. 이 도구들은 하이퍼링크를 고치지 않으며 fill_fields로 덮어쓰지 마라.' });
+      context: contextOf(target), suggest: L({ ko: '링크 주소 형식이 올바르지 않다. 표시 문자열과 링크 대상을 사람이 확인해 고쳐야 한다. 이 도구들은 하이퍼링크를 고치지 않으며 fill_fields로 덮어쓰지 마라.', en: "The link address format is invalid. A person must inspect and correct the display text and link target. These tools do not edit hyperlinks; do not overwrite them with fill_fields." }) });
   });
   const placeholders = [...new Set(input.placeholders)];
   input.paragraphs.forEach((paragraph, index) => {
@@ -49,17 +50,17 @@ export function inspectQuality(input: {
       if (offset < 0) continue;
       add({ code: 'placeholder_left', severity: 'warning', handle: input.handles[index],
         context: contextOf(paragraph.text, Array.from(paragraph.text.slice(0, offset)).length),
-        suggest: '지정한 자리표시자가 남아 있다. 이 문단을 다시 읽고 실제 값과 의도를 확인한 뒤 기존 편집 도구를 사용하라.' });
+        suggest: L({ ko: '지정한 자리표시자가 남아 있다. 이 문단을 다시 읽고 실제 값과 의도를 확인한 뒤 기존 편집 도구를 사용하라.', en: "The specified placeholder remains. Reread this paragraph, confirm the actual value and intent, then use existing edit tools." }) });
     }
   });
   let previous: number | undefined;
   for (const { index, level } of input.outline?.items ?? []) {
     const paragraph = input.paragraphs[index], handle = input.handles[index];
-    if (!paragraph.text.trim()) add({ code: 'empty_heading', severity: 'info', handle, context: `개요 ${level + 1} 문단에 글자가 없다.`,
-      suggest: '개요 번호만 남은 문단인지, 개체만 담은 문단인지 사람이 화면에서 확인하라. 자동으로 지우거나 채우지 마라.' });
+    if (!paragraph.text.trim()) add({ code: 'empty_heading', severity: 'info', handle, context: LT({ ko: () => `개요 ${level + 1} 문단에 글자가 없다.`, en: () => `Outline level ${level + 1} paragraph has no text.` }),
+      suggest: L({ ko: '개요 번호만 남은 문단인지, 개체만 담은 문단인지 사람이 화면에서 확인하라. 자동으로 지우거나 채우지 마라.', en: "A person must inspect whether only outline numbering or objects remain in the paragraph. Do not delete or fill it automatically." }) });
     if (previous !== undefined && level > previous + 1) add({ code: 'heading_skip', severity: 'warning', handle,
-      context: contextOf(`개요 ${previous + 1} 다음 개요 ${level + 1}: ${paragraph.text}`),
-      suggest: '개요 수준이 건너뛰었다. 의도한 구조인지 사용자에게 확인한 뒤 바꿀 때만 format_text의 style로 개요 수준을 지정하라.' });
+      context: contextOf(L({ ko: `개요 ${previous + 1} 다음 개요 ${level + 1}: ${paragraph.text}`, en: `Outline level ${previous + 1} followed by level ${level + 1}: ${paragraph.text}` })),
+      suggest: L({ ko: '개요 수준이 건너뛰었다. 의도한 구조인지 사용자에게 확인한 뒤 바꿀 때만 format_text의 style로 개요 수준을 지정하라.', en: "An outline level was skipped. Confirm the intended structure with the user; only when a change is requested, set the outline level using format_text style." }) });
     previous = level;
   }
   input.images?.findings.forEach(add);

@@ -1,3 +1,4 @@
+import { LT, L } from '../../i18n/locale';
 // Pure field model and validation for generic form dialogs. Kept free of the `obsidian` module so it is unit-testable.
 export type FormValue = string | number | boolean;
 export type FormValues = Record<string, FormValue>;
@@ -27,25 +28,25 @@ export function parseFormValues(fields: readonly FormField[], raw: Readonly<Reco
       case 'number': {
         const text = typeof input === 'string' ? input.trim() : String(input);
         const parsed = text === '' ? Number.NaN : Number(text);
-        const range = field.min !== undefined && field.max !== undefined ? `${field.min}~${field.max}` : field.min !== undefined ? `${field.min} 이상` : field.max !== undefined ? `${field.max} 이하` : '유효한 숫자';
+        const range = field.min !== undefined && field.max !== undefined ? `${field.min}~${field.max}` : field.min !== undefined ? LT({ ko: () => `${field.min} 이상`, en: () => `at least ${field.min}` }) : field.max !== undefined ? LT({ ko: () => `${field.max} 이하`, en: () => `at most ${field.max}` }) : L({ ko: '유효한 숫자', en: "a valid number" });
         if (!Number.isFinite(parsed) || (field.integer && !Number.isInteger(parsed)) || (field.min !== undefined && parsed < field.min) || (field.max !== undefined && parsed > field.max)) {
-          return { values, error: { key: field.key, message: `${field.label}은(는) ${field.integer ? '정수 ' : ''}${range}${field.unit ? ` ${field.unit}` : ''} 범위로 입력하세요.` } };
+          return { values, error: { key: field.key, message: LT({ ko: () => `${field.label}은(는) ${field.integer ? '정수 ' : ''}${range}${field.unit ? ` ${field.unit}` : ''} 범위로 입력하세요.`, en: () => `Enter ${field.label} within ${field.integer ? 'an integer ' : ''}range ${range}${field.unit ? ` ${field.unit}` : ''}.` }) } };
         }
         values[field.key] = parsed; break;
       }
       case 'select': {
-        if (typeof input !== 'string' || !field.options.some(([value]) => value === input)) return { values, error: { key: field.key, message: `${field.label}에서 목록의 항목을 고르세요.` } };
+        if (typeof input !== 'string' || !field.options.some(([value]) => value === input)) return { values, error: { key: field.key, message: LT({ ko: () => `${field.label}에서 목록의 항목을 고르세요.`, en: () => `Select a list item for ${field.label}.` }) } };
         values[field.key] = input; break;
       }
       case 'checkbox': values[field.key] = input === true || input === 'true'; break;
       case 'color': {
-        if (typeof input !== 'string' || !/^#[0-9a-f]{6}$/i.test(input)) return { values, error: { key: field.key, message: `${field.label}은(는) #RRGGBB 형식이어야 합니다.` } };
+        if (typeof input !== 'string' || !/^#[0-9a-f]{6}$/i.test(input)) return { values, error: { key: field.key, message: LT({ ko: () => `${field.label}은(는) #RRGGBB 형식이어야 합니다.`, en: () => `${field.label} must use #RRGGBB format.` }) } };
         values[field.key] = input.toLowerCase(); break;
       }
       case 'text': {
         const text = typeof input === 'string' ? input.trim() : String(input);
-        if (field.required && !text) return { values, error: { key: field.key, message: `${field.label}을(를) 입력하세요.` } };
-        if (field.maxLength !== undefined && Array.from(text).length > field.maxLength) return { values, error: { key: field.key, message: `${field.label}은(는) ${field.maxLength}자 이하로 입력하세요.` } };
+        if (field.required && !text) return { values, error: { key: field.key, message: LT({ ko: () => `${field.label}을(를) 입력하세요.`, en: () => `Enter ${field.label}.` }) } };
+        if (field.maxLength !== undefined && Array.from(text).length > field.maxLength) return { values, error: { key: field.key, message: LT({ ko: () => `${field.label}은(는) ${field.maxLength}자 이하로 입력하세요.`, en: () => `${field.label} must be at most ${field.maxLength} characters.` }) } };
         values[field.key] = text; break;
       }
     }

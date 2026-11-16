@@ -1,3 +1,4 @@
+import { L } from './i18n/locale';
 import { createHash, randomUUID } from 'node:crypto';
 import { HwpHandsError, type Format } from './api';
 import type { ActorContribution } from './edit-actors';
@@ -60,7 +61,7 @@ export class PreparedSaveStore {
     const live = [...this.records.values()].filter(record => record.completedAt === undefined);
     const size = (items: PreparedSaveArtifact[]) => items.reduce((sum, item) => sum + (item.before?.byteLength ?? 0) + item.after.byteLength, 0);
     if (live.length >= 2 || live.reduce((sum, record) => sum + size(record.artifacts), size(artifacts)) > MAX_BYTES) {
-      throw new HwpHandsError('INVALID_ARGUMENT', '저장 준비 보관 한도(2개/100 MiB)를 초과했습니다. 기존 준비를 취소하세요.');
+      throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '저장 준비 보관 한도(2개/100 MiB)를 초과했습니다. 기존 준비를 취소하세요.', en: "Save preparation storage limit exceeded (2 items/100 MiB). Cancel an existing preparation." }));
     }
     const body = { ...structuredClone(value), preparationId: randomUUID(), expiresAt: new Date(Date.now() + TTL).toISOString() };
     const preparation = { ...body, preparationDigest: bytesHash(Buffer.from(canonicalSaveJson(body))) };
@@ -70,21 +71,21 @@ export class PreparedSaveStore {
   get(id: string): PreparedSaveRecord {
     this.prune();
     const record = this.records.get(id);
-    if (!record) throw new HwpHandsError('NOT_FOUND', '저장 준비를 찾을 수 없습니다. 실행을 재전송하지 말고 host checkpoint를 확인하세요.');
+    if (!record) throw new HwpHandsError('NOT_FOUND', L({ ko: '저장 준비를 찾을 수 없습니다. 실행을 재전송하지 말고 host checkpoint를 확인하세요.', en: "Save preparation not found. Do not resend execution; check the host checkpoint." }));
     return record;
   }
   /** Claims synchronously before queueing; duplicate execution never waits for the running file queue. */
   claim(value: PreparedSaveTicket): { record: PreparedSaveRecord; duplicate: boolean } {
     const ticket = structuredClone(value), record = this.get(ticket.preparationId), prep = record.preparation;
     if (record.ticket) {
-      if (canonicalSaveJson(record.ticket) !== canonicalSaveJson(ticket)) throw new HwpHandsError('INVALID_ARGUMENT', '이미 다른 ticket으로 실행한 저장 준비입니다.');
+      if (canonicalSaveJson(record.ticket) !== canonicalSaveJson(ticket)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '이미 다른 ticket으로 실행한 저장 준비입니다.', en: "This save preparation was already executed with another ticket." }));
       return { record, duplicate: true };
     }
     if (!ticket.ticketId || ticket.ticketId.length > 128 || this.tickets.has(ticket.ticketId)
       || ticket.preparationDigest !== prep.preparationDigest || ticket.destination !== prep.destination
       || canonicalSaveJson(ticket.source) !== canonicalSaveJson(prep.source) || canonicalSaveJson(ticket.writeSet) !== canonicalSaveJson(prep.writeSet)
       || !Number.isFinite(Date.parse(ticket.expiresAt)) || Date.parse(ticket.expiresAt) > Date.parse(prep.expiresAt)) {
-      throw new HwpHandsError('INVALID_ARGUMENT', '저장 ticket이 승인한 준비 상태와 일치하지 않습니다.');
+      throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '저장 ticket이 승인한 준비 상태와 일치하지 않습니다.', en: "Save ticket does not match the approved preparation." }));
     }
     record.ticket = ticket; this.tickets.set(ticket.ticketId, prep.preparationId);
     record.receipt = { preparationId: prep.preparationId, preparationDigest: prep.preparationDigest, ticketId: ticket.ticketId,
@@ -98,7 +99,7 @@ export class PreparedSaveStore {
   }
   cancel(id: string): void {
     const record = this.get(id);
-    if (record.ticket) throw new HwpHandsError('INVALID_ARGUMENT', '실행된 저장 준비는 상태 조회로 확인하세요.');
+    if (record.ticket) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '실행된 저장 준비는 상태 조회로 확인하세요.', en: "Check executed save preparations through status queries." }));
     this.records.delete(id);
   }
   dispose(): void { this.records.clear(); this.tickets.clear(); }

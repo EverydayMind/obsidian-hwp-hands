@@ -1,3 +1,4 @@
+import { LT, L } from './i18n/locale';
 import { scriptCategory } from './font-language';
 import init, { HwpDocument } from '@rhwp/core';
 import { canvasScale, type CanvasPage } from './canvas-page';
@@ -45,10 +46,10 @@ type StructuralModel = { starts: number[]; lists: CursorList[]; byListId: Map<nu
 /** HWP table caption directions as the engine numbers them. */
 const TABLE_CAPTION_DIRECTIONS: Readonly<Record<number, 'Left' | 'Right' | 'Top' | 'Bottom'>> = { 0: 'Left', 1: 'Right', 2: 'Top', 3: 'Bottom' };
 function signedInteger(value: number, label: string, limit = Number.MAX_SAFE_INTEGER): void {
-  if (!Number.isSafeInteger(value) || Math.abs(value) > limit) throw new HwpHandsError('INVALID_ARGUMENT', `${label} 범위가 올바르지 않습니다: ${value}`);
+  if (!Number.isSafeInteger(value) || Math.abs(value) > limit) throw new HwpHandsError('INVALID_ARGUMENT', LT({ ko: () => `${label} 범위가 올바르지 않습니다: ${value}`, en: () => `Invalid ${label} range: ${value}` }));
 }
 function text(value: string): void {
-  if (typeof value !== 'string' || value.length > 1_000_000 || value.includes('\0')) throw new HwpHandsError('INVALID_ARGUMENT', '텍스트가 올바르지 않습니다.');
+  if (typeof value !== 'string' || value.length > 1_000_000 || value.includes('\0')) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '텍스트가 올바르지 않습니다.', en: "Invalid text." }));
 }
 export function nodePath(target: Target): string {
   return `sec[${target.section}]/para[${target.paragraph}]` + (target.cellPath ?? []).map((p, index) => target.containerKinds?.[index] === 'textBox'
@@ -87,7 +88,7 @@ function sameCharacterProperties(left: CharacterProperties, right: CharacterProp
 }
 function checked(value: string): Record<string, Json> {
   const result = parsed<Record<string, Json>>(value);
-  if (result.ok === false) { const detail = result.error ?? result.message ?? '문서 편집 실패'; throw new HwpHandsError('ENGINE_ERROR', typeof detail === 'object' ? JSON.stringify(detail) : String(detail), result); }
+  if (result.ok === false) { const detail = result.error ?? result.message ?? L({ ko: '문서 편집 실패', en: "Document editing failed" }); throw new HwpHandsError('ENGINE_ERROR', typeof detail === 'object' ? JSON.stringify(detail) : String(detail), result); }
   return result;
 }
 function objectRecord(value: unknown, label: string): Record<string, unknown> {
@@ -313,11 +314,11 @@ export class RhwpEngine {
   outline(): Json { return parsed(this.document.getStructure('auto')); }
   allText(): string { return parsed<string>(this.document.getTextFileUnicode()); }
   private validateTarget(t: Target, model = this.structuralModel()): void {
-    if (!t || typeof t !== 'object') throw new HwpHandsError('INVALID_ARGUMENT', '문단 주소가 필요합니다.');
+    if (!t || typeof t !== 'object') throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '문단 주소가 필요합니다.', en: "A paragraph address is required." }));
     integer(t.section, 'section', this.document.getSectionCount() - 1);
     integer(t.paragraph, 'paragraph', this.document.getParagraphCount(t.section) - 1);
     if (t.cellPath !== undefined) {
-      if (!Array.isArray(t.cellPath) || !t.cellPath.length || t.cellPath.length > 16) throw new HwpHandsError('INVALID_ARGUMENT', 'cellPath가 올바르지 않습니다.');
+      if (!Array.isArray(t.cellPath) || !t.cellPath.length || t.cellPath.length > 16) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: 'cellPath가 올바르지 않습니다.', en: "Invalid cellPath." }));
       let hostListId = 0, hostParagraph = t.paragraph;
       for (const [index, p] of t.cellPath.entries()) {
         integer(p.controlIndex, 'controlIndex'); integer(p.cellIndex, 'cellIndex'); integer(p.cellParaIndex, 'cellParaIndex');
@@ -544,18 +545,18 @@ export class RhwpEngine {
     if (typeof fieldId !== 'number') throw new HwpHandsError('INVALID_ARGUMENT', 'fieldId must be a number.');
     integer(fieldId, 'fieldId');
     const matches = this.fields().filter(field => field.fieldId === fieldId);
-    if (matches.length !== 1) throw new HwpHandsError('INVALID_ARGUMENT', matches.length ? 'fieldId가 현재 문서에서 모호합니다.' : 'fieldId를 찾을 수 없습니다.', { fieldId });
-    if (matches[0].fieldType !== 'clickhere') throw new HwpHandsError('INVALID_ARGUMENT', '누름틀 필드만 고치거나 지울 수 있습니다.', { fieldId, fieldType: matches[0].fieldType ?? null });
+    if (matches.length !== 1) throw new HwpHandsError('INVALID_ARGUMENT', matches.length ? L({ ko: 'fieldId가 현재 문서에서 모호합니다.', en: "fieldId is ambiguous in the current document." }) : L({ ko: 'fieldId를 찾을 수 없습니다.', en: "fieldId was not found." }), { fieldId });
+    if (matches[0].fieldType !== 'clickhere') throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '누름틀 필드만 고치거나 지울 수 있습니다.', en: "Only input fields can be changed or deleted." }), { fieldId, fieldType: matches[0].fieldType ?? null });
     return matches[0];
   }
   private formFieldRange(field: Field): { address: BodyAddress; start: number; end: number } {
     const address = field.address, start = field.startCharIdx, end = field.endCharIdx;
     if (field.fieldType !== 'clickhere' || !address || address.kind !== 'body' || address.containerKinds?.includes('textBox')
       || typeof start !== 'number' || typeof end !== 'number' || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start)
-      throw new HwpHandsError('INVALID_ARGUMENT', '누름틀 답안의 위치를 확인할 수 없습니다.');
+      throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '누름틀 답안의 위치를 확인할 수 없습니다.', en: "Cannot determine the input field answer position." }));
     const paragraph = this.paragraph(address), value = typeof field.value === 'string' ? field.value : '';
     if (end > paragraph.length || Array.from(paragraph.text).slice(start, end).join('') !== value)
-      throw new HwpHandsError('VERIFY_FAILED', '누름틀 답안과 문단 범위가 일치하지 않습니다.');
+      throw new HwpHandsError('VERIFY_FAILED', L({ ko: '누름틀 답안과 문단 범위가 일치하지 않습니다.', en: "The input field answer does not match the paragraph range." }));
     return { address, start, end };
   }
   private writeFormField(before: Field[], index: number, value: string, byPlace = false, normalize = true): void {
@@ -564,7 +565,7 @@ export class RhwpEngine {
       if (otherIndex === index || other.fieldId !== field.fieldId || !other.address || this.addressKey(other.address) !== this.addressKey(address)) continue;
       const range = this.formFieldRange(other);
       if (!(original.end < range.start || range.end < original.start))
-        throw new HwpHandsError('INVALID_ARGUMENT', '같은 ID 누름틀의 범위가 겹치거나 맞닿아 있어 안전하게 구별할 수 없습니다.');
+        throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '같은 ID 누름틀의 범위가 겹치거나 맞닿아 있어 안전하게 구별할 수 없습니다.', en: "Input fields with the same ID have overlapping or adjacent ranges and cannot be distinguished safely." }));
     }
     const originalText = this.paragraph(address).text;
     let shapes: Array<{ startOffset: number; endOffset: number; charShapeId: number }> = [];
@@ -576,12 +577,12 @@ export class RhwpEngine {
       let covered = original.start;
       for (const run of shapes) {
         if (run.startOffset !== covered || run.endOffset <= covered || run.endOffset > original.end || !Number.isSafeInteger(run.charShapeId) || run.charShapeId < 0)
-          throw new HwpHandsError('VERIFY_FAILED', '누름틀 글자 서식 범위가 올바르지 않습니다.');
+          throw new HwpHandsError('VERIFY_FAILED', L({ ko: '누름틀 글자 서식 범위가 올바르지 않습니다.', en: "Invalid input field character formatting range." }));
         covered = run.endOffset;
       }
-      if (covered !== original.end) throw new HwpHandsError('VERIFY_FAILED', '누름틀 글자 서식 범위가 불완전합니다.');
+      if (covered !== original.end) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '누름틀 글자 서식 범위가 불완전합니다.', en: "Incomplete input field character formatting range." }));
       if (value && Array.from(value).length !== original.end - original.start && new Set(shapes.map(run => run.charShapeId)).size > 1)
-        throw new HwpHandsError('INVALID_ARGUMENT', '길이가 바뀌는 혼합 서식 누름틀 답안은 안전하게 교체할 수 없습니다.');
+        throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '길이가 바뀌는 혼합 서식 누름틀 답안은 안전하게 교체할 수 없습니다.', en: "Mixed-format input field answers with changing length cannot be replaced safely." }));
     }
     if (byPlace) {
       if (original.end > original.start) this.remove(address, original.start, original.end - original.start);
@@ -590,14 +591,14 @@ export class RhwpEngine {
     const after = this.fields(), updated = after[index];
     if (after.length !== before.length || !updated || updated.name !== field.name || updated.fieldType !== field.fieldType || updated.value !== value
       || before.some((item, i) => i !== index && (after[i]?.name !== item.name || after[i]?.fieldType !== item.fieldType || after[i]?.value !== item.value)))
-      throw new HwpHandsError('VERIFY_FAILED', '누름틀을 채우는 동안 다른 필드가 달라졌습니다.');
+      throw new HwpHandsError('VERIFY_FAILED', L({ ko: '누름틀을 채우는 동안 다른 필드가 달라졌습니다.', en: "Another field changed while filling the input field." }));
     const range = this.formFieldRange(updated);
-    if (this.addressKey(range.address) !== this.addressKey(address)) throw new HwpHandsError('VERIFY_FAILED', '누름틀의 문단이 변경되었습니다.');
+    if (this.addressKey(range.address) !== this.addressKey(address)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '누름틀의 문단이 변경되었습니다.', en: "The input field paragraph changed." }));
     if (byPlace) {
       const chars = Array.from(originalText), expected = [...chars.slice(0, original.start), ...Array.from(value), ...chars.slice(original.end)].join('');
       if (updated.fieldId !== field.fieldId || this.paragraph(range.address).text !== expected
         || before.some((item, i) => i !== index && (after[i]?.fieldId !== item.fieldId || !item.address || !after[i]?.address || this.addressKey(item.address) !== this.addressKey(after[i].address))))
-        throw new HwpHandsError('VERIFY_FAILED', '같은 ID의 누름틀을 안전하게 분리하지 못했습니다.');
+        throw new HwpHandsError('VERIFY_FAILED', L({ ko: '같은 ID의 누름틀을 안전하게 분리하지 못했습니다.', en: "Could not safely separate input fields with the same ID." }));
     }
     if (shapes.length && range.end > range.start) {
       const restored = range.end - range.start === original.end - original.start
@@ -638,7 +639,7 @@ export class RhwpEngine {
     const field = this.clickHereField(c.fieldId), address = field.address, start = field.startCharIdx;
     // RHWP exposes removal by caret position for body paragraphs and one-level cell paragraphs only.
     if (!address || address.kind !== 'body' || address.containerKinds?.includes('textBox') || (address.cellPath?.length ?? 0) > 1 || typeof start !== 'number') {
-      throw new HwpHandsError('INVALID_ARGUMENT', '본문 문단과 표 셀(한 단계) 안의 누름틀만 지울 수 있습니다.');
+      throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '본문 문단과 표 셀(한 단계) 안의 누름틀만 지울 수 있습니다.', en: "Only input fields in body paragraphs and direct table cells can be deleted." }));
     }
     const entered = typeof field.value === 'string' ? field.value : '';
     const step = address.cellPath?.[0];
@@ -670,7 +671,7 @@ export class RhwpEngine {
     };
   }
   search(query: string, caseSensitive = false): SearchMatch[] {
-    text(query); if (!query) throw new HwpHandsError('INVALID_ARGUMENT', '검색어가 비어 있습니다.');
+    text(query); if (!query) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '검색어가 비어 있습니다.', en: "The search query is empty." }));
     type Match = { sec: number; para: number; charOffset: number; length: number; cellContext?: { parentPara: number; ctrlIdx: number; cellIdx: number; cellPara: number }; cellPath?: Target['cellPath'] };
     const matches = parsed<Match[]>(this.document.searchAllText(query, caseSensitive, true));
     return matches.map(m => {
@@ -963,7 +964,7 @@ export class RhwpEngine {
       if (!base) throw new HwpHandsError('VERIFY_FAILED', `Preservation snapshot is missing paragraph formatting at ${key}.`);
       const { address: _address, nodePath: _nodePath, characterRuns: _runs, characterCoverage: _coverage, missingRanges: _missing, ...properties } = base;
       const note = paragraph.address.kind === 'footnote' || paragraph.address.kind === 'endnote';
-      if (note) coverageWarnings.push('각주·미주 문자 서식은 현재 RHWP 코어에서 조회되지 않아 텍스트와 문단 속성만 비교합니다.');
+      if (note) coverageWarnings.push(L({ ko: '각주·미주 문자 서식은 현재 RHWP 코어에서 조회되지 않아 텍스트와 문단 속성만 비교합니다.', en: "The current RHWP core does not expose footnote/endnote character formatting; only text and paragraph properties are compared." }));
       // Text-box and header/footer paragraphs have no shape-run read, as in buildFormatting.
       const characterRuns = runs === 'model' && paragraph.address.kind === 'body' && !paragraph.address.containerKinds?.includes('textBox')
         ? this.modelCharacterRuns(paragraph as Paragraph, shapes)
@@ -986,13 +987,13 @@ export class RhwpEngine {
       };
     });
     if (model.lists.some(list => !list.isCell && list.cellIndex !== 0)) {
-      coverageWarnings.push('도형 캡션 본문은 현재 구조 조회 범위 밖이라 텍스트와 서식을 보존 지문에 포함하지 않습니다.');
+      coverageWarnings.push(L({ ko: '도형 캡션 본문은 현재 구조 조회 범위 밖이라 텍스트와 서식을 보존 지문에 포함하지 않습니다.', en: "Shape caption bodies are outside the current structure query scope, so their text/formatting are excluded from the preservation fingerprint." }));
     }
     if (tree.stories.some(story => (story.kind === 'footnote' || story.kind === 'endnote') && story.availability === 'unsupportedNestedAnchor')) {
-      coverageWarnings.push('셀에 고정된 각주·미주 본문은 현재 RHWP 코어에서 노출되지 않아 보존 지문에 포함되지 않습니다.');
+      coverageWarnings.push(L({ ko: '셀에 고정된 각주·미주 본문은 현재 RHWP 코어에서 노출되지 않아 보존 지문에 포함되지 않습니다.', en: "The current RHWP core does not expose cell-anchored footnote/endnote bodies; these are excluded from the preservation fingerprint." }));
     }
     if (formattedParagraphs.some(item => item.paragraphProperties.propertyCoverage !== 'complete')) {
-      coverageWarnings.push('일부 깊은 중첩 문단은 현재 RHWP 코어 제한으로 정규화 문단 속성 대신 native 문단 모양만 비교합니다.');
+      coverageWarnings.push(L({ ko: '일부 깊은 중첩 문단은 현재 RHWP 코어 제한으로 정규화 문단 속성 대신 native 문단 모양만 비교합니다.', en: "For some deeply nested paragraphs, current RHWP core limitations permit comparing only native paragraph shapes, rather than normalized paragraph properties." }));
     }
     const address = (value: BodyAddress | HeaderFooterAddress | NoteAddress): unknown => value;
     const paragraphReference = (value: Paragraph | StoryParagraph): unknown => ({ address: address(value.address), text: ('logicalText' in value ? (value.logicalText ?? value.text) : value.text).replaceAll('\r\n', '\n') });
@@ -1223,7 +1224,7 @@ export class RhwpEngine {
   }
   /** Measure serialized zero-width tabs against the current model; unresolvable locations are left unchanged. */
   measureTabs(spots: TabSpot[]): MeasuredTab[] {
-    if (!Array.isArray(spots) || spots.length > 5000) throw new HwpHandsError('INVALID_ARGUMENT', '탭 측정은 5,000개 이하여야 합니다.');
+    if (!Array.isArray(spots) || spots.length > 5000) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '탭 측정은 5,000개 이하여야 합니다.', en: "At most 5,000 tabs can be measured." }));
     const model = this.structuralModel(), tables = this.tables(model), result: MeasuredTab[] = [];
     for (const spot of spots) {
       try {
@@ -1644,7 +1645,7 @@ export class RhwpEngine {
   layout(page: number): PageLayout { return this.pageLayout(page, this.structuralModel()); }
   export(format: Format, fileName?: string): Uint8Array {
     const output = this.exportWithReport(format, fileName);
-    if (output.contentLoss.count > 0) throw new HwpHandsError('CONTENT_LOSS', '엔진이 저장 시 내용 손실을 보고했습니다.', output.contentLoss);
+    if (output.contentLoss.count > 0) throw new HwpHandsError('CONTENT_LOSS', L({ ko: '엔진이 저장 시 내용 손실을 보고했습니다.', en: "The engine reported content loss during saving." }), output.contentLoss);
     return output.bytes;
   }
   exportWithReport(format: Format, fileName?: string): { bytes: Uint8Array; contentLoss: { count: number; losses: Json[] } } {
@@ -1683,7 +1684,7 @@ export class RhwpEngine {
   private insertBefore(address: Target, value: string): Record<string, Json> {
     const key = nodePath(address);
     if (this.fields(this.structuralModel()).some(field => field.address && nodePath(field.address) === key))
-      throw new HwpHandsError('INVALID_ARGUMENT', '누름틀이 있는 문단 앞에는 그 문단의 서식으로 문단을 넣을 수 없습니다.', { reason: 'anchored-content' });
+      throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '누름틀이 있는 문단 앞에는 그 문단의 서식으로 문단을 넣을 수 없습니다.', en: "Cannot insert a paragraph inheriting formatting before a paragraph containing input fields." }), { reason: 'anchored-content' });
     // Splitting at offset 0 would keep inline objects in the new paragraph, so an empty one is made around a placeholder.
     const placed = value || ' ';
     const result = this.insert(address, 0, placed);
@@ -1712,19 +1713,19 @@ export class RhwpEngine {
   private replace(t: TextTarget, value: string, expectedText?: string, preserveFormatting = false, normalizeFormAnswer = false, rewriteFormatting = false, rewriteVersion?: string): Record<string, Json> {
     text(value); const p = this.paragraphAt(t);
     if (typeof preserveFormatting !== 'boolean') throw new HwpHandsError('INVALID_ARGUMENT', 'preserveFormatting must be boolean.');
-    if (typeof normalizeFormAnswer !== 'boolean' || (normalizeFormAnswer && (p.address.kind !== 'body' || !p.address.cellPath?.length || p.address.containerKinds?.includes('textBox')))) throw new HwpHandsError('INVALID_ARGUMENT', '양식 답안 정리는 표 셀 문단에서만 지원합니다.');
-    if (expectedText !== undefined && expectedText !== p.text) throw new HwpHandsError('REVISION_CONFLICT', '문단 원문이 변경되었습니다.');
+    if (typeof normalizeFormAnswer !== 'boolean' || (normalizeFormAnswer && (p.address.kind !== 'body' || !p.address.cellPath?.length || p.address.containerKinds?.includes('textBox')))) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '양식 답안 정리는 표 셀 문단에서만 지원합니다.', en: "Form answer normalization is supported only in table-cell paragraphs." }));
+    if (expectedText !== undefined && expectedText !== p.text) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '문단 원문이 변경되었습니다.', en: "The original paragraph text changed." }));
     if (typeof rewriteFormatting !== 'boolean') throw new HwpHandsError('INVALID_ARGUMENT', 'rewriteFormatting must be boolean.');
     if ((!rewriteFormatting && rewriteVersion !== undefined) || (rewriteFormatting && rewriteVersion !== REWRITE_DIFF_VERSION))
-      throw new HwpHandsError('INVALID_ARGUMENT', '지원하지 않는 재작성 알고리즘 버전입니다.');
+      throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '지원하지 않는 재작성 알고리즘 버전입니다.', en: "Unsupported rewrite algorithm version." }));
     if (rewriteFormatting) {
       if (expectedText === undefined || preserveFormatting || normalizeFormAnswer || p.address.kind !== 'body' || p.address.cellPath?.length || !p.text
         // eslint-disable-next-line no-control-regex -- Replacement text must reject control characters.
         || Array.from(p.text).length > 2000 || Array.from(value).length > 20000 || /[\u0000-\u001f\u007f]/u.test(p.text) || /[\u0000-\u001f\u007f]/u.test(value))
-        throw new HwpHandsError('INVALID_ARGUMENT', '재작성은 원문이 확인된 일반 본문 문단에서만 지원합니다.');
-      if (this.hasAnchors(p.address)) throw new HwpHandsError('INVALID_ARGUMENT', '앵커가 있는 문단은 재작성할 수 없습니다.', { reason: 'anchored-content' });
+        throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '재작성은 원문이 확인된 일반 본문 문단에서만 지원합니다.', en: "Rewriting is supported only in ordinary body paragraphs with verified original text." }));
+      if (this.hasAnchors(p.address)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '앵커가 있는 문단은 재작성할 수 없습니다.', en: "Paragraphs with anchors cannot be rewritten." }), { reason: 'anchored-content' });
       const oldLength = Array.from(p.text).length, newLength = Array.from(value).length;
-      if (oldLength !== p.length) throw new HwpHandsError('VERIFY_FAILED', '문단 문자 오프셋을 확인하지 못했습니다.');
+      if (oldLength !== p.length) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '문단 문자 오프셋을 확인하지 못했습니다.', en: "Could not verify paragraph character offsets." }));
       let expectedRuns: RewriteShapeRun[], hunks;
       try {
         const runs = parsed<RewriteShapeRun[]>(this.document.getCharShapeRuns(p.address.section, p.address.paragraph, 0, p.length));
@@ -1732,7 +1733,7 @@ export class RhwpEngine {
         expectedRuns = rewriteShapeRuns(p.text, value, runs, edits);
         hunks = rewriteHunks(edits);
       } catch {
-        throw new HwpHandsError('VERIFY_FAILED', '재작성의 원문 서식 또는 계산 한도를 확인하지 못했습니다.');
+        throw new HwpHandsError('VERIFY_FAILED', L({ ko: '재작성의 원문 서식 또는 계산 한도를 확인하지 못했습니다.', en: "Could not verify original formatting or computation limits for rewriting." }));
       }
       for (const hunk of hunks.reverse()) {
         if (hunk.removed) this.remove(t, hunk.start, hunk.removed);
@@ -1740,20 +1741,20 @@ export class RhwpEngine {
       }
       if (expectedRuns.length) checked(this.document.setCharShapeRuns(p.address.section, p.address.paragraph, 0, newLength, JSON.stringify(expectedRuns)));
       const actual = this.paragraphAt(t);
-      if (actual.text !== value || actual.length !== newLength) throw new HwpHandsError('VERIFY_FAILED', '재작성 결과의 텍스트를 확인하지 못했습니다.');
+      if (actual.text !== value || actual.length !== newLength) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '재작성 결과의 텍스트를 확인하지 못했습니다.', en: "Could not verify rewritten text." }));
       const actualRuns = newLength ? parsed<RewriteShapeRun[]>(this.document.getCharShapeRuns(p.address.section, p.address.paragraph, 0, newLength)) : [];
       const expanded = (runs: RewriteShapeRun[]): number[] => {
         const ids: number[] = [];
         for (const run of runs) {
           if (run.startOffset !== ids.length || !Number.isSafeInteger(run.endOffset) || run.endOffset <= run.startOffset || run.endOffset > newLength || !Number.isSafeInteger(run.charShapeId) || run.charShapeId < 0)
-            throw new HwpHandsError('VERIFY_FAILED', '재작성 결과의 글자 서식 범위를 확인하지 못했습니다.');
+            throw new HwpHandsError('VERIFY_FAILED', L({ ko: '재작성 결과의 글자 서식 범위를 확인하지 못했습니다.', en: "Could not verify rewritten character formatting ranges." }));
           while (ids.length < run.endOffset) ids.push(run.charShapeId);
         }
-        if (ids.length !== newLength) throw new HwpHandsError('VERIFY_FAILED', '재작성 결과의 글자 서식이 불완전합니다.');
+        if (ids.length !== newLength) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '재작성 결과의 글자 서식이 불완전합니다.', en: "Rewritten character formatting is incomplete." }));
         return ids;
       };
       const expectedIds = expanded(expectedRuns);
-      if (expanded(actualRuns).some((id, index) => id !== expectedIds[index])) throw new HwpHandsError('VERIFY_FAILED', '재작성 결과의 글자 서식이 다릅니다.');
+      if (expanded(actualRuns).some((id, index) => id !== expectedIds[index])) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '재작성 결과의 글자 서식이 다릅니다.', en: "Rewritten character formatting differs." }));
       return { ok: true };
     }
     // Preserve unchanged runs and anchored controls by applying only the minimal text difference.
@@ -1772,7 +1773,7 @@ export class RhwpEngine {
     const address = p.address;
     if (preserveFormatting && (removed || inserted)) {
       if (address.kind !== 'body' || address.containerKinds?.includes('textBox')) {
-        throw new HwpHandsError('INVALID_ARGUMENT', '서식 보존 치환은 본문과 표 셀에서만 지원합니다.', { reason: 'format-preservation' });
+        throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '서식 보존 치환은 본문과 표 셀에서만 지원합니다.', en: "Formatting-preserving replacement is supported only in body paragraphs and table cells." }), { reason: 'format-preservation' });
       }
       const runs = parsed<ShapeRun[]>(address.cellPath?.length
         ? this.document.getCharShapeRunsInCellByPath(address.section, address.paragraph, JSON.stringify(address.cellPath), 0, p.length)
@@ -1780,15 +1781,15 @@ export class RhwpEngine {
       let covered = 0;
       for (const run of runs) {
         if (run.startOffset !== covered || run.endOffset <= covered || run.endOffset > p.length || !Number.isSafeInteger(run.charShapeId) || run.charShapeId < 0)
-          throw new HwpHandsError('INVALID_ARGUMENT', '원래 글자 서식 범위를 확인하지 못했습니다.', { reason: 'format-preservation' });
+          throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '원래 글자 서식 범위를 확인하지 못했습니다.', en: "Could not verify original character formatting ranges." }), { reason: 'format-preservation' });
         covered = run.endOffset;
       }
-      if (covered !== p.length) throw new HwpHandsError('INVALID_ARGUMENT', '원래 글자 서식 범위가 불완전합니다.', { reason: 'format-preservation' });
+      if (covered !== p.length) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '원래 글자 서식 범위가 불완전합니다.', en: "Original character formatting ranges are incomplete." }), { reason: 'format-preservation' });
       const cut = (from: number, to: number, shift = 0): ShapeRun[] => runs.filter(run => run.startOffset < to && run.endOffset > from)
         .map(run => ({ ...run, startOffset: Math.max(from, run.startOffset) + shift, endOffset: Math.min(to, run.endOffset) + shift }));
       const replaced = cut(start, start + removed);
       if (inserted && removed !== inserted && new Set(replaced.map(run => run.charShapeId)).size > 1)
-        throw new HwpHandsError('INVALID_ARGUMENT', '길이가 달라지는 혼합 서식 치환은 서식을 안전하게 대응시킬 수 없습니다. 같은 서식의 문구 단위로 나누어 수정하세요.', { reason: 'format-preservation', kind: 'mixed-length' });
+        throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '길이가 달라지는 혼합 서식 치환은 서식을 안전하게 대응시킬 수 없습니다. 같은 서식의 문구 단위로 나누어 수정하세요.', en: "Length-changing mixed-format replacements cannot safely map formatting. Split the edit into phrases with uniform formatting." }), { reason: 'format-preservation', kind: 'mixed-length' });
       // Equal-length replacements keep each original position's complete native shape.
       // A length change inherits the replaced span's single shape; pure insertion uses the left neighbour (right at paragraph start).
       const inherited = replaced[0]?.charShapeId ?? runs.find(run => run.startOffset <= Math.max(0, start - 1) && run.endOffset > Math.max(0, start - 1))?.charShapeId;
@@ -1815,10 +1816,10 @@ export class RhwpEngine {
     for (const run of runs) {
       const from = Math.max(start, run.offset), to = Math.min(end, run.offset + run.length);
       if (from !== covered || to <= from || typeof run.properties.italic !== 'boolean' || typeof run.properties.textColor !== 'string' || !/^#[\da-f]{6}$/i.test(run.properties.textColor))
-        throw new HwpHandsError('VERIFY_FAILED', '양식 답안의 글자 서식을 확인할 수 없습니다.');
+        throw new HwpHandsError('VERIFY_FAILED', L({ ko: '양식 답안의 글자 서식을 확인할 수 없습니다.', en: "Cannot verify form answer character formatting." }));
       covered = to;
     }
-    if (covered !== end) throw new HwpHandsError('VERIFY_FAILED', '양식 답안의 글자 서식 범위가 불완전합니다.');
+    if (covered !== end) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '양식 답안의 글자 서식 범위가 불완전합니다.', en: "Form answer character formatting ranges are incomplete." }));
     for (const run of runs) {
       const white = run.properties.textColor!.toLowerCase() === '#ffffff';
       if (run.properties.italic || (!white && run.properties.textColor!.toLowerCase() !== '#000000'))
@@ -1920,27 +1921,27 @@ export class RhwpEngine {
     if (typeof verifyRewriteFormatting !== 'boolean') throw new HwpHandsError('INVALID_ARGUMENT', 'verifyRewriteFormatting must be boolean.');
     if (verifyRewriteFormatting) {
       if (address.kind !== 'body' || address.cellPath?.length || !paragraph.text || offset <= 0 || offset >= paragraph.length
-        || Array.from(paragraph.text).length !== paragraph.length || this.hasAnchors(address)) throw new HwpHandsError('INVALID_ARGUMENT', '재작성 분할의 원문 범위를 확인하지 못했습니다.');
+        || Array.from(paragraph.text).length !== paragraph.length || this.hasAnchors(address)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '재작성 분할의 원문 범위를 확인하지 못했습니다.', en: "Could not verify original ranges for the rewrite split." }));
       const shape = (p: Paragraph): string => {
         const model = this.structuralModel(), format = this.paragraphFormat(p, model);
-        if (!format.nativeShape || !format.style || !format.properties) throw new HwpHandsError('VERIFY_FAILED', '문단 속성을 확인하지 못했습니다.');
+        if (!format.nativeShape || !format.style || !format.properties) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '문단 속성을 확인하지 못했습니다.', en: "Could not verify paragraph properties." }));
         return JSON.stringify({ nativeShape: format.nativeShape, style: format.style, properties: format.properties });
       };
       const runs = (p: Paragraph): number[] => {
         const found = parsed<RewriteShapeRun[]>(this.document.getCharShapeRuns(p.address.section, p.address.paragraph, 0, p.length)), ids: number[] = [];
         for (const run of found) {
           if (run.startOffset !== ids.length || !Number.isSafeInteger(run.endOffset) || run.endOffset <= run.startOffset || run.endOffset > p.length || !Number.isSafeInteger(run.charShapeId) || run.charShapeId < 0)
-            throw new HwpHandsError('VERIFY_FAILED', '분할 전후 글자 서식 범위를 확인하지 못했습니다.');
+            throw new HwpHandsError('VERIFY_FAILED', L({ ko: '분할 전후 글자 서식 범위를 확인하지 못했습니다.', en: "Could not verify character formatting ranges before/after splitting." }));
           while (ids.length < run.endOffset) ids.push(run.charShapeId);
         }
-        if (ids.length !== p.length) throw new HwpHandsError('VERIFY_FAILED', '분할 전후 글자 서식이 불완전합니다.');
+        if (ids.length !== p.length) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '분할 전후 글자 서식이 불완전합니다.', en: "Character formatting before/after splitting is incomplete." }));
         return ids;
       };
       const beforeShape = shape(paragraph as Paragraph), beforeRuns = runs(paragraph as Paragraph), chars = Array.from(paragraph.text);
       const result = checked(this.document.splitParagraph(address.section, address.paragraph, offset, null));
       const first = this.paragraphAt(address) as Paragraph, second = this.paragraphAt({ ...address, paragraph: address.paragraph + 1 }) as Paragraph;
       if (first.text !== chars.slice(0, offset).join('') || second.text !== chars.slice(offset).join('') || shape(first) !== beforeShape || shape(second) !== beforeShape
-        || JSON.stringify([...runs(first), ...runs(second)]) !== JSON.stringify(beforeRuns)) throw new HwpHandsError('VERIFY_FAILED', '재작성 분할의 텍스트 또는 서식이 달라졌습니다.');
+        || JSON.stringify([...runs(first), ...runs(second)]) !== JSON.stringify(beforeRuns)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '재작성 분할의 텍스트 또는 서식이 달라졌습니다.', en: "Text or formatting changed during the rewrite split." }));
       return result;
     }
     if (address.kind === 'body') return checked(address.cellPath?.length
@@ -1953,12 +1954,12 @@ export class RhwpEngine {
     text(c.text); text(c.expectedText);
     // eslint-disable-next-line no-control-regex -- This text must reject control characters.
     if (/[\u0000-\u001f\u007f]/.test(c.text) || (c.position !== 'before' && c.position !== 'after'))
-      throw new HwpHandsError('INVALID_ARGUMENT', '셀 문단에는 줄바꿈 없는 텍스트와 before/after 위치가 필요합니다.');
+      throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '셀 문단에는 줄바꿈 없는 텍스트와 before/after 위치가 필요합니다.', en: "Cell paragraphs require text without line breaks and a before/after position." }));
     const model = this.structuralModel(), paragraph = this.paragraphAt(c.target, model), address = paragraph.address;
     if (address.kind !== 'body' || address.cellPath?.length !== 1 || address.containerKinds?.includes('textBox'))
-      throw new HwpHandsError('INVALID_ARGUMENT', '직접 표 셀 문단만 삽입 기준으로 사용할 수 있습니다.');
-    if (paragraph.text !== c.expectedText) throw new HwpHandsError('REVISION_CONFLICT', '셀 문단의 내용이 관측한 값과 다릅니다.');
-    if (this.hasAnchors(address, model)) throw new HwpHandsError('INVALID_ARGUMENT', '개체나 필드가 있는 셀 문단을 삽입 기준으로 사용할 수 없습니다.', { reason: 'anchored-content' });
+      throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '직접 표 셀 문단만 삽입 기준으로 사용할 수 있습니다.', en: "Only direct table-cell paragraphs can serve as insertion anchors." }));
+    if (paragraph.text !== c.expectedText) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '셀 문단의 내용이 관측한 값과 다릅니다.', en: "Cell paragraph content differs from the observed value." }));
+    if (this.hasAnchors(address, model)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '개체나 필드가 있는 셀 문단을 삽입 기준으로 사용할 수 없습니다.', en: "Cell paragraphs containing objects or fields cannot serve as insertion anchors." }), { reason: 'anchored-content' });
     const next = structuredClone(address), step = next.cellPath!.at(-1)!;
     const count = this.document.getCellParagraphCountByPath(address.section, address.paragraph, JSON.stringify(address.cellPath));
     if (c.position === 'before') {
@@ -1973,7 +1974,7 @@ export class RhwpEngine {
     const inserted = c.position === 'before' ? address : next;
     if (this.document.getCellParagraphCountByPath(address.section, address.paragraph, JSON.stringify(address.cellPath)) !== count + 1
       || this.paragraph(original).text !== c.expectedText || this.paragraph(inserted).text !== c.text)
-      throw new HwpHandsError('VERIFY_FAILED', '셀 문단 삽입 결과가 예상과 달라 변경을 되돌립니다.');
+      throw new HwpHandsError('VERIFY_FAILED', L({ ko: '셀 문단 삽입 결과가 예상과 달라 변경을 되돌립니다.', en: "Cell paragraph insertion differed from expectations; reverting changes." }));
     return { ok: true };
   }
   private mergeParagraphAt(target: TextTarget): Record<string, Json> {
@@ -2037,7 +2038,7 @@ export class RhwpEngine {
   }
   private setParagraphList(target: Target, list: ParagraphList, model = this.structuralModel()): Record<string, Json> {
     this.validateTarget(target, model);
-    if ((target.cellPath?.length ?? 0) > 1) throw new HwpHandsError('INVALID_ARGUMENT', 'Paragraph lists are supported in root paragraphs and direct cells only; nested-cell list formatting is unavailable in 현재 RHWP 코어.');
+    if ((target.cellPath?.length ?? 0) > 1) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: 'Paragraph lists are supported in root paragraphs and direct cells only; nested-cell list formatting is unavailable in 현재 RHWP 코어.', en: "Paragraph lists are supported in root paragraphs and direct cells only; nested-cell list formatting is unavailable in the current RHWP core." }));
     const position = this.listPosition(target, model);
     if (!position) throw new HwpHandsError('INVALID_ARGUMENT', 'The paragraph list position could not be resolved.');
     let properties: Record<string, Json>;
@@ -2137,7 +2138,7 @@ export class RhwpEngine {
       ? this.document.applyCharFormatInCellByPath(address.section, address.paragraph, JSON.stringify(address.cellPath), start, end, json)
       : this.document.applyCharFormat(address.section, address.paragraph, start, end, json));
     if (address.kind === 'headerFooter') return checked(this.document.applyCharFormatInHeaderFooter(address.section, address.isHeader, address.applyTo, address.paragraph, start, address.paragraph, end, json));
-    throw new HwpHandsError('INVALID_ARGUMENT', 'Character formatting is not supported in footnote/endnote paragraphs by 현재 RHWP 코어.');
+    throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: 'Character formatting is not supported in footnote/endnote paragraphs by 현재 RHWP 코어.', en: "Character formatting is not supported in footnote/endnote paragraphs by the current RHWP core." }));
   }
   /** RHWP's paragraph-shape modification JSON for validated paragraph format properties (also used for style definitions). */
   private paragraphModsJson(properties: Extract<Command, { type: 'formatParagraph' }>['properties']): string {
@@ -2157,7 +2158,7 @@ export class RhwpEngine {
     const paragraph = resolved ?? this.paragraphAt(target, model), address = paragraph.address;
     const json = preparedJson ?? this.paragraphModsJson(properties);
     if (address.kind === 'body') {
-      if ((address.cellPath?.length ?? 0) > 1) throw new HwpHandsError('INVALID_ARGUMENT', 'Paragraph formatting is unavailable in nested table cells in 현재 RHWP 코어.');
+      if ((address.cellPath?.length ?? 0) > 1) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: 'Paragraph formatting is unavailable in nested table cells in 현재 RHWP 코어.', en: "Paragraph formatting is unavailable in nested table cells in the current RHWP core." }));
       const position = this.listPosition(address, model);
       if (!position) throw new HwpHandsError('INVALID_ARGUMENT', 'The paragraph list position could not be resolved.');
       return checked(this.document.applyParaFormatAtCursor(position.listId, position.paragraph, json));
@@ -2533,7 +2534,7 @@ export class RhwpEngine {
     if (outside) throw new HwpHandsError('INVALID_ARGUMENT', `Cell reference ${outside.text.toUpperCase()} is outside the ${table.rows}×${table.cols} table.`);
     let evaluated: Record<string, Json>;
     try { evaluated = checked(this.document.evaluateTableFormula(table.section, table.paragraph, table.control, cell.row, cell.col, formula, false)); }
-    catch (error) { throw new HwpHandsError('INVALID_ARGUMENT', `계산식을 평가하지 못했습니다: ${error instanceof Error ? error.message.replace(/^렌더링 오류:\s*/, '') : String(error)}`); }
+    catch (error) { throw new HwpHandsError('INVALID_ARGUMENT', LT({ ko: () => `계산식을 평가하지 못했습니다: ${error instanceof Error ? error.message.replace(/^렌더링 오류:\s*/, '') : String(error)}`, en: () => `Could not evaluate the formula: ${error instanceof Error ? error.message.replace(/^렌더링 오류:\s*/, '') : String(error)}` })); }
     if (typeof evaluated.result !== 'number' || !Number.isFinite(evaluated.result)) throw new HwpHandsError('INVALID_ARGUMENT', 'The formula did not produce a finite number.');
     const written = formatFormulaResult(evaluated.result, format, c.thousandsSeparator === true);
     this.replace({ section: table.section, paragraph: table.paragraph, cellPath: [{ controlIndex: table.control, cellIndex: cell.index, cellParaIndex: 0 }] }, written);
@@ -2720,7 +2721,7 @@ export class RhwpEngine {
   }
   private executeCommand(c: Command): Record<string, Json> {
     const d = this.document;
-    if (!c || typeof c !== 'object') throw new HwpHandsError('INVALID_ARGUMENT', '편집 명령이 올바르지 않습니다.');
+    if (!c || typeof c !== 'object') throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '편집 명령이 올바르지 않습니다.', en: "Invalid edit command." }));
     switch (c.type) {
       case 'insertText': {
         if (c.characterProperties !== undefined) this.validateCharacterProperties(c.characterProperties);
@@ -2744,27 +2745,27 @@ export class RhwpEngine {
       case 'deleteParagraphAt': return this.deleteParagraphAt(c.target);
       case 'insertCellParagraph': return this.insertCellParagraph(c);
       case 'replaceText':
-        text(c.query); text(c.replacement); if (!c.query) throw new HwpHandsError('INVALID_ARGUMENT', '치환 검색어가 비어 있습니다.');
+        text(c.query); text(c.replacement); if (!c.query) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '치환 검색어가 비어 있습니다.', en: "The replacement search query is empty." }));
         return checked(d.replaceAll(c.query, c.replacement, c.caseSensitive ?? false));
       case 'insertParagraph':
         integer(c.section, 'section', d.getSectionCount() - 1); integer(c.index, 'index', d.getParagraphCount(c.section)); text(c.text);
         if (c.like !== undefined && c.like !== 'previous' && c.like !== 'next') throw new HwpHandsError('INVALID_ARGUMENT', "like must be 'previous' or 'next'.");
-        if (c.like === 'previous' && c.index === 0) throw new HwpHandsError('INVALID_ARGUMENT', '구역의 첫 문단 앞에는 앞 문단이 없습니다.');
-        if (c.like === 'next' && c.index >= d.getParagraphCount(c.section)) throw new HwpHandsError('INVALID_ARGUMENT', '구역의 마지막 문단 뒤에는 다음 문단이 없습니다.');
+        if (c.like === 'previous' && c.index === 0) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '구역의 첫 문단 앞에는 앞 문단이 없습니다.', en: "There is no preceding paragraph before the section's first paragraph." }));
+        if (c.like === 'next' && c.index >= d.getParagraphCount(c.section)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '구역의 마지막 문단 뒤에는 다음 문단이 없습니다.', en: "There is no following paragraph after the section's last paragraph." }));
         // The engine's own insertion copies the previous paragraph, and at the head of a section it moves the section, column,
         // header and footer controls into the second paragraph: a saved file then carries two section definitions.
         if (c.like === 'next' || c.index === 0) return this.insertBefore({ section: c.section, paragraph: c.index }, c.text);
         checked(d.insertParagraph(c.section, c.index)); return this.insert({ section: c.section, paragraph: c.index }, 0, c.text);
       case 'deleteParagraph':
         integer(c.section, 'section', d.getSectionCount() - 1); integer(c.index, 'index', d.getParagraphCount(c.section) - 1);
-        if (c.index === 0 || d.getParagraphCount(c.section) <= 1) throw new HwpHandsError('INVALID_ARGUMENT', '구역의 첫 문단은 삭제할 수 없습니다.', { reason: 'first-paragraph' });
+        if (c.index === 0 || d.getParagraphCount(c.section) <= 1) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '구역의 첫 문단은 삭제할 수 없습니다.', en: "The section's first paragraph cannot be deleted." }), { reason: 'first-paragraph' });
         return this.deleteParagraphAt({ section: c.section, paragraph: c.index });
       case 'setCellText': {
-        if (c.table.cellPath) throw new HwpHandsError('INVALID_ARGUMENT', '중첩 셀은 replaceParagraph와 cellPath로 편집하세요.');
+        if (c.table.cellPath) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '중첩 셀은 replaceParagraph와 cellPath로 편집하세요.', en: "Edit nested cells with replaceParagraph and cellPath." }));
         this.validateTarget(c.table); integer(c.table.control, 'control'); integer(c.row, 'row'); integer(c.col, 'col');
         const table = this.tables().find(t => t.section === c.table.section && t.paragraph === c.table.paragraph && t.control === c.table.control);
         const cell = table?.cells.find(cell => c.row >= cell.row && c.row < cell.row + cell.rowSpan && c.col >= cell.col && c.col < cell.col + cell.colSpan);
-        if (!cell) throw new HwpHandsError('INVALID_ARGUMENT', '표 셀을 찾을 수 없습니다.');
+        if (!cell) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '표 셀을 찾을 수 없습니다.', en: "Table cell not found." }));
         const cellParaIndex = c.cellParagraph ?? 0; integer(cellParaIndex, 'cellParagraph', cell.paragraphs.length - 1);
         return this.replace({ section: table!.section, paragraph: table!.paragraph, cellPath: [{ controlIndex: table!.control, cellIndex: cell.index, cellParaIndex }] }, c.text);
       }
@@ -2772,55 +2773,55 @@ export class RhwpEngine {
         text(c.name); text(c.value);
         if (c.normalizeFormAnswer !== undefined && typeof c.normalizeFormAnswer !== 'boolean') throw new HwpHandsError('INVALID_ARGUMENT', 'normalizeFormAnswer must be boolean.');
         const fields = this.fields(), matches = fields.filter(field => field.name === c.name);
-        if (matches.length !== 1) throw new HwpHandsError('INVALID_ARGUMENT', matches.length ? '필드 이름이 중복되었습니다. fieldId를 사용하세요.' : '필드 이름을 찾을 수 없습니다.', { name: c.name, fieldIds: matches.map(field => field.fieldId) });
-        if (fields.filter(field => field.fieldId === matches[0].fieldId).length !== 1) throw new HwpHandsError('INVALID_ARGUMENT', 'fieldId가 현재 문서에서 모호합니다.', { fieldId: matches[0].fieldId });
+        if (matches.length !== 1) throw new HwpHandsError('INVALID_ARGUMENT', matches.length ? L({ ko: '필드 이름이 중복되었습니다. fieldId를 사용하세요.', en: "Duplicate field names. Use fieldId." }) : L({ ko: '필드 이름을 찾을 수 없습니다.', en: "Field name not found." }), { name: c.name, fieldIds: matches.map(field => field.fieldId) });
+        if (fields.filter(field => field.fieldId === matches[0].fieldId).length !== 1) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: 'fieldId가 현재 문서에서 모호합니다.', en: "fieldId is ambiguous in the current document." }), { fieldId: matches[0].fieldId });
         if (c.normalizeFormAnswer) { this.writeFormField(fields, fields.indexOf(matches[0]), c.value); return { ok: true }; }
         return checked(d.setFieldValue(matches[0].fieldId, c.value));
       }
       case 'setFieldById': {
         integer(c.fieldId, 'fieldId'); text(c.value);
         const matches = this.fields().filter(field => field.fieldId === c.fieldId);
-        if (matches.length !== 1) throw new HwpHandsError('INVALID_ARGUMENT', matches.length ? 'fieldId가 현재 문서에서 모호합니다.' : 'fieldId를 찾을 수 없습니다.', { fieldId: c.fieldId });
+        if (matches.length !== 1) throw new HwpHandsError('INVALID_ARGUMENT', matches.length ? L({ ko: 'fieldId가 현재 문서에서 모호합니다.', en: "fieldId is ambiguous in the current document." }) : L({ ko: 'fieldId를 찾을 수 없습니다.', en: "fieldId was not found." }), { fieldId: c.fieldId });
         return checked(d.setFieldValue(c.fieldId, c.value));
       }
       case 'setFields': {
-        if (!Array.isArray(c.values) || !c.values.length || c.values.length > 100) throw new HwpHandsError('INVALID_ARGUMENT', 'setFields는 1~100개의 값을 받습니다.');
+        if (!Array.isArray(c.values) || !c.values.length || c.values.length > 100) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: 'setFields는 1~100개의 값을 받습니다.', en: "setFields accepts 1–100 values." }));
         if (c.normalizeFormAnswer !== undefined && typeof c.normalizeFormAnswer !== 'boolean') throw new HwpHandsError('INVALID_ARGUMENT', 'normalizeFormAnswer must be boolean.');
         const before = this.fields();
         const targets = c.values.map(item => {
           integer(item?.fieldId, 'fieldId'); text(item.value);
           const matches = before.flatMap((field, index) => field.fieldId === item.fieldId ? [index] : []);
-          if (matches.length !== 1) throw new HwpHandsError('INVALID_ARGUMENT', matches.length ? 'fieldId가 현재 문서에서 모호합니다.' : 'fieldId를 찾을 수 없습니다.', { fieldId: item.fieldId });
+          if (matches.length !== 1) throw new HwpHandsError('INVALID_ARGUMENT', matches.length ? L({ ko: 'fieldId가 현재 문서에서 모호합니다.', en: "fieldId is ambiguous in the current document." }) : L({ ko: 'fieldId를 찾을 수 없습니다.', en: "fieldId was not found." }), { fieldId: item.fieldId });
           return { index: matches[0], name: before[matches[0]].name, value: item.value };
         });
-        if (new Set(targets.map(target => target.index)).size !== targets.length) throw new HwpHandsError('INVALID_ARGUMENT', '같은 필드를 두 번 지정했습니다.');
+        if (new Set(targets.map(target => target.index)).size !== targets.length) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '같은 필드를 두 번 지정했습니다.', en: "The same field was specified twice." }));
         // A value never adds or removes a field, so a field keeps its place in the list. Its id is looked up again by that
         // place before each write; anything else means the list changed and the transaction is rolled back.
         for (const target of targets) {
           const now = this.fields(), field = now[target.index];
-          if (now.length !== before.length || !field || field.name !== target.name) throw new HwpHandsError('VERIFY_FAILED', '필드 값을 쓰는 동안 필드 목록이 달라졌습니다.');
+          if (now.length !== before.length || !field || field.name !== target.name) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '필드 값을 쓰는 동안 필드 목록이 달라졌습니다.', en: "The field list changed while writing field values." }));
           if (c.normalizeFormAnswer) this.writeFormField(now, target.index, target.value);
           else checked(d.setFieldValue(field.fieldId, target.value));
         }
         return { ok: true, count: targets.length };
       }
       case 'setFieldsAt': {
-        if (!Array.isArray(c.values) || !c.values.length || c.values.length > 100) throw new HwpHandsError('INVALID_ARGUMENT', 'setFieldsAt는 1~100개의 값을 받습니다.');
+        if (!Array.isArray(c.values) || !c.values.length || c.values.length > 100) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: 'setFieldsAt는 1~100개의 값을 받습니다.', en: "setFieldsAt accepts 1–100 values." }));
         if (c.normalizeFormAnswer !== undefined && typeof c.normalizeFormAnswer !== 'boolean') throw new HwpHandsError('INVALID_ARGUMENT', 'normalizeFormAnswer must be boolean.');
         const before = this.fields();
         const indices = new Set<number>();
         for (const item of c.values) {
           integer(item?.index, 'index', before.length - 1); integer(item?.fieldId, 'fieldId'); text(item.name); text(item.expectedValue); text(item.value);
           const field = before[item.index];
-          if (indices.has(item.index)) throw new HwpHandsError('INVALID_ARGUMENT', '같은 누름틀을 두 번 지정했습니다.');
+          if (indices.has(item.index)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '같은 누름틀을 두 번 지정했습니다.', en: "The same input field was specified twice." }));
           indices.add(item.index);
           if (!field || field.fieldId !== item.fieldId || field.name !== item.name || field.value !== item.expectedValue || field.fieldType !== 'clickhere')
-            throw new HwpHandsError('REVISION_CONFLICT', '누름틀 목록이나 관측한 값이 변경되었습니다.');
+            throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '누름틀 목록이나 관측한 값이 변경되었습니다.', en: "The input field list or observed value changed." }));
         }
         for (const item of c.values) {
           const now = this.fields(), field = now[item.index];
           if (now.length !== before.length || !field || field.fieldId !== item.fieldId || field.name !== item.name || field.value !== item.expectedValue)
-            throw new HwpHandsError('VERIFY_FAILED', '누름틀을 채우는 동안 목록이 달라졌습니다.');
+            throw new HwpHandsError('VERIFY_FAILED', L({ ko: '누름틀을 채우는 동안 목록이 달라졌습니다.', en: "The list changed while filling input fields." }));
           const duplicate = now.filter(candidate => candidate.fieldId === field.fieldId).length > 1;
           this.writeFormField(now, item.index, item.value, duplicate, c.normalizeFormAnswer === true);
         }
@@ -2828,12 +2829,12 @@ export class RhwpEngine {
       }
       case 'insertClickHereField': {
         text(c.guide); text(c.memo); text(c.name);
-        if (!c.name.trim()) throw new HwpHandsError('INVALID_ARGUMENT', '필드 이름은 비어 있을 수 없습니다.');
-        if (typeof c.editable !== 'boolean') throw new HwpHandsError('INVALID_ARGUMENT', '필드 editable 값은 boolean이어야 합니다.');
+        if (!c.name.trim()) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '필드 이름은 비어 있을 수 없습니다.', en: "Field name cannot be empty." }));
+        if (typeof c.editable !== 'boolean') throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '필드 editable 값은 boolean이어야 합니다.', en: "Field editable must be a boolean." }));
         this.validateTarget(c.target);
         const paragraph = this.paragraph(c.target);
-        if (paragraph.address.kind !== 'body') throw new HwpHandsError('INVALID_ARGUMENT', '누름틀 필드는 본문 문단에만 넣을 수 있습니다.');
-        if (paragraph.address.containerKinds?.includes('textBox')) throw new HwpHandsError('INVALID_ARGUMENT', '글상자에는 누름틀 필드를 넣을 수 없습니다.');
+        if (paragraph.address.kind !== 'body') throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '누름틀 필드는 본문 문단에만 넣을 수 있습니다.', en: "Input fields can only be inserted in body paragraphs." }));
+        if (paragraph.address.containerKinds?.includes('textBox')) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '글상자에는 누름틀 필드를 넣을 수 없습니다.', en: "Input fields cannot be inserted in text boxes." }));
         integer(c.offset, 'offset', paragraph.length);
         const result = c.target.cellPath?.length
           ? d.insertClickHereFieldByPath(c.target.section, c.target.paragraph, JSON.stringify(c.target.cellPath), c.offset, c.guide, c.memo, c.name, c.editable)
@@ -2853,9 +2854,9 @@ export class RhwpEngine {
       case 'setParagraphStyle': return this.setParagraphStyle(c.target, c.styleId);
       case 'setParagraphList': return this.setParagraphList(c.target, c.list);
       case 'createTable':
-        if (c.target.cellPath) throw new HwpHandsError('INVALID_ARGUMENT', '표 생성은 본문에서 지원합니다.');
+        if (c.target.cellPath) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '표 생성은 본문에서 지원합니다.', en: "Table creation is supported in the body." }));
         integer(c.rows, 'rows', 100); integer(c.cols, 'cols', 100);
-        if (!c.rows || !c.cols || c.rows * c.cols > 1000) throw new HwpHandsError('INVALID_ARGUMENT', '표는 1~100행/열, 최대 1000셀입니다.');
+        if (!c.rows || !c.cols || c.rows * c.cols > 1000) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '표는 1~100행/열, 최대 1000셀입니다.', en: "Tables must have 1–100 rows/columns and at most 1,000 cells." }));
         integer(c.offset, 'offset', this.paragraph(c.target).length);
         return checked(d.createTable(c.target.section, c.target.paragraph, c.offset, c.rows, c.cols));
       case 'insertTableRow': {
@@ -3038,7 +3039,7 @@ export class RhwpEngine {
       case 'groupObjects': return this.groupObjects(c.objects);
       case 'ungroupObject': return this.ungroupObject(c.object);
       case 'deleteObject': return this.deleteObject(c.object);
-      default: throw new HwpHandsError('INVALID_ARGUMENT', '지원하지 않는 편집 명령입니다.');
+      default: throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '지원하지 않는 편집 명령입니다.', en: "Unsupported edit command." }));
     }
   }
 }

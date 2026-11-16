@@ -1,3 +1,4 @@
+import { L } from '../../i18n/locale';
 // Field definitions and value→command conversion for the click-here field edit and removal dialogs (pure, unit-tested).
 import type { Command } from '../../api';
 import type { FormField, FormValues } from './form-values';
@@ -8,15 +9,15 @@ interface StampedField { fieldId: number; sessionId?: string; revision?: number 
 
 export function fieldEditFields(field: EditableField): FormField[] {
   return [
-    { key: 'name', label: '필드 이름', kind: 'text', value: typeof field.name === 'string' ? field.name : '', required: true, maxLength: 128 },
-    { key: 'guide', label: '안내문', kind: 'text', value: typeof field.guide === 'string' ? field.guide : '', maxLength: 256 },
-    { key: 'memo', label: '메모', kind: 'text', value: typeof field.memo === 'string' ? field.memo : '', maxLength: 1024 },
-    { key: 'editable', label: '양식 모드에서 입력 허용', kind: 'checkbox', value: field.editableInForm !== false },
+    { key: 'name', label: L({ ko: '필드 이름', en: "Field name" }), kind: 'text', value: typeof field.name === 'string' ? field.name : '', required: true, maxLength: 128 },
+    { key: 'guide', label: L({ ko: '안내문', en: "Prompt" }), kind: 'text', value: typeof field.guide === 'string' ? field.guide : '', maxLength: 256 },
+    { key: 'memo', label: L({ ko: '메모', en: "Memo" }), kind: 'text', value: typeof field.memo === 'string' ? field.memo : '', maxLength: 1024 },
+    { key: 'editable', label: L({ ko: '양식 모드에서 입력 허용', en: "Allow input in form mode" }), kind: 'checkbox', value: field.editableInForm !== false },
   ];
 }
 
 function stamp(field: StampedField): { fieldId: number; sessionId: string; revision: number } {
-  if (field.sessionId === undefined || field.revision === undefined) throw new Error('필드 주소가 오래되어 다시 선택해야 합니다.');
+  if (field.sessionId === undefined || field.revision === undefined) throw new Error(L({ ko: '필드 주소가 오래되어 다시 선택해야 합니다.', en: "The field address is stale. Select it again." }));
   return { fieldId: field.fieldId, sessionId: field.sessionId, revision: field.revision };
 }
 
@@ -33,9 +34,9 @@ export function fieldEditCommand(field: StampedField, values: FormValues, initia
 /** Removing a click-here field also removes what was typed into it, so the dialog lets the user keep that text. */
 export function fieldRemoveFields(hasText: boolean): FormField[] {
   return [{
-    key: 'mode', label: '지우는 방법', kind: 'select', value: hasText ? 'keep' : 'all',
-    options: [['keep', '필드만 지우고 입력한 내용은 남기기'], ['all', '필드와 입력한 내용을 모두 지우기']],
-    ...(hasText ? {} : { hint: '입력한 내용이 없는 필드입니다.' }),
+    key: 'mode', label: L({ ko: '지우는 방법', en: "Deletion mode" }), kind: 'select', value: hasText ? 'keep' : 'all',
+    options: [['keep', L({ ko: '필드만 지우고 입력한 내용은 남기기', en: "Delete field only, preserving entered content" })], ['all', L({ ko: '필드와 입력한 내용을 모두 지우기', en: "Delete field and entered content" })]],
+    ...(hasText ? {} : { hint: L({ ko: '입력한 내용이 없는 필드입니다.', en: "This field has no entered content." }) }),
   }];
 }
 export function fieldRemoveCommand(field: StampedField, values: FormValues): Command {

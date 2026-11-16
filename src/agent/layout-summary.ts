@@ -1,3 +1,4 @@
+import { L } from '../i18n/locale';
 import { HwpHandsError, type BodyAddress, type LayoutTextRun, type PageLayout } from '../api';
 import { addressKey } from './edit';
 import { paragraphLayout } from './paragraph-layout';
@@ -17,11 +18,11 @@ export async function indexParagraphLayouts(pages: PageLayout[], signal?: AbortS
   const index: LayoutIndex = new Map();
   let visited = 0;
   for (const [number, page] of pages.entries()) {
-    if (signal?.aborted) throw new HwpHandsError('CANCELLED', '조판 측정이 취소됐다.');
+    if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '조판 측정이 취소됐다.', en: "Layout measurement was cancelled." }));
     for (const run of page.runs) {
       if (++visited % 4096 === 0) {
         await new Promise<void>(resolve => setTimeout(resolve, 0));
-        if (signal?.aborted) throw new HwpHandsError('CANCELLED', '조판 측정이 취소됐다.');
+        if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '조판 측정이 취소됐다.', en: "Layout measurement was cancelled." }));
       }
       const address = bodyRun(run);
       if (!address) continue;
@@ -31,7 +32,7 @@ export async function indexParagraphLayouts(pages: PageLayout[], signal?: AbortS
     }
     if (number % 8 === 7) await new Promise<void>(resolve => setTimeout(resolve, 0));
   }
-  if (signal?.aborted) throw new HwpHandsError('CANCELLED', '조판 측정이 취소됐다.');
+  if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '조판 측정이 취소됐다.', en: "Layout measurement was cancelled." }));
   return index;
 }
 

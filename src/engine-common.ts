@@ -1,3 +1,4 @@
+import { LT, L } from './i18n/locale';
 import { HwpHandsError } from './api';
 
 export const ENGINE_VERSION = '0.9.0-hwp-editor.1';
@@ -21,5 +22,5 @@ export function imageBase64ByteLength(value: unknown): number {
 }
 
 export function integer(value: number, label: string, max = Number.MAX_SAFE_INTEGER): void {
-  if (!Number.isSafeInteger(value) || value < 0 || value > max) throw new HwpHandsError('INVALID_ARGUMENT', `${label} 범위가 올바르지 않습니다: ${value}`);
+  if (!Number.isSafeInteger(value) || value < 0 || value > max) throw new HwpHandsError('INVALID_ARGUMENT', LT({ ko: () => `${label} 범위가 올바르지 않습니다: ${value}`, en: () => `Invalid ${label} range: ${value}` }));
 }

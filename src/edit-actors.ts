@@ -1,3 +1,4 @@
+import { L } from './i18n/locale';
 import { HwpHandsError } from './api';
 
 /** Internal provenance. Public transaction origin is a UI hint, never evidence of a human actor. */
@@ -7,7 +8,7 @@ export interface PersistedActors { version: 1; seed: ActorContribution[]; approv
 const MAX_ACTORS = 10000;
 // eslint-disable-next-line no-control-regex -- Persisted actor identifiers exclude control characters.
 const validId = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[\u0000-\u001f\u007f]/.test(value);
-const invalid = (): never => { throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 편집 주체/저장 승인 원장이 올바르지 않습니다. 기존 기록을 보존했습니다.'); };
+const invalid = (): never => { throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 편집 주체/저장 승인 원장이 올바르지 않습니다. 기존 기록을 보존했습니다.', en: "The recovery edit actor/save approval ledger is invalid. Existing records were preserved." })); };
 export function validateEditActor(value: unknown): EditActor {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return invalid();
   const item = value as Record<string, unknown>, keys = Object.keys(item);
@@ -51,7 +52,7 @@ export class EditActorLedger {
   setCurrent(value: ActorContribution[]): void { this.active = structuredClone(value); }
   capture(snapshot: number): void { this.snapshots.set(snapshot, this.current()); }
   at(snapshot: number): ActorContribution[] {
-    const value = this.snapshots.get(snapshot); if (!value) throw new HwpHandsError('VERIFY_FAILED', 'Undo 편집 주체 원장을 찾을 수 없습니다.');
+    const value = this.snapshots.get(snapshot); if (!value) throw new HwpHandsError('VERIFY_FAILED', L({ ko: 'Undo 편집 주체 원장을 찾을 수 없습니다.', en: "Could not find the undo edit actor ledger." }));
     return structuredClone(value.filter(entry => !this.approved.has(entry.id)));
   }
   restore(snapshot: number): void { this.active = this.at(snapshot); }

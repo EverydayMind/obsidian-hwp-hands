@@ -1,7 +1,8 @@
+import { L } from '../i18n/locale';
 import { ToolError } from './editor';
 
 export interface AgentPrivacyData { version: 1; blockedPaths: string[]; retiredPaths?: string[] }
-const denied = (): ToolError => new ToolError('AI_PRIVATE', 'AI 비공개 설정으로 이 요청을 차단했다. 사람이 HWP Hands에서 설정을 확인해야 한다.', false);
+const denied = (): ToolError => new ToolError('AI_PRIVATE', L({ ko: 'AI 비공개 설정으로 이 요청을 차단했다. 사람이 HWP Hands에서 설정을 확인해야 한다.', en: "AI privacy settings blocked this request. A person must check the settings in HWP Hands." }), false);
 const key = (path: string): string => path.replaceAll('\\', '/').normalize('NFC').toLowerCase();
 const valid = (path: unknown): path is string => typeof path === 'string' && !!path && !path.startsWith('/')
   && !/[:\0\r\n]/.test(path) && !path.replaceAll('\\', '/').split('/').some(part => !part || part === '.' || part === '..');

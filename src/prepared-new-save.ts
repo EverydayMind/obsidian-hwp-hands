@@ -1,3 +1,4 @@
+import { LT, L } from './i18n/locale';
 import { HwpHandsError, type Format, type State } from './api';
 import type { EnginePort, EngineProvider } from './engine-port';
 import type { ActorContribution } from './edit-actors';
@@ -24,7 +25,7 @@ interface Environment {
 const conflict = (message: string): never => { throw new HwpHandsError('FILE_CONFLICT', message); };
 const parents = (path: string): string[] => path.split('/').slice(0, -1).map((_, index, parts) => parts.slice(0, index + 1).join('/'));
 const needStorage = (storage: Storage) => {
-  if (!storage.pathKind || !storage.createFolder || !storage.createPrepared) throw new HwpHandsError('INVALID_ARGUMENT', '준비된 새 경로 저장을 지원하지 않는 저장소입니다.');
+  if (!storage.pathKind || !storage.createFolder || !storage.createPrepared) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '준비된 새 경로 저장을 지원하지 않는 저장소입니다.', en: "Storage does not support prepared saves to new paths." }));
 };
 
 /** Only reads the destination/template and fixes export bytes; it never creates a file, folder or session. */
@@ -32,30 +33,30 @@ export async function prepareNewSave(request: NewSaveRequest, env: Environment):
   const { storage, source, options } = env, destination = request.destination;
   needStorage(storage);
   const current = () => env.current() && (!source || source.current());
-  const assertCurrent = () => { if (!current()) throw new HwpHandsError('REVISION_CONFLICT', '문서·입력·저장 옵션이 변경되었습니다. 다시 준비하세요.'); };
+  const assertCurrent = () => { if (!current()) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '문서·입력·저장 옵션이 변경되었습니다. 다시 준비하세요.', en: "Document, input, or save options changed. Prepare again." })); };
   const checkInputs = async () => {
     assertCurrent();
     if (source) await source.check();
-    if (request.template && bytesHash(await storage.read(request.template.path)) !== request.template.sha256) conflict('템플릿이 변경되었습니다.');
+    if (request.template && bytesHash(await storage.read(request.template.path)) !== request.template.sha256) conflict(L({ ko: '템플릿이 변경되었습니다.', en: "The template changed." }));
     assertCurrent();
   };
   await checkInputs();
-  if (await storage.pathKind!(destination) !== null) conflict('새 문서 경로가 이미 있습니다.');
+  if (await storage.pathKind!(destination) !== null) conflict(L({ ko: '새 문서 경로가 이미 있습니다.', en: "The new document path already exists." }));
   const writeSet: PreparedSave['writeSet'] = [], folders = parents(destination);
   for (const path of folders) {
     const kind = await storage.pathKind!(path);
-    if (kind === 'file') conflict('부모 경로에 파일이 있습니다.');
+    if (kind === 'file') conflict(L({ ko: '부모 경로에 파일이 있습니다.', en: "A file exists at the parent path." }));
     if (kind === null) writeSet.push({ kind: 'folder', path, op: 'create', role: 'folder', existedBefore: false });
   }
-  if (writeSet.length > 62) throw new HwpHandsError('INVALID_PATH', '새 폴더가 너무 많습니다.');
+  if (writeSet.length > 62) throw new HwpHandsError('INVALID_PATH', L({ ko: '새 폴더가 너무 많습니다.', en: "Too many new folders." }));
   let engine = source?.engine, templateTails: SectionTailsInspection | undefined = undefined;
   try {
     if (!engine) {
       await env.engines.initialize();
       if (request.template) {
         const bytes = await storage.read(request.template.path);
-        if (bytes.byteLength > options.maxFileBytes) throw new HwpHandsError('INVALID_ARGUMENT', '템플릿 크기 상한을 초과했습니다.');
-        if (bytesHash(bytes) !== request.template.sha256) conflict('템플릿이 변경되었습니다.');
+        if (bytes.byteLength > options.maxFileBytes) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '템플릿 크기 상한을 초과했습니다.', en: "Template exceeds the size limit." }));
+        if (bytesHash(bytes) !== request.template.sha256) conflict(L({ ko: '템플릿이 변경되었습니다.', en: "The template changed." }));
         assertHwpSourceSafe(hwpSourceGuard(request.template.path, bytes));
         if (/\.hwp$/i.test(request.template.path)) templateTails = inspectSectionTails(bytes);
         engine = await env.engines.parse(bytes);
@@ -65,9 +66,9 @@ export async function prepareNewSave(request: NewSaveRequest, env: Environment):
     const outputHash = bytesHash(bytes), artifacts: PreparedSaveArtifact[] = [{ path: destination, before: null, after: bytes }];
     writeSet.push({ path: destination, role: 'primary', op: 'create', sha256Before: null, sha256Expected: outputHash, sizeBytes: bytes.byteLength });
     if (options.autoIndex) {
-      if (!storage.readIndex) throw new HwpHandsError('INVALID_ARGUMENT', '인덱스 준비에는 readIndex가 필요합니다.');
+      if (!storage.readIndex) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '인덱스 준비에는 readIndex가 필요합니다.', en: "Index preparation requires readIndex." }));
       const path = `${destination}.index.md`;
-      if (await storage.pathKind!(path) !== null) conflict('새 문서의 인덱스 경로가 이미 있습니다.');
+      if (await storage.pathKind!(path) !== null) conflict(L({ ko: '새 문서의 인덱스 경로가 이미 있습니다.', en: "The new document's index path already exists." }));
       const tree = await engine.tree(), format = destination.toLowerCase().endsWith('.hwpx') ? 'hwpx' : 'hwp';
       const state: State = { path: destination, format, dirty: false, conflict: false, sessionId: 'prepared', revision: 0,
         pageCount: await engine.pages(), canUndo: false, canRedo: false };
@@ -76,7 +77,7 @@ export async function prepareNewSave(request: NewSaveRequest, env: Environment):
       writeSet.push({ path, role: 'derived', op: 'create', sha256Before: null, sha256Expected: bytesHash(after), sizeBytes: after.byteLength });
     }
     await checkInputs();
-    for (const entry of writeSet) if (await storage.pathKind!(entry.path) !== null) conflict('준비 중 새 경로가 생성되었습니다.');
+    for (const entry of writeSet) if (await storage.pathKind!(entry.path) !== null) conflict(L({ ko: '준비 중 새 경로가 생성되었습니다.', en: "The new path was created during preparation." }));
     return env.store.add({ mode: source ? 'save_as' : 'create', ...(source ? { source: source.value } : {}),
       ...(request.template ? { template: request.template } : {}), destination, format: destination.toLowerCase().endsWith('.hwpx') ? 'hwpx' : 'hwp',
       saveOptions: options, writeSet, report: { pendingActors: source?.actors ?? [], warnings } }, artifacts, current);
@@ -91,22 +92,22 @@ export async function executeNewSave(record: PreparedSaveRecord, permit: Prepare
   let attempted = false;
   const assertCurrent = () => {
     if (!permit?.signal || permit.signal.aborted || !record.current() || Date.parse(prep.expiresAt) <= Date.now() || Date.parse(record.ticket!.expiresAt) <= Date.now())
-      throw new HwpHandsError('REVISION_CONFLICT', '저장 승인 상태나 문서·입력이 변경되었습니다. 다시 준비하세요.');
+      throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '저장 승인 상태나 문서·입력이 변경되었습니다. 다시 준비하세요.', en: "Save approval, document, or input changed. Prepare again." }));
     permit.assertAuthorized();
   };
   const checkBefore = async () => {
     assertCurrent(); await checkSource();
-    if (prep.template && bytesHash(await storage.read(prep.template.path)) !== prep.template.sha256) conflict('승인 후 템플릿이 변경되었습니다.');
+    if (prep.template && bytesHash(await storage.read(prep.template.path)) !== prep.template.sha256) conflict(L({ ko: '승인 후 템플릿이 변경되었습니다.', en: "The template changed after approval." }));
     for (const entry of prep.writeSet) {
       const expected = made.has(entry.path) ? 'folder' : null;
-      if (await storage.pathKind!(entry.path) !== expected) conflict('승인 후 새 경로가 변경되었습니다.');
+      if (await storage.pathKind!(entry.path) !== expected) conflict(L({ ko: '승인 후 새 경로가 변경되었습니다.', en: "The new path changed after approval." }));
     }
     for (const path of parents(prep.destination)) {
-      if (!prep.writeSet.some(entry => entry.path === path) && await storage.pathKind!(path) !== 'folder') conflict('부모 폴더가 변경되었습니다.');
+      if (!prep.writeSet.some(entry => entry.path === path) && await storage.pathKind!(path) !== 'folder') conflict(L({ ko: '부모 폴더가 변경되었습니다.', en: "The parent folder changed." }));
     }
     for (const item of record.artifacts) {
       const entry = prep.writeSet.find(entry => entry.kind !== 'folder' && entry.path === item.path);
-      if (!entry || entry.kind === 'folder' || bytesHash(item.after) !== entry.sha256Expected) throw new HwpHandsError('VERIFY_FAILED', '고정한 바이트가 변경되었습니다.');
+      if (!entry || entry.kind === 'folder' || bytesHash(item.after) !== entry.sha256Expected) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '고정한 바이트가 변경되었습니다.', en: "Pinned bytes changed." }));
     }
     assertCurrent();
   };
@@ -124,13 +125,13 @@ export async function executeNewSave(record: PreparedSaveRecord, permit: Prepare
     let writeError: unknown;
     try { await storage.createPrepared!(primary.path, primary.after); } catch (error) { writeError = error; }
     const errorMessage = writeError instanceof Error ? writeError.message : typeof writeError === 'string' ? writeError : JSON.stringify(writeError);
-    if (bytesHash(await storage.read(primary.path)) !== bytesHash(primary.after)) throw writeError instanceof Error ? writeError : new HwpHandsError('VERIFY_FAILED', errorMessage ?? '새 파일 저장 후 바이트가 다릅니다.');
-    if (writeError) receipt.warnings.push(`생성 호출은 오류를 반환했지만 디스크 해시가 일치합니다: ${errorMessage}`);
+    if (bytesHash(await storage.read(primary.path)) !== bytesHash(primary.after)) throw writeError instanceof Error ? writeError : new HwpHandsError('VERIFY_FAILED', errorMessage ?? L({ ko: '새 파일 저장 후 바이트가 다릅니다.', en: "Bytes differ after saving the new file." }));
+    if (writeError) receipt.warnings.push(LT({ ko: () => `생성 호출은 오류를 반환했지만 디스크 해시가 일치합니다: ${errorMessage}`, en: () => `Creation returned an error, but the disk hash matches: ${errorMessage}` }));
     // Once binary creation has started, observe that write and retain later source input. No retry or actor approval.
     for (const item of record.artifacts.slice(1)) {
-      if (await storage.pathKind!(item.path) !== null || bytesHash(await storage.read(primary.path)) !== bytesHash(primary.after)) conflict('인덱스 쓰기 전 원본이나 경로가 변경되었습니다.');
+      if (await storage.pathKind!(item.path) !== null || bytesHash(await storage.read(primary.path)) !== bytesHash(primary.after)) conflict(L({ ko: '인덱스 쓰기 전 원본이나 경로가 변경되었습니다.', en: "The original or path changed before writing the index." }));
       await storage.writeIndex(item.path, Buffer.from(item.after).toString('utf8'), prep.destination);
-      if (bytesHash(Buffer.from((await storage.readIndex!(item.path)) ?? '', 'utf8')) !== bytesHash(item.after)) throw new HwpHandsError('VERIFY_FAILED', '새 인덱스 readback이 다릅니다.');
+      if (bytesHash(Buffer.from((await storage.readIndex!(item.path)) ?? '', 'utf8')) !== bytesHash(item.after)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '새 인덱스 readback이 다릅니다.', en: "New index readback differs." }));
     }
   } catch (error) {
     receipt.error = { code: error instanceof HwpHandsError ? error.code : 'VERIFY_FAILED', message: error instanceof Error ? error.message : String(error) };

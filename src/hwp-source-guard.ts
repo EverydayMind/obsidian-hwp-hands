@@ -1,3 +1,4 @@
+import { L } from './i18n/locale';
 import * as CFB from 'cfb';
 import { inflateRawSync } from 'node:zlib';
 import { HwpHandsError } from './api';
@@ -50,9 +51,9 @@ export function inspectHwpSource(bytes: Uint8Array): HwpSourceGuard {
 }
 
 export function assertHwpSourceSafe(status: HwpSourceGuard): void {
-  if (status === 'memo') throw new HwpHandsError('CONTENT_LOSS', '원본 문서에 메모가 있어 저장하거나 형식을 바꾸면 메모 본문이 유실될 수 있습니다. 원본과 복구 기록을 보존했으며 저장을 차단했습니다.');
-  if (status === 'tracked') throw new HwpHandsError('CONTENT_LOSS', '변경 추적 HWP는 삭제된 글을 현재 본문으로 읽거나 변경 기록을 유실할 수 있어 처리를 차단했습니다. 원본과 복구 기록은 보존됩니다.');
-  if (status === 'unknown') throw new HwpHandsError('VERIFY_FAILED', '원본 문서의 메모 보존 여부를 확인할 수 없어 저장을 차단했습니다. 원본과 복구 기록은 보존됩니다.');
+  if (status === 'memo') throw new HwpHandsError('CONTENT_LOSS', L({ ko: '원본 문서에 메모가 있어 저장하거나 형식을 바꾸면 메모 본문이 유실될 수 있습니다. 원본과 복구 기록을 보존했으며 저장을 차단했습니다.', en: "The original document contains memos whose body text may be lost by saving or converting formats. The original and recovery records were preserved; saving was blocked." }));
+  if (status === 'tracked') throw new HwpHandsError('CONTENT_LOSS', L({ ko: '변경 추적 HWP는 삭제된 글을 현재 본문으로 읽거나 변경 기록을 유실할 수 있어 처리를 차단했습니다. 원본과 복구 기록은 보존됩니다.', en: "Tracked-change HWP processing was blocked because deleted text may be read as current body text or change history may be lost. The original and recovery records are preserved." }));
+  if (status === 'unknown') throw new HwpHandsError('VERIFY_FAILED', L({ ko: '원본 문서의 메모 보존 여부를 확인할 수 없어 저장을 차단했습니다. 원본과 복구 기록은 보존됩니다.', en: "Saving was blocked because original memo preservation could not be verified. The original and recovery records are preserved." }));
 }
 
 export function hwpSourceGuard(path: string, bytes: Uint8Array, recoverySeed?: Uint8Array): HwpSourceGuard {

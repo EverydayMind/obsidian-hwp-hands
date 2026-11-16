@@ -1,3 +1,4 @@
+import { L } from './i18n/locale';
 // Pure helpers for table formulas: A1-style references, result formatting and block-calculation planning.
 export type FormulaFormat = 'raw' | 'integer' | 'decimal1' | 'decimal2';
 export const FORMULA_FORMATS: readonly FormulaFormat[] = ['raw', 'integer', 'decimal1', 'decimal2'];
@@ -6,13 +7,13 @@ export const MAX_FORMULA_LENGTH = 512;
 
 /** Zero-based column index → spreadsheet label (0 → A, 25 → Z, 26 → AA). */
 export function columnLabel(col: number): string {
-  if (!Number.isSafeInteger(col) || col < 0) throw new Error('열 번호가 올바르지 않습니다.');
+  if (!Number.isSafeInteger(col) || col < 0) throw new Error(L({ ko: '열 번호가 올바르지 않습니다.', en: "Invalid column number." }));
   let label = '';
   for (let value = col + 1; value > 0; value = Math.floor((value - 1) / 26)) label = String.fromCharCode(65 + (value - 1) % 26) + label;
   return label;
 }
 export function cellReference(row: number, col: number): string {
-  if (!Number.isSafeInteger(row) || row < 0) throw new Error('행 번호가 올바르지 않습니다.');
+  if (!Number.isSafeInteger(row) || row < 0) throw new Error(L({ ko: '행 번호가 올바르지 않습니다.', en: "Invalid row number." }));
   return `${columnLabel(col)}${row + 1}`;
 }
 export function rangeReference(startRow: number, startCol: number, endRow: number, endCol: number): string {
@@ -37,7 +38,7 @@ function withThousands(digits: string): string {
 }
 /** Text written into the cell: rounded per `format` (fixed decimals keep trailing zeros) and optionally grouped by thousands. */
 export function formatFormulaResult(value: number, format: FormulaFormat = 'raw', thousandsSeparator = false): string {
-  if (!Number.isFinite(value)) throw new Error('계산 결과가 유한한 숫자가 아닙니다.');
+  if (!Number.isFinite(value)) throw new Error(L({ ko: '계산 결과가 유한한 숫자가 아닙니다.', en: "Formula result is not finite." }));
   const text = format === 'integer' ? String(Math.round(value))
     : format === 'decimal1' ? value.toFixed(1)
       : format === 'decimal2' ? value.toFixed(2)

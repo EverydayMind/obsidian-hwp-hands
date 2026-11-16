@@ -1,3 +1,4 @@
+import { LT, L } from '../../i18n/locale';
 /**
  * Keyboard-layout independent shortcut matching.
  *
@@ -32,7 +33,7 @@ function canonical(mod: boolean, ctrl: boolean, alt: boolean, shift: boolean, ke
 export function canonicalShortcut(shortcut: string, isMac = false): string {
   const parts = shortcut.split('+').map(part => part.trim()).filter(Boolean);
   const key = parts.pop();
-  if (!key) throw new Error(`잘못된 편집기 단축키: ${shortcut}`);
+  if (!key) throw new Error(LT({ ko: () => `잘못된 편집기 단축키: ${shortcut}`, en: () => `Invalid editor shortcut: ${shortcut}` }));
   const has = (name: string): boolean => parts.includes(name);
   // `Ctrl` is the physical Ctrl key on macOS but the same key as `Mod` elsewhere.
   const mod = has('Mod') || (!isMac && has('Ctrl'));

@@ -1,3 +1,4 @@
+import { L } from '../i18n/locale';
 import type { ActiveViewContext, BodyAddress, HwpHandsApiV1, Json, SelectionRange, State } from '../api';
 import { HwpHandsError } from '../api';
 import { allowedRange, overlaps, type AllowedRange } from './selection';
@@ -77,9 +78,9 @@ export class AgentEditor {
       reveal: async (ctx, target) => {
         this.check(ctx);
         const path = target?.document?.path, page = target?.page;
-        if (!this.options.reveal) throw new HwpHandsError('INVALID_ARGUMENT', '이 환경에는 문서를 보여 줄 화면이 없다.');
-        if (typeof path !== 'string' || !/\.(hwp|hwpx)$/i.test(path)) throw new HwpHandsError('INVALID_ARGUMENT', '보여 줄 문서는 .hwp 또는 .hwpx 경로여야 한다.');
-        if (page !== undefined && (!Number.isInteger(page) || page < 1)) throw new HwpHandsError('INVALID_ARGUMENT', 'page는 1부터 세는 쪽 번호다.');
+        if (!this.options.reveal) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '이 환경에는 문서를 보여 줄 화면이 없다.', en: "This environment has no view for displaying documents." }));
+        if (typeof path !== 'string' || !/\.(hwp|hwpx)$/i.test(path)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '보여 줄 문서는 .hwp 또는 .hwpx 경로여야 한다.', en: "The document to display must be a .hwp or .hwpx path." }));
+        if (page !== undefined && (!Number.isInteger(page) || page < 1)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: 'page는 1부터 세는 쪽 번호다.', en: "page is a 1-based page number." }));
         // A handle counts only for the very session it came from; otherwise the person still gets the document.
         const state = this.api.documents.list().find(item => item.path === path);
         const same = !!state && state.sessionId === target.document.sessionId && this.incarnations.get(state.sessionId) === target.document.incarnation;
@@ -91,18 +92,18 @@ export class AgentEditor {
       ...(options.discard ? { discardAgentChanges: async (target: DocumentRef, ctx: EditorContext) => {
         this.check(ctx);
         const state = this.api.documents.list().find(item => item.path === target?.path);
-        if (!state || state.sessionId !== target.sessionId || this.incarnations.get(state.sessionId) !== target.incarnation) throw new HwpHandsError('CLOSED', '버릴 작업본이 이미 닫혔거나 다시 열렸다.');
+        if (!state || state.sessionId !== target.sessionId || this.incarnations.get(state.sessionId) !== target.incarnation) throw new HwpHandsError('CLOSED', L({ ko: '버릴 작업본이 이미 닫혔거나 다시 열렸다.', en: "The working copy to discard has already been closed or reopened." }));
         // What a person has on screen is theirs to discard there.
-        if (this.options.viewPaths().includes(state.path)) throw new HwpHandsError('INVALID_ARGUMENT', '화면에 열린 문서는 사람이 화면에서 직접 버린다.', { reason: 'has-view' });
+        if (this.options.viewPaths().includes(state.path)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '화면에 열린 문서는 사람이 화면에서 직접 버린다.', en: "A person must discard documents with open views directly in the view." }), { reason: 'has-view' });
         const after = await options.discard!(state, ctx.caller, ctx.signal);
         return { applied: 'yes' as const, path: after.path, sessionId: after.sessionId, revisionBefore: state.revision, revisionAfter: after.revision };
       } } : {}),
     };
   }
   private check(ctx: EditorContext): void {
-    if (this.disposed || ctx.signal.aborted) throw new HwpHandsError('CANCELLED', '문맥 조회가 취소됐다.');
+    if (this.disposed || ctx.signal.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '문맥 조회가 취소됐다.', en: "Context capture was cancelled." }));
     if (!ctx.caller.pluginId || !ctx.caller.conversationId || !ctx.caller.runId || !ctx.caller.turnId)
-      throw new HwpHandsError('INVALID_ARGUMENT', '문맥 조회에는 대화와 제출 턴 식별자가 필요하다.');
+      throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '문맥 조회에는 대화와 제출 턴 식별자가 필요하다.', en: "Context capture requires conversation and submitted-turn identifiers." }));
   }
   ref(state: State): DocumentRef {
     let incarnation = this.incarnations.get(state.sessionId);
@@ -118,7 +119,7 @@ export class AgentEditor {
     const state = this.api.documents.list().find(item => item.path === view.path);
     if (!state || state.sessionId !== view.sessionId || state.revision !== view.revision) return null;
     // Never silently turn an oversized selection into whole-document scope.
-    if (view.selection && view.selection.text.length > 12000) throw new HwpHandsError('INVALID_ARGUMENT', '선택 범위가 너무 크다. 범위를 줄여 다시 요청하라.');
+    if (view.selection && view.selection.text.length > 12000) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '선택 범위가 너무 크다. 범위를 줄여 다시 요청하라.', en: "The selection is too large. Narrow it and submit again." }));
     const scope: TurnScope = { ...this.ref(state), providerId: 'hwp-hands', revision: state.revision,
       contextId: this.options.token('ctx'), capturedAt: new Date().toISOString(),
       ...(view.selection ? { selection: { selectionId: this.options.token('sel'), handles: [], text: view.selection.text } } : {}) };
@@ -145,10 +146,10 @@ export class AgentEditor {
   }
   read(scope: TurnScope, caller: Caller): { scope: TurnScope; view: ActiveViewContext; changed: boolean; range?: SelectionRange; allowed?: AllowedRange } {
     const found = this.snapshots.get(scope.contextId);
-    if (this.disposed || !found || found.caller !== this.binding(caller)) throw new HwpHandsError('INVALID_ARGUMENT', '선택 문맥이 만료됐거나 이 제출 턴과 다르다. 다시 요청하라.');
+    if (this.disposed || !found || found.caller !== this.binding(caller)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '선택 문맥이 만료됐거나 이 제출 턴과 다르다. 다시 요청하라.', en: "Selection context has expired or belongs to a different submitted turn. Submit again." }));
     const current = this.api.documents.list().find(state => state.path === found.scope.path);
-    if (!current || current.sessionId !== found.scope.sessionId) throw new HwpHandsError('CLOSED', '문맥의 문서가 닫혔다.');
-    if (this.options.accessible?.(current.path) === false) throw new ToolError('AI_PRIVATE', 'AI 비공개 문서의 선택 문맥을 제공하지 않는다.', false);
+    if (!current || current.sessionId !== found.scope.sessionId) throw new HwpHandsError('CLOSED', L({ ko: '문맥의 문서가 닫혔다.', en: "The context document was closed." }));
+    if (this.options.accessible?.(current.path) === false) throw new ToolError('AI_PRIVATE', L({ ko: 'AI 비공개 문서의 선택 문맥을 제공하지 않는다.', en: "Selection context is not provided for AI-private documents." }), false);
     return { ...structuredClone({ scope: found.scope, view: found.view, changed: current.revision !== found.scope.revision, ...(found.range ? { range: found.range } : {}) }),
       ...(found.allowed ? { allowed: found.allowed } : {}) };
   }

@@ -1,3 +1,4 @@
+import { L } from './i18n/locale';
 import { HwpHandsError } from './api';
 
 export interface ViewContext { path: string; generation: number }
@@ -13,7 +14,7 @@ export function viewFollowsEvent(event: { type: string; state: { path: string } 
 
 export function assertViewContext(context: ViewContext, currentPath: string, currentGeneration: number): void {
   if (context.path !== currentPath || context.generation !== currentGeneration) {
-    throw new HwpHandsError('REVISION_CONFLICT', '작업을 시작한 문서가 바뀌어 결과를 적용하지 않았습니다.');
+    throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '작업을 시작한 문서가 바뀌어 결과를 적용하지 않았습니다.', en: "The document changed after the operation began; its result was not applied." }));
   }
 }
 
@@ -32,7 +33,7 @@ export class ViewTaskGate {
     return operation;
   }
   run<T>(action: () => Promise<T> | T): Promise<T> {
-    if (this.pending) return Promise.reject(new HwpHandsError('INVALID_ARGUMENT', '다른 화면 작업이 진행 중입니다.'));
+    if (this.pending) return Promise.reject(new HwpHandsError('INVALID_ARGUMENT', L({ ko: '다른 화면 작업이 진행 중입니다.', en: "Another view operation is in progress." })));
     return this.track(Promise.resolve().then(action));
   }
   runImmediately<T>(action: () => Promise<T> | T): Promise<T> {

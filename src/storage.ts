@@ -1,3 +1,4 @@
+import { LT, L } from './i18n/locale';
 import { FileSystemAdapter, TFile, TFolder, type Vault } from 'obsidian';
 import { createHash, randomUUID } from 'node:crypto';
 import { open, readdir, rename, stat } from 'node:fs/promises';
@@ -20,7 +21,7 @@ export class VaultStorage implements Storage {
   constructor(private readonly vault: Vault, private readonly pluginDirectory: string) {}
   private file(path: string): TFile {
     const file = this.vault.getAbstractFileByPath(path);
-    if (!(file instanceof TFile)) throw new HwpHandsError('NOT_FOUND', `파일을 찾을 수 없습니다: ${path}`);
+    if (!(file instanceof TFile)) throw new HwpHandsError('NOT_FOUND', LT({ ko: () => `파일을 찾을 수 없습니다: ${path}`, en: () => `File not found: ${path}` }));
     return file;
   }
   async read(path: string): Promise<Uint8Array> { return new Uint8Array(await this.vault.readBinary(this.file(path))); }
@@ -48,17 +49,17 @@ export class VaultStorage implements Storage {
     return value === null ? null : value.type;
   }
   async createFolder(path: string): Promise<void> {
-    if (await this.pathKind(path) !== null) throw new HwpHandsError('FILE_CONFLICT', `경로가 이미 있습니다: ${path}`);
+    if (await this.pathKind(path) !== null) throw new HwpHandsError('FILE_CONFLICT', LT({ ko: () => `경로가 이미 있습니다: ${path}`, en: () => `Path already exists: ${path}` }));
     await this.vault.createFolder(path);
   }
   async createPrepared(path: string, bytes: Uint8Array): Promise<void> {
     const parent = path.split('/').slice(0, -1).join('/');
-    if (parent && !(this.vault.getAbstractFileByPath(parent) instanceof TFolder)) throw new HwpHandsError('FILE_CONFLICT', '승인한 부모 폴더가 없습니다.');
-    if (await this.pathKind(path) !== null) throw new HwpHandsError('FILE_CONFLICT', `경로가 이미 있습니다: ${path}`);
+    if (parent && !(this.vault.getAbstractFileByPath(parent) instanceof TFolder)) throw new HwpHandsError('FILE_CONFLICT', L({ ko: '승인한 부모 폴더가 없습니다.', en: "Approved parent folder is missing." }));
+    if (await this.pathKind(path) !== null) throw new HwpHandsError('FILE_CONFLICT', LT({ ko: () => `경로가 이미 있습니다: ${path}`, en: () => `Path already exists: ${path}` }));
     await this.vault.createBinary(path, arrayBuffer(bytes));
   }
   async create(path: string, bytes: Uint8Array): Promise<void> {
-    if (await this.vault.adapter.exists(path)) throw new HwpHandsError('FILE_CONFLICT', `파일이 이미 있습니다: ${path}`);
+    if (await this.vault.adapter.exists(path)) throw new HwpHandsError('FILE_CONFLICT', LT({ ko: () => `파일이 이미 있습니다: ${path}`, en: () => `File already exists: ${path}` }));
     const parts = path.split('/'); parts.pop(); let folder = '';
     for (const part of parts) {
       folder = folder ? `${folder}/${part}` : part;
@@ -75,11 +76,11 @@ export class VaultStorage implements Storage {
     try {
       await this.vault.adapter.writeBinary(destination, arrayBuffer(bytes));
       const backup = new Uint8Array(await this.vault.adapter.readBinary(destination));
-      if (!sameBytes(bytes, backup)) throw new HwpHandsError('VERIFY_FAILED', `원본 백업을 다시 읽은 내용이 다릅니다: ${destination}`);
+      if (!sameBytes(bytes, backup)) throw new HwpHandsError('VERIFY_FAILED', LT({ ko: () => `원본 백업을 다시 읽은 내용이 다릅니다: ${destination}`, en: () => `Original backup readback differs: ${destination}` }));
       return destination;
     } catch (error) {
       try { if (await this.vault.adapter.exists(destination)) await this.vault.adapter.remove(destination); }
-      catch (cleanupError) { throw new HwpHandsError('VERIFY_FAILED', '백업 파일 검증에 실패했고 불완전한 백업을 정리하지 못했습니다.', { destination, error: String(error), cleanupError: String(cleanupError) }); }
+      catch (cleanupError) { throw new HwpHandsError('VERIFY_FAILED', L({ ko: '백업 파일 검증에 실패했고 불완전한 백업을 정리하지 못했습니다.', en: "Backup verification failed and the incomplete backup could not be cleaned up." }), { destination, error: String(error), cleanupError: String(cleanupError) }); }
       throw error;
     }
   }
@@ -100,13 +101,13 @@ export class VaultStorage implements Storage {
   async writeIndex(path: string, content: string, source: string): Promise<void> {
     const generated = inspectIndex(content);
     if (generated.state !== 'managed' || generated.source !== source || createHash('sha256').update(await this.read(source)).digest('hex') !== generated.sourceSha256) {
-      throw new HwpHandsError('FILE_CONFLICT', `원본이 인덱스 생성 이후 변경되었습니다: ${source}`);
+      throw new HwpHandsError('FILE_CONFLICT', LT({ ko: () => `원본이 인덱스 생성 이후 변경되었습니다: ${source}`, en: () => `Original changed after index creation: ${source}` }));
     }
     if (await this.vault.adapter.exists(path)) {
       const existing = await this.vault.adapter.read(path);
       const inspection = inspectIndex(existing);
-      if (inspection.state !== 'managed' || inspection.source !== source) throw new HwpHandsError('FILE_CONFLICT', `사용자 편집 또는 관리되지 않는 인덱스를 덮어쓸 수 없습니다: ${path}`);
-      if (await this.vault.adapter.read(path) !== existing) throw new HwpHandsError('FILE_CONFLICT', `인덱스 파일이 갱신 중 변경되었습니다: ${path}`);
+      if (inspection.state !== 'managed' || inspection.source !== source) throw new HwpHandsError('FILE_CONFLICT', LT({ ko: () => `사용자 편집 또는 관리되지 않는 인덱스를 덮어쓸 수 없습니다: ${path}`, en: () => `Cannot overwrite a user-edited or unmanaged index: ${path}` }));
+      if (await this.vault.adapter.read(path) !== existing) throw new HwpHandsError('FILE_CONFLICT', LT({ ko: () => `인덱스 파일이 갱신 중 변경되었습니다: ${path}`, en: () => `Index file changed during update: ${path}` }));
       if (existing === content) return;
       await this.vault.modify(this.file(path), content);
     } else { await this.vault.create(path, content); }
@@ -161,15 +162,15 @@ export class VaultStorage implements Storage {
     const filename = this.recoveryPath(path);
     if (!await this.vault.adapter.exists(filename)) return undefined;
     const details = await this.vault.adapter.stat(filename);
-    if (details && details.size > maxBytes) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 파일이 읽기 제한을 초과합니다. 기존 기록은 보존했습니다.');
+    if (details && details.size > maxBytes) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 파일이 읽기 제한을 초과합니다. 기존 기록은 보존했습니다.', en: "Recovery file exceeds the read limit. Existing records were preserved." }));
     const content = await this.vault.adapter.read(filename);
-    if (Buffer.byteLength(content, 'utf8') > maxBytes) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 파일이 읽기 제한을 초과합니다. 기존 기록은 보존했습니다.');
+    if (Buffer.byteLength(content, 'utf8') > maxBytes) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 파일이 읽기 제한을 초과합니다. 기존 기록은 보존했습니다.', en: "Recovery file exceeds the read limit. Existing records were preserved." }));
     try {
       const firstLine = content.split('\n', 1)[0];
       const header = JSON.parse(firstLine) as { version?: unknown };
       if (header?.version === 3) return decodeRecoveryV3(content, maxBytes) as unknown as RecoveryV3;
       return JSON.parse(content) as Recovery;
-    } catch (error) { throw new HwpHandsError('VERIFY_FAILED', '복구 기록 JSON 또는 hash chain을 읽을 수 없습니다. 기존 기록은 보존했습니다.', String(error)); }
+    } catch (error) { throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 JSON 또는 hash chain을 읽을 수 없습니다. 기존 기록은 보존했습니다.', en: "Cannot read recovery JSON or hash chain. Existing records were preserved." }), String(error)); }
   }
   async recoveryRecords(maxBytes: number): Promise<Recovery[]> {
     const records: Recovery[] = [];
@@ -187,27 +188,27 @@ export class VaultStorage implements Storage {
     if (!await this.vault.adapter.exists(folder)) await this.vault.adapter.mkdir(folder);
     const filename = this.recoveryPath(path), temporary = `${filename}.tmp-${randomUUID()}`;
     // Rename the complete journal so a partial write cannot replace the last usable recovery.
-    if (!(this.vault.adapter instanceof FileSystemAdapter)) throw new HwpHandsError('INVALID_ARGUMENT', '복구 기록은 데스크톱 파일 시스템을 필요로 합니다.');
+    if (!(this.vault.adapter instanceof FileSystemAdapter)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '복구 기록은 데스크톱 파일 시스템을 필요로 합니다.', en: "Recovery records require the desktop file system." }));
     const serialized = recovery.version === 3 ? encodeRecoveryV3(recovery) : JSON.stringify(recovery);
     await this.vault.adapter.write(temporary, serialized);
     try { await rename(this.vault.adapter.getFullPath(temporary), this.vault.adapter.getFullPath(filename)); }
     catch (error) { if (await this.vault.adapter.exists(temporary)) await this.vault.adapter.remove(temporary); throw error; }
   }
   async appendRecovery(path: string, line: RecoveryV3Line, maxBytes: number): Promise<void> {
-    if (!(this.vault.adapter instanceof FileSystemAdapter)) throw new HwpHandsError('INVALID_ARGUMENT', '복구 저널 append는 데스크톱 파일 시스템을 필요로 합니다.');
+    if (!(this.vault.adapter instanceof FileSystemAdapter)) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '복구 저널 append는 데스크톱 파일 시스템을 필요로 합니다.', en: "Recovery journal append requires the desktop file system." }));
     const filename = this.recoveryPath(path);
-    if (!await this.vault.adapter.exists(filename)) throw new HwpHandsError('VERIFY_FAILED', '복구 저널 append 대상이 없습니다. 기존 기록을 보존하고 다음 편집에서 체크포인트를 다시 만드세요.');
+    if (!await this.vault.adapter.exists(filename)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 저널 append 대상이 없습니다. 기존 기록을 보존하고 다음 편집에서 체크포인트를 다시 만드세요.', en: "Recovery journal append target is missing. Preserve existing records and recreate the checkpoint on the next edit." }));
     const absolutePath = this.vault.adapter.getFullPath(filename);
     const lineBytes = Buffer.from(`${JSON.stringify(line)}\n`, 'utf8');
     const details = await stat(absolutePath);
-    if (details.size + lineBytes.byteLength > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', '복구 저널 크기가 설정 제한을 초과합니다. 저장하거나 더 작은 단위로 편집하세요.');
+    if (details.size + lineBytes.byteLength > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '복구 저널 크기가 설정 제한을 초과합니다. 저장하거나 더 작은 단위로 편집하세요.', en: "Recovery journal exceeds the configured size limit. Save or edit in smaller batches." }));
     const handle = await open(absolutePath, 'a');
     try {
       await handle.writeFile(lineBytes);
       await handle.sync();
     } catch (error) {
       try { await handle.truncate(details.size); await handle.sync(); }
-      catch (rollbackError) { throw new HwpHandsError('VERIFY_FAILED', '복구 저널 append 실패 뒤 미완성 꼬리를 정리하지 못했습니다. 기존 기록을 보존하세요.', { appendError: String(error), rollbackError: String(rollbackError) }); }
+      catch (rollbackError) { throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 저널 append 실패 뒤 미완성 꼬리를 정리하지 못했습니다. 기존 기록을 보존하세요.', en: "Could not clean up the incomplete tail after recovery journal append failure. Preserve existing records." }), { appendError: String(error), rollbackError: String(rollbackError) }); }
       throw error;
     }
     finally { await handle.close(); }
@@ -245,7 +246,7 @@ export class VaultStorage implements Storage {
     for (const entries of groups.values()) {
       entries.sort((left, right) => right.timestamp - left.timestamp || right.entry.name.localeCompare(left.entry.name));
       for (const { entry } of entries.slice(KEEP_BACKUPS_PER_SOURCE)) {
-        candidates.push({ path: entry.path, kind: 'backup', bytes: entry.bytes, modifiedAt: entry.modifiedAt, reason: `문서별 최신 ${KEEP_BACKUPS_PER_SOURCE}개 이후 백업` });
+        candidates.push({ path: entry.path, kind: 'backup', bytes: entry.bytes, modifiedAt: entry.modifiedAt, reason: LT({ ko: () => `문서별 최신 ${KEEP_BACKUPS_PER_SOURCE}개 이후 백업`, en: () => `Backups older than the latest ${KEEP_BACKUPS_PER_SOURCE} per document` }) });
       }
     }
     const recoveryFolder = `${this.pluginDirectory}/recovery`, draftFolder = `${this.pluginDirectory}/input-drafts`;
@@ -256,7 +257,7 @@ export class VaultStorage implements Storage {
       const isDraftTemp = entry.path.startsWith(`${draftFolder}/`) && new RegExp(`^[A-Za-z0-9._-]{1,128}\\.json\\.tmp-${TEMP_UUID}$`).test(entry.name);
       if (isRecoveryTemp || isDraftTemp) {
         temporaryFiles++;
-        if (entry.modifiedAt < now - TEMPORARY_RETENTION_MS) candidates.push({ path: entry.path, kind: 'temporary', bytes: entry.bytes, modifiedAt: entry.modifiedAt, reason: '24시간 이상 된 미완성 임시 파일' });
+        if (entry.modifiedAt < now - TEMPORARY_RETENTION_MS) candidates.push({ path: entry.path, kind: 'temporary', bytes: entry.bytes, modifiedAt: entry.modifiedAt, reason: L({ ko: '24시간 이상 된 미완성 임시 파일', en: "Incomplete temporary files older than 24 hours" }) });
       }
     }
     return {
@@ -271,7 +272,7 @@ export class VaultStorage implements Storage {
   }
 
   async cleanupManagedFiles(paths: string[], now = Date.now()): Promise<string[]> {
-    if (!Array.isArray(paths) || paths.some(path => typeof path !== 'string')) throw new HwpHandsError('INVALID_ARGUMENT', '정리할 플러그인 파일 경로가 올바르지 않습니다.');
+    if (!Array.isArray(paths) || paths.some(path => typeof path !== 'string')) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '정리할 플러그인 파일 경로가 올바르지 않습니다.', en: "Invalid plugin file cleanup path." }));
     const allowed = new Set((await this.cleanupPlan(now)).candidates.map(candidate => candidate.path));
     const removed: string[] = [];
     for (const path of [...new Set(paths)]) {

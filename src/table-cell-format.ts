@@ -1,3 +1,4 @@
+import { L } from './i18n/locale';
 import type { CellProperties, Command, Target } from './api';
 import { cellBlockBorderEdges, type CellBlockRange } from './table-cell-selection';
 
@@ -27,26 +28,26 @@ export function tableCellFormatCommands(
   value: TableCellFormatValues,
   currentTable: Pick<TableCellFormatValues, 'cellSpacing' | 'repeatHeader'>,
 ): Command[] {
-  if (!cells.length || cells.length > 500) throw new Error('서식을 적용할 셀은 1~500개여야 합니다. F5 범위를 조정하세요.');
-  if (!Number.isSafeInteger(value.cellSpacing) || value.cellSpacing < 0 || value.cellSpacing > 100_000) throw new Error('표 셀 간격은 0~100000 범위의 정수 HWP 단위여야 합니다.');
-  if (!Number.isSafeInteger(value.padding) || value.padding < 0 || value.padding > 100_000) throw new Error('셀 안쪽 여백은 0~100000 범위의 정수 HWP 단위여야 합니다.');
-  if (!Number.isSafeInteger(value.verticalAlign) || ![0, 1, 2].includes(value.verticalAlign)) throw new Error('셀 세로 정렬 값이 올바르지 않습니다.');
-  if (!Number.isSafeInteger(value.borderType) || value.borderType < 0 || value.borderType > 32) throw new Error('셀 테두리 종류가 올바르지 않습니다.');
-  if (!validColor(value.borderColor)) throw new Error('셀 테두리 색은 6자리 HEX 색상이어야 합니다.');
-  if (value.fillMode !== 'keep' && value.fillMode !== 'none' && value.fillMode !== 'solid' && value.fillMode !== 'pattern') throw new Error('배경 채우기 방식을 다시 선택하세요.');
-  if (value.fillMode === 'solid' && !validColor(value.fillColor)) throw new Error('셀 배경색은 6자리 HEX 색상이어야 합니다.');
+  if (!cells.length || cells.length > 500) throw new Error(L({ ko: '서식을 적용할 셀은 1~500개여야 합니다. F5 범위를 조정하세요.', en: "Select 1–500 cells for formatting. Adjust the F5 range." }));
+  if (!Number.isSafeInteger(value.cellSpacing) || value.cellSpacing < 0 || value.cellSpacing > 100_000) throw new Error(L({ ko: '표 셀 간격은 0~100000 범위의 정수 HWP 단위여야 합니다.', en: "Table cell spacing must be an integer from 0 to 100000 HWP units." }));
+  if (!Number.isSafeInteger(value.padding) || value.padding < 0 || value.padding > 100_000) throw new Error(L({ ko: '셀 안쪽 여백은 0~100000 범위의 정수 HWP 단위여야 합니다.', en: "Cell padding must be an integer from 0 to 100000 HWP units." }));
+  if (!Number.isSafeInteger(value.verticalAlign) || ![0, 1, 2].includes(value.verticalAlign)) throw new Error(L({ ko: '셀 세로 정렬 값이 올바르지 않습니다.', en: "Invalid cell vertical alignment." }));
+  if (!Number.isSafeInteger(value.borderType) || value.borderType < 0 || value.borderType > 32) throw new Error(L({ ko: '셀 테두리 종류가 올바르지 않습니다.', en: "Invalid cell border type." }));
+  if (!validColor(value.borderColor)) throw new Error(L({ ko: '셀 테두리 색은 6자리 HEX 색상이어야 합니다.', en: "Cell border color must be a 6-digit HEX color." }));
+  if (value.fillMode !== 'keep' && value.fillMode !== 'none' && value.fillMode !== 'solid' && value.fillMode !== 'pattern') throw new Error(L({ ko: '배경 채우기 방식을 다시 선택하세요.', en: "Select the background fill mode again." }));
+  if (value.fillMode === 'solid' && !validColor(value.fillColor)) throw new Error(L({ ko: '셀 배경색은 6자리 HEX 색상이어야 합니다.', en: "Cell background must be a 6-digit HEX color." }));
   if (value.fillMode === 'pattern' && (!validColor(value.patternColor) || !Number.isSafeInteger(value.patternType) || value.patternType < 0 || value.patternType > 64)) {
-    throw new Error('무늬 색상은 6자리 HEX, 무늬 종류는 0~64 정수여야 합니다.');
+    throw new Error(L({ ko: '무늬 색상은 6자리 HEX, 무늬 종류는 0~64 정수여야 합니다.', en: "Pattern color must be 6-digit HEX; pattern type must be an integer from 0 to 64." }));
   }
-  if (typeof value.isHeader !== 'boolean' || typeof value.repeatHeader !== 'boolean') throw new Error('머리글 설정이 올바르지 않습니다.');
-  if (value.borderMode !== 'each' && value.borderMode !== 'outside') throw new Error('테두리 적용 방식을 다시 선택하세요.');
+  if (typeof value.isHeader !== 'boolean' || typeof value.repeatHeader !== 'boolean') throw new Error(L({ ko: '머리글 설정이 올바르지 않습니다.', en: "Invalid header settings." }));
+  if (value.borderMode !== 'each' && value.borderMode !== 'outside') throw new Error(L({ ko: '테두리 적용 방식을 다시 선택하세요.', en: "Select the border application mode again." }));
   for (const cell of cells) {
     if (![cell.row, cell.col, cell.rowSpan, cell.colSpan].every(Number.isSafeInteger)
-      || cell.row < 0 || cell.col < 0 || cell.rowSpan < 1 || cell.colSpan < 1) throw new Error('표 셀 주소가 올바르지 않습니다.');
+      || cell.row < 0 || cell.col < 0 || cell.rowSpan < 1 || cell.colSpan < 1) throw new Error(L({ ko: '표 셀 주소가 올바르지 않습니다.', en: "Invalid table cell address." }));
   }
 
   const tablePropertiesChanged = value.cellSpacing !== currentTable.cellSpacing || value.repeatHeader !== currentTable.repeatHeader;
-  if (tablePropertiesChanged && cells.length >= 500) throw new Error('표 전체 설정을 바꾸면서 셀 서식을 적용하려면 선택 셀을 499개 이하로 줄이세요.');
+  if (tablePropertiesChanged && cells.length >= 500) throw new Error(L({ ko: '표 전체 설정을 바꾸면서 셀 서식을 적용하려면 선택 셀을 499개 이하로 줄이세요.', en: "To apply cell formatting while changing table settings, reduce the selection to 499 cells or fewer." }));
   const commands: Command[] = tablePropertiesChanged ? [{ type: 'setTableProperties', table,
     properties: { cellSpacing: value.cellSpacing, repeatHeader: value.repeatHeader } }] : [];
   const border = (visible: boolean): NonNullable<CellProperties['borderTop']> => visible && value.borderType > 0
@@ -65,6 +66,6 @@ export function tableCellFormatCommands(
     };
     commands.push({ type: 'setCellProperties', table, row: cell.row, col: cell.col, properties });
   }
-  if (commands.length > 500) throw new Error('한 트랜잭션은 500개 명령까지 적용할 수 있습니다.');
+  if (commands.length > 500) throw new Error(L({ ko: '한 트랜잭션은 500개 명령까지 적용할 수 있습니다.', en: "A transaction can apply at most 500 commands." }));
   return commands;
 }

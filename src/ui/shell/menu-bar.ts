@@ -1,3 +1,4 @@
+import { LT, L } from '../../i18n/locale';
 export interface MenuBarItem {
   label: string;
   action?: () => void;
@@ -15,7 +16,7 @@ export interface MenuBarGroup { label: string; items: MenuBarItem[] }
 let menuSequence = 0;
 
 /** Mounts a small ARIA menubar. Keyboard handling is scoped to its own focus tree. */
-export function mountMenuBar(parent: HTMLElement, groups: MenuBarGroup[], label = '문서 메뉴'): () => void {
+export function mountMenuBar(parent: HTMLElement, groups: MenuBarGroup[], label = L({ ko: '문서 메뉴', en: "Document menu" })): () => void {
   const document = parent.ownerDocument;
   const bar = document.createElement('div');
   bar.className = 'hwp-menubar'; bar.setAttribute('role', 'menubar'); bar.setAttribute('aria-label', label);
@@ -83,7 +84,7 @@ export function mountMenuBar(parent: HTMLElement, groups: MenuBarGroup[], label 
   const buildPopup = (items: MenuBarItem[], opener: HTMLButtonElement, group: number, parentPopup?: Popup): Popup => {
     const menu = document.createElement('div'); menu.id = `hwp-menu-${++menuSequence}`;
     menu.className = `hwp-menu-popup${parentPopup ? ' hwp-menu-submenu' : ''}`;
-    menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', `${opener.textContent} 메뉴`); menu.hidden = true;
+    menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', LT({ ko: () => `${opener.textContent} 메뉴`, en: () => `${opener.textContent} menu` })); menu.hidden = true;
     opener.setAttribute('aria-haspopup', 'menu'); opener.setAttribute('aria-expanded', 'false'); opener.setAttribute('aria-controls', menu.id);
     const popup: Popup = { menu, buttons: [], items, opener, group, parent: parentPopup }; popups.push(popup);
     items.forEach(item => {

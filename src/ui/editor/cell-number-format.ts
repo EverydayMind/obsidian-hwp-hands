@@ -1,3 +1,4 @@
+import { L } from '../../i18n/locale';
 import type { Command, Table } from '../../api';
 export type CellNumberOperation = 'thousands' | 'decimal-add' | 'decimal-remove';
 /** String operations avoid precision loss, rounding and locale-dependent parsing. */
@@ -24,6 +25,6 @@ export function cellNumberFormatCommands(table: Table, cells: Table['cells'], op
     if (value === undefined || /[\x00-\x1f]/.test(paragraph.text)) { skipped++; continue; }
     if (value !== paragraph.text) commands.push({ type: 'setCellText', table: { ...table.address, control: table.control }, row: cell.row, col: cell.col, text: value });
   }
-  if (commands.length > 500) throw new Error('숫자 변환은 한 번에 변경 셀 500개까지 가능합니다. 선택 범위를 줄이세요.');
+  if (commands.length > 500) throw new Error(L({ ko: '숫자 변환은 한 번에 변경 셀 500개까지 가능합니다. 선택 범위를 줄이세요.', en: "Numeric conversion supports at most 500 changed cells per call. Narrow the selection." }));
   return { commands, skipped };
 }

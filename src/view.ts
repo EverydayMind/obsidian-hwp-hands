@@ -1,3 +1,4 @@
+import { LT, L } from './i18n/locale';
 import { mountCanvasPage, releaseCanvases } from './canvas-page';
 import { cellNumberFormatCommands, type CellNumberOperation } from './ui/editor/cell-number-format';
 import { randomUUID } from 'node:crypto';
@@ -81,8 +82,8 @@ type TableStructureAction = 'insert-row-above' | 'insert-row-below' | 'delete-ro
 const EDITOR_ITEM_PAGE_SIZE = 100;
 /** RHWP's 글자 효과 dropdown, in its order. */
 const CHARACTER_EFFECTS = [
-  ['format.emboss', 'emboss', '양각'], ['format.engrave', 'engrave', '음각'], ['format.outline', 'outline', '외곽선'],
-  ['format.superscript', 'superscript', '위 첨자'], ['format.subscript', 'subscript', '아래 첨자'],
+  ['format.emboss', 'emboss', L({ ko: '양각', en: "Emboss" })], ['format.engrave', 'engrave', L({ ko: '음각', en: "Engrave" })], ['format.outline', 'outline', L({ ko: '외곽선', en: "Outline" })],
+  ['format.superscript', 'superscript', L({ ko: '위 첨자', en: "Superscript" })], ['format.subscript', 'subscript', L({ ko: '아래 첨자', en: "Subscript" })],
 ] as const;
 type CharacterEffect = typeof CHARACTER_EFFECTS[number][1];
 interface NavigationTarget { kind: NavigationKind; label: string; filterText: string; address: DocumentAddress; nodePath: string; controlIndex?: number; fieldId?: number; start?: number; end?: number; searchResult?: true; /** the table cell the paragraph sits in, so the inline editor can be placed over it */ cell?: { tablePath: string; cellIndex: number } }
@@ -105,7 +106,7 @@ function isTextboxParagraph(item: TextParagraph): boolean {
   return item.address.kind === 'body' && item.address.containerKinds?.includes('textBox') === true;
 }
 function objectKindLabel(object: DocumentObject): string {
-  return object.kind === 'picture' ? '그림' : object.kind === 'equation' ? '수식' : object.kind === 'shape' ? '도형' : '개체';
+  return object.kind === 'picture' ? L({ ko: '그림', en: "Picture" }) : object.kind === 'equation' ? L({ ko: '수식', en: "Equation" }) : object.kind === 'shape' ? L({ ko: '도형', en: "Shapes" }) : L({ ko: '개체', en: "Object" });
 }
 
 export const VIEW_TYPE = 'hwp-hands-view';
@@ -397,8 +398,8 @@ export class HwpView extends FileView {
       });
       this.register(deactivate);
     }
-    this.addAction('save', 'HWP 저장', () => this.runEditorCommand('file.save'));
-    this.addAction('panel-top', 'HWP 메뉴 접기/펴기', () => this.toggleAllChrome());
+    this.addAction('save', L({ ko: 'HWP 저장', en: "Save HWP" }), () => this.runEditorCommand('file.save'));
+    this.addAction('panel-top', L({ ko: 'HWP 메뉴 접기/펴기', en: "Collapse/expand HWP menus" }), () => this.toggleAllChrome());
     this.unsubscribe = this.plugin.api.events.on('*', event => this.handleDocumentEvent(event));
     this.unsubscribeEditMarks = this.plugin.editMarks.onChange(path => {
       if (path !== this.path || !this.statusEl) return;
@@ -515,12 +516,12 @@ export class HwpView extends FileView {
     // A newly loaded file is a first load for refresh(): a previous file's state must not make it fold the initial selection.
     this.state = undefined; this.path = file.path; this.page = 0; this.pageLayouts.clear(); this.pageLayout = undefined; this.pageLayoutRevision = -1; this.draft = false; this.pendingLiveRebase = undefined; this.selected = undefined; this.storyReturnPosition = undefined; this.selectedObject = undefined; this.documentTree = undefined; this.pageSelection = undefined; this.selectionAnchor = undefined; this.pageDragStart = undefined; this.pageCellDragStart = undefined; this.pageDragPreview = undefined; this.objectDragStart = undefined; this.tableResizeStart = undefined; this.shapeDrawStart = undefined; this.shapeDrawMode = false; this.cellBlockSelection = undefined; this.inlineEditorActive = false; this.inlineCellSelection = undefined; this.draftSaveError = undefined; this.composing = false; this.pendingCaretProperties = undefined; this.preferredCaretX = undefined; this.capabilities = undefined; this.capabilityCheckPending = false; this.capabilityCheckError = undefined; this.baselineText = undefined; this.operationError = undefined; this.saving = false;
     this.copiedFormat = undefined;
-    if (this.shapeDrawButton) { this.shapeDrawButton.textContent = '도형 그리기'; this.shapeDrawButton.setAttribute('aria-pressed', 'false'); }
+    if (this.shapeDrawButton) { this.shapeDrawButton.textContent = L({ ko: '도형 그리기', en: "Draw shape" }); this.shapeDrawButton.setAttribute('aria-pressed', 'false'); }
     await this.pageStack?.setActivePage(0, false, false);
     this.searchRevision = -1; this.searchCurrentIndex = -1;
     this.setTargetBrowser(this.searchBrowser, []); this.setTargetBrowser(this.outlineBrowser, []); this.setTargetBrowser(this.tableBrowser, []); this.setTargetBrowser(this.objectBrowser, []); this.setTargetBrowser(this.fieldBrowser, []);
     this.draftAutosave = this.createDraftAutosave();
-    this.statusTextEl.setText('문서를 불러오는 중…'); this.statusActivityEl.setText('');
+    this.statusTextEl.setText(L({ ko: '문서를 불러오는 중…', en: "Loading document…" })); this.statusActivityEl.setText('');
     try {
       const lease = await this.plugin.manager.retainView(file.path);
       if (generation !== this.generation || this.path !== file.path) { await lease.release(); return; }
@@ -530,15 +531,15 @@ export class HwpView extends FileView {
       await this.restorePendingViewState();
       if (generation === this.generation && this.plugin.manager.takeRecoveredUnasked(lease.state.sessionId)) this.askToKeepRecovered(file.path, generation);
     }
-    catch (error) { if (generation === this.generation) { this.statusTextEl.setText(`열기 실패: ${String(error)}`); this.statusActivityEl.setText(''); this.pageEl.empty(); } this.plugin.report(error); }
+    catch (error) { if (generation === this.generation) { this.statusTextEl.setText(LT({ ko: () => `열기 실패: ${String(error)}`, en: () => `Open failed: ${String(error)}` })); this.statusActivityEl.setText(''); this.pageEl.empty(); } this.plugin.report(error); }
   }
   async navigateToLinkedTarget(target: HwpLinkTarget): Promise<void> {
-    if (this.draft || this.composing) throw new Error('입력을 적용하거나 조합을 마친 뒤 링크 위치로 이동하세요.');
+    if (this.draft || this.composing) throw new Error(L({ ko: '입력을 적용하거나 조합을 마친 뒤 링크 위치로 이동하세요.', en: "Apply input or finish composition before following the link." }));
     if (target.page !== undefined) {
-      if (!this.state || target.page < 1 || target.page > this.state.pageCount) throw new Error(`링크 쪽 번호는 1부터 ${this.state?.pageCount ?? 0} 사이여야 합니다.`);
+      if (!this.state || target.page < 1 || target.page > this.state.pageCount) throw new Error(LT({ ko: () => `링크 쪽 번호는 1부터 ${this.state?.pageCount ?? 0} 사이여야 합니다.`, en: () => `Linked page number must be from 1 to ${this.state?.pageCount ?? 0}.` }));
       this.page = target.page - 1;
       await this.renderPage(true);
-      this.navigationStatus.setText(`${target.page}쪽으로 이동했습니다.`);
+      this.navigationStatus.setText(LT({ ko: () => `${target.page}쪽으로 이동했습니다.`, en: () => `Moved to page ${target.page}.` }));
       return;
     }
     const expected = normalizeHwpHeading(target.heading ?? '');
@@ -550,21 +551,21 @@ export class HwpView extends FileView {
       for (const story of tree.stories) candidates.push(...story.paragraphs);
     }
     const paragraph = candidates.find(item => normalizeHwpHeading(item.text) === expected);
-    if (!paragraph || !expected) throw new Error(`문단 제목을 찾지 못했습니다: ${target.heading ?? ''}`);
+    if (!paragraph || !expected) throw new Error(LT({ ko: () => `문단 제목을 찾지 못했습니다: ${target.heading ?? ''}`, en: () => `Paragraph heading not found: ${target.heading ?? ''}` }));
     await this.jumpToNavigationTarget({ kind: 'paragraph', label: target.heading!, filterText: target.heading!, address: paragraph.address, nodePath: paragraph.nodePath });
   }
   /** Moves to a body or cell paragraph by its address, or to a page (from 1). Used when a person asks to see where an edit landed. */
   async revealPlace(target: { address?: BodyAddress; page?: number }, signal?: AbortSignal): Promise<void> {
-    if (signal?.aborted) throw new HwpHandsError('CANCELLED', '위치 이동이 취소되었습니다.');
+    if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '위치 이동이 취소되었습니다.', en: "Navigation was cancelled." }));
     if (!target.address) { if (target.page !== undefined) await this.navigateToLinkedTarget({ page: target.page }); return; }
     if ((target.address.sessionId !== undefined && target.address.sessionId !== this.state?.sessionId) ||
         (target.address.revision !== undefined && target.address.revision !== this.state?.revision))
-      throw new Error('문서가 변경되어 위치 이동을 취소했습니다.');
+      throw new Error(L({ ko: '문서가 변경되어 위치 이동을 취소했습니다.', en: "Navigation cancelled because the document changed." }));
     const key = (address: DocumentAddress): string => address.kind === 'body' ? JSON.stringify([address.section, address.paragraph, address.cellPath ?? []]) : '';
     const tree = this.documentTree, wanted = key({ ...target.address, kind: 'body' });
     const paragraph = tree && [...tree.paragraphs, ...tree.tables.flatMap(table => table.cells.flatMap(cell => cell.paragraphs))].find(item => key(item.address) === wanted);
-    if (!paragraph) throw new Error('그 위치를 현재 문서에서 찾지 못했습니다.');
-    const label = Array.from(paragraph.text).slice(0, 30).join('') || '빈 문단';
+    if (!paragraph) throw new Error(L({ ko: '그 위치를 현재 문서에서 찾지 못했습니다.', en: "Position not found in the current document." }));
+    const label = Array.from(paragraph.text).slice(0, 30).join('') || L({ ko: '빈 문단', en: "Empty paragraph" });
     await this.jumpToNavigationTarget({ kind: 'paragraph', label, filterText: label, address: paragraph.address, nodePath: paragraph.nodePath }, signal);
   }
   async onUnloadFile(): Promise<void> {
@@ -673,14 +674,14 @@ export class HwpView extends FileView {
     try {
       if (this.composing) {
         await this.draftAutosave.flush(this.captureInputDraft());
-        new Notice('한글 조합 중인 입력을 복구 목록에 보관했습니다. 조합을 마친 뒤 미적용 입력 복구에서 확인하세요.', 10000);
+        new Notice(L({ ko: '한글 조합 중인 입력을 복구 목록에 보관했습니다. 조합을 마친 뒤 미적용 입력 복구에서 확인하세요.', en: "Input under Korean IME composition was kept in the recovery list. Finish composition, then check Recover unapplied input." }), 10000);
         return;
       }
       const snapshot = this.captureDraftApplySnapshot();
       const result = await flushInputDraftOnLeave(this.draftAutosave, this.captureInputDraft(snapshot.selected, snapshot.value, snapshot.context.path, snapshot.revision), async () => { await this.applyDraftSnapshot(snapshot, true); });
       if (result.status === 'retained') {
         const { id, error } = result;
-        new Notice(`적용하지 못한 입력을 복구 목록에 보관했습니다 (${id}). 명령 팔레트에서 “미적용 입력 복구”를 여세요.`, 10000);
+        new Notice(LT({ ko: () => `적용하지 못한 입력을 복구 목록에 보관했습니다 (${id}). 명령 팔레트에서 “미적용 입력 복구”를 여세요.`, en: () => `Unapplied input was kept in the recovery list (${id}). Open “Recover unapplied input” from the command palette.` }), 10000);
         this.plugin.report(error);
       }
     }
@@ -695,7 +696,7 @@ export class HwpView extends FileView {
     });
   }
   private captureContext(): ViewContext {
-    if (!this.path) throw new Error('열린 HWP/HWPX 문서가 없습니다.');
+    if (!this.path) throw new Error(L({ ko: '열린 HWP/HWPX 문서가 없습니다.', en: "No HWP/HWPX document is open." }));
     return { path: this.path, generation: this.generation };
   }
   private assertContext(context: ViewContext): void { assertViewContext(context, this.path, this.generation); }
@@ -728,7 +729,7 @@ export class HwpView extends FileView {
   }
   private captureDraftApplySnapshot(): DraftApplySnapshot {
     if (!this.composing) this.settlePendingLiveRebase();
-    if (!this.selected) throw new Error('편집할 문단 또는 필드를 선택하세요.');
+    if (!this.selected) throw new Error(L({ ko: '편집할 문단 또는 필드를 선택하세요.', en: "Select a paragraph or field to edit." }));
     return {
       context: this.captureContext(), selected: structuredClone(this.selected), value: this.textarea.value, revision: this.draftRevision,
       selectionStart: this.textarea.selectionStart, selectionEnd: this.textarea.selectionEnd,
@@ -771,8 +772,8 @@ export class HwpView extends FileView {
     const list = browser.createDiv({ cls: 'hwp-browser-list' });
     const actions = browser.createDiv({ cls: 'hwp-edit-actions' });
     const state: TargetBrowser = { input, list, status, entries: [], page: 0, onSelect, previous: undefined as unknown as HTMLButtonElement, next: undefined as unknown as HTMLButtonElement };
-    state.previous = this.button(actions, '이전 항목', () => { state.page--; this.renderTargetBrowser(state); });
-    state.next = this.button(actions, '다음 항목', () => { state.page++; this.renderTargetBrowser(state); });
+    state.previous = this.button(actions, L({ ko: '이전 항목', en: "Previous item" }), () => { state.page--; this.renderTargetBrowser(state); });
+    state.next = this.button(actions, L({ ko: '다음 항목', en: "Next item" }), () => { state.page++; this.renderTargetBrowser(state); });
     input.oninput = () => { state.page = 0; this.renderTargetBrowser(state); };
     this.renderTargetBrowser(state);
     return state;
@@ -786,8 +787,8 @@ export class HwpView extends FileView {
   private renderTargetBrowser(browser: TargetBrowser): void {
     const page = browsePage(browser.entries, browser.input.value, browser.page);
     browser.page = page.page; browser.list.empty();
-    browser.status.setText(page.total ? `${page.total}개 항목 · ${page.page + 1}/${page.pageCount}쪽`
-      : browser.entries.length ? '일치하는 항목이 없습니다.' : '항목이 없습니다.');
+    browser.status.setText(page.total ? LT({ ko: () => `${page.total}개 항목 · ${page.page + 1}/${page.pageCount}쪽`, en: () => `${page.total} items · page ${page.page + 1}/${page.pageCount}` })
+      : browser.entries.length ? L({ ko: '일치하는 항목이 없습니다.', en: "No matching items." }) : L({ ko: '항목이 없습니다.', en: "No items." }));
     browser.previous.disabled = page.page === 0;
     browser.next.disabled = page.page + 1 >= page.pageCount;
     for (const entry of page.items) {
@@ -798,19 +799,19 @@ export class HwpView extends FileView {
   }
   private updateDocumentBrowsers(tree: DocumentTree, formatting: FormattingModel): void {
     const outlineTargets = outlineParagraphs(tree.paragraphs, formatting).map(paragraph => {
-      const styleName = formatting.paragraphs.find(item => item.nodePath === paragraph.nodePath)?.style?.name ?? '개요';
+      const styleName = formatting.paragraphs.find(item => item.nodePath === paragraph.nodePath)?.style?.name ?? L({ ko: '개요', en: "Outline" });
       const text = paragraph.text.trim();
       return { kind: 'paragraph' as const, label: `${styleName} · ${text.slice(0, 100)}`, filterText: `${styleName} ${text}`, address: paragraph.address, nodePath: paragraph.nodePath };
     });
     this.setTargetBrowser(this.outlineBrowser, outlineTargets);
     const tables = tree.tables.filter(table => !table.address.cellPath?.length).map(table => {
       const text = table.cells.flatMap(cell => cell.paragraphs).map(paragraph => paragraph.text.trim()).filter(Boolean).join(' · ');
-      const label = `표 ${table.rows}×${table.cols} · ${text.slice(0, 90) || '내용 없음'}`;
+      const label = LT({ ko: () => `표 ${table.rows}×${table.cols} · ${text.slice(0, 90) || '내용 없음'}`, en: () => `Table ${table.rows}×${table.cols} · ${text.slice(0, 90) || 'No content'}` });
       return { kind: 'table' as const, label, filterText: `${label} ${text} ${table.nodePath}`, address: table.address, nodePath: table.nodePath, controlIndex: table.control };
     });
     this.setTargetBrowser(this.tableBrowser, tables);
     const objects = tree.objects.filter(object => !object.address.cellPath?.length).map(object => {
-      const label = `${objectKindLabel(object)} · ${object.address.section + 1}구역 ${object.address.paragraph + 1}문단`;
+      const label = LT({ ko: () => `${objectKindLabel(object)} · ${object.address.section + 1}구역 ${object.address.paragraph + 1}문단`, en: () => `${objectKindLabel(object)} · section ${object.address.section + 1}, paragraph ${object.address.paragraph + 1}` });
       return { kind: 'object' as const, label, filterText: `${label} ${object.nodePath} ${object.kind}`, address: object.address, nodePath: object.nodePath, controlIndex: object.controlIndex };
     });
     this.setTargetBrowser(this.objectBrowser, objects);
@@ -903,15 +904,15 @@ export class HwpView extends FileView {
       restoreOptimisticCaret();
       throw error;
     }
-    if (current.revision !== revision) throw new Error('문서가 이동 중 변경되어 캐럿을 옮기지 않았습니다.');
+    if (current.revision !== revision) throw new Error(L({ ko: '문서가 이동 중 변경되어 캐럿을 옮기지 않았습니다.', en: "The document changed during navigation; the caret was not moved." }));
     const tree = this.documentTree, paragraph = tree && this.paragraphForAddress(tree, result.position.address);
-    if (!paragraph) throw new Error('이동한 문단을 현재 문서 구조에서 찾지 못했습니다. 다시 조회하세요.');
+    if (!paragraph) throw new Error(L({ ko: '이동한 문단을 현재 문서 구조에서 찾지 못했습니다. 다시 조회하세요.', en: "The destination paragraph was not found in the current structure. Query again." }));
     const targetAddress = paragraph.address;
     this.mode = targetAddress.kind !== 'body' || targetAddress.containerKinds?.includes('textBox') ? 'stories'
       : targetAddress.cellPath?.length || targetAddress.containerKinds?.includes('tableCell') ? 'cells' : 'paragraphs';
     this.modeSelector.value = this.mode; this.items = this.itemsForMode(tree);
     const index = this.items.findIndex(item => isParagraph(item) && item.nodePath === paragraph.nodePath);
-    if (index < 0) throw new Error('이동한 문단이 현재 편집 목록에 없습니다.');
+    if (index < 0) throw new Error(L({ ko: '이동한 문단이 현재 편집 목록에 없습니다.', en: "The destination paragraph is not in the current editor list." }));
     const previousPage = this.page;
     this.page = Math.min(result.rect.pageIndex, Math.max(0, current.pageCount - 1));
     this.state = current;
@@ -956,46 +957,46 @@ export class HwpView extends FileView {
   }
   private async jumpToNavigationTarget(target: NavigationTarget, signal?: AbortSignal): Promise<void> {
     const check = () => {
-      if (signal?.aborted) throw new HwpHandsError('CANCELLED', '위치 이동이 취소되었습니다.');
+      if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '위치 이동이 취소되었습니다.', en: "Navigation was cancelled." }));
       if (signal) {
         const input = this.readAutosaveInput();
-        if (input.composing || input.pending || input.busy) throw new HwpHandsError('REVISION_CONFLICT', '입력이 진행 중이어서 위치 이동을 중단했습니다.');
+        if (input.composing || input.pending || input.busy) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '입력이 진행 중이어서 위치 이동을 중단했습니다.', en: "Navigation stopped because input is in progress." }));
       }
     };
     check();
-    if (this.draft || this.composing) throw new Error('입력을 적용하거나 조합을 마친 뒤 이동하세요.');
+    if (this.draft || this.composing) throw new Error(L({ ko: '입력을 적용하거나 조합을 마친 뒤 이동하세요.', en: "Apply input or finish composition before navigating." }));
     // Tab between cells and "next result" are keyboard moves inside the page: the caret must stay in the inline editor on the page.
     const keepInline = this.inlineEditorActive;
     const context = this.captureContext(), revision = this.state?.revision, pageCount = this.state?.pageCount, tree = this.documentTree;
-    if (revision === undefined || pageCount === undefined || !tree) throw new Error('문서 구조가 아직 준비되지 않았습니다.');
+    if (revision === undefined || pageCount === undefined || !tree) throw new Error(L({ ko: '문서 구조가 아직 준비되지 않았습니다.', en: "Document structure is not ready yet." }));
     if (target.searchResult && this.searchRevision >= 0 && this.searchRevision !== revision) {
-      throw new Error('검색 결과가 오래되어 이동하지 않았습니다. 다시 검색하세요.');
+      throw new Error(L({ ko: '검색 결과가 오래되어 이동하지 않았습니다. 다시 검색하세요.', en: "Search results are stale; navigation was skipped. Search again." }));
     }
     const before = await this.plugin.api.documents.state(context.path); check(); this.assertContext(context);
-    if (before.revision !== revision) throw new Error('문서가 변경되어 이동을 취소했습니다. 다시 시도하세요.');
-    this.navigationStatus.setText(`“${target.label}” 위치를 찾는 중…`);
+    if (before.revision !== revision) throw new Error(L({ ko: '문서가 변경되어 이동을 취소했습니다. 다시 시도하세요.', en: "Navigation cancelled because the document changed. Try again." }));
+    this.navigationStatus.setText(LT({ ko: () => `“${target.label}” 위치를 찾는 중…`, en: () => `Locating “${target.label}”…` }));
     const startPage = this.page;
     let targetPage = -1;
     for (let inspected = 0; inspected < pageCount; inspected++) {
       const page = (startPage + inspected) % pageCount;
-      if (inspected > 0 && inspected % 20 === 0) this.navigationStatus.setText(`“${target.label}” 위치를 찾는 중… ${inspected}/${pageCount}쪽 확인`);
+      if (inspected > 0 && inspected % 20 === 0) this.navigationStatus.setText(LT({ ko: () => `“${target.label}” 위치를 찾는 중… ${inspected}/${pageCount}쪽 확인`, en: () => `Locating “${target.label}”… checked ${inspected}/${pageCount} pages` }));
       check(); this.assertContext(context);
       const layout = await this.plugin.api.query.layout(context.path, page);
       check(); this.assertContext(context);
       if (this.layoutContainsTarget(layout, target)) { targetPage = page; break; }
     }
     const after = await this.plugin.api.documents.state(context.path); check(); this.assertContext(context);
-    if (after.revision !== revision) throw new Error('이동 중 문서가 변경되어 결과를 취소했습니다. 다시 시도하세요.');
+    if (after.revision !== revision) throw new Error(L({ ko: '이동 중 문서가 변경되어 결과를 취소했습니다. 다시 시도하세요.', en: "The document changed during navigation; results were cancelled. Try again." }));
     if (targetPage < 0) {
-      this.navigationStatus.setText(`${target.label}의 쪽 위치를 찾지 못했습니다.`);
-      throw new Error('이 항목의 페이지 위치를 layout에서 찾지 못했습니다.');
+      this.navigationStatus.setText(LT({ ko: () => `${target.label}의 쪽 위치를 찾지 못했습니다.`, en: () => `Could not locate the page for ${target.label}.` }));
+      throw new Error(L({ ko: '이 항목의 페이지 위치를 layout에서 찾지 못했습니다.', en: "Could not find this item's page position in layout." }));
     }
     this.page = targetPage;
     await this.pageStack?.setActivePage(targetPage, true, false);
     check();
     if (target.kind === 'paragraph') {
       const paragraph = this.paragraphForPath(tree, target.nodePath);
-      if (!paragraph) throw new Error('검색 또는 개요 대상 문단이 현재 문서에 없습니다.');
+      if (!paragraph) throw new Error(L({ ko: '검색 또는 개요 대상 문단이 현재 문서에 없습니다.', en: "The search/outline target paragraph is not in the current document." }));
       const address = paragraph.address;
       this.mode = address.kind !== 'body' || address.containerKinds?.includes('textBox') ? 'stories'
         : address.cellPath?.length || address.containerKinds?.includes('tableCell') ? 'cells' : 'paragraphs';
@@ -1008,10 +1009,10 @@ export class HwpView extends FileView {
       this.selectedObject = tree.objects.find(object => object.nodePath === target.nodePath);
     }
     await this.refresh(); check(); this.assertContext(context);
-    if (this.state?.revision !== revision) throw new Error('문서가 변경되어 이동 결과를 적용하지 않았습니다.');
+    if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 변경되어 이동 결과를 적용하지 않았습니다.', en: "The document changed; navigation results were not applied." }));
     if (target.kind === 'paragraph') {
       const index = this.items.findIndex(item => isParagraph(item) && item.nodePath === target.nodePath);
-      if (index < 0) throw new Error('대상 문단이 편집 목록에 없습니다.');
+      if (index < 0) throw new Error(L({ ko: '대상 문단이 편집 목록에 없습니다.', en: "The target paragraph is not in the editor list." }));
       // selectItem forgets the cell unless it is the same paragraph, so hand it over first: the inline editor needs the cell's box.
       if (keepInline && target.cell) this.inlineCellSelection = { paragraphPath: target.nodePath, tablePath: target.cell.tablePath, cellIndex: target.cell.cellIndex };
       this.selectItem(index, keepInline);
@@ -1027,13 +1028,13 @@ export class HwpView extends FileView {
       const first = table?.cells.flatMap(cell => cell.paragraphs)[0];
       const index = first ? this.items.findIndex(item => isParagraph(item) && item.nodePath === first.nodePath) : -1;
       if (index >= 0) { this.selectItem(index, keepInline); this.textarea.focus({ preventScroll: true }); }
-      else { this.clearSelection(`${target.label} · 내용이 있는 셀이 없습니다.`); this.infoEl.focus({ preventScroll: true }); }
+      else { this.clearSelection(LT({ ko: () => `${target.label} · 내용이 있는 셀이 없습니다.`, en: () => `${target.label} · No nonempty cells.` })); this.infoEl.focus({ preventScroll: true }); }
     } else if (target.kind === 'field') {
       const index = this.items.findIndex(item => !isParagraph(item) && item.fieldId === target.fieldId);
-      if (index < 0) throw new Error('대상 필드가 편집 목록에서 사라졌습니다. 다시 조회하세요.');
+      if (index < 0) throw new Error(L({ ko: '대상 필드가 편집 목록에서 사라졌습니다. 다시 조회하세요.', en: "The target field disappeared from the editor list. Query again." }));
       this.selectItem(index, false);
       const field = this.selected && !isParagraph(this.selected) ? this.selected : undefined;
-      if (!field) throw new Error('선택한 필드 상태를 읽을 수 없습니다. 다시 시도하세요.');
+      if (!field) throw new Error(L({ ko: '선택한 필드 상태를 읽을 수 없습니다. 다시 시도하세요.', en: "Cannot read the selected field state. Try again." }));
       this.showFieldBoundaryCaret(field, typeof field.startCharIdx === 'number' ? field.startCharIdx : 0);
       this.textarea.focus({ preventScroll: true });
     } else {
@@ -1041,7 +1042,7 @@ export class HwpView extends FileView {
       this.clearSelection(target.label);
       this.infoEl.focus({ preventScroll: true });
     }
-    this.navigationStatus.setText(`${target.label} · ${targetPage + 1}쪽으로 이동했습니다.`);
+    this.navigationStatus.setText(LT({ ko: () => `${target.label} · ${targetPage + 1}쪽으로 이동했습니다.`, en: () => `${target.label} · Moved to page ${targetPage + 1}.` }));
   }
   private async showAdjacentSearchResult(delta: number): Promise<void> {
     const entries = this.searchBrowser?.entries ?? [];
@@ -1058,19 +1059,19 @@ export class HwpView extends FileView {
     return this.searchBrowser?.entries[this.searchCurrentIndex]?.value;
   }
   private async runSearch(): Promise<void> {
-    if (this.composing || this.draft) throw new Error('입력을 적용하거나 조합을 마친 뒤 검색하세요.');
+    if (this.composing || this.draft) throw new Error(L({ ko: '입력을 적용하거나 조합을 마친 뒤 검색하세요.', en: "Apply input or finish composition before searching." }));
     const context = this.captureContext(), searchText = this.searchQueryInput.value, revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
-    if (!searchText.trim()) throw new Error('검색어를 입력하세요.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
+    if (!searchText.trim()) throw new Error(L({ ko: '검색어를 입력하세요.', en: "Enter a search query." }));
     const before = await this.plugin.api.documents.state(context.path); this.assertContext(context);
-    if (before.revision !== revision) throw new Error('문서가 변경되어 검색을 취소했습니다. 다시 시도하세요.');
+    if (before.revision !== revision) throw new Error(L({ ko: '문서가 변경되어 검색을 취소했습니다. 다시 시도하세요.', en: "Search cancelled because the document changed. Try again." }));
     const options = { caseSensitive: this.searchCaseSensitiveInput.checked };
     const matches = this.searchIncludeStoriesInput.checked
       ? await this.plugin.api.query.search(context.path, searchText, { ...options, includeStories: true })
       : await this.plugin.api.query.search(context.path, searchText, { ...options, includeStories: false });
     this.assertContext(context);
     const after = await this.plugin.api.documents.state(context.path); this.assertContext(context);
-    if (after.revision !== revision) throw new Error('검색 중 문서가 변경되어 오래된 결과를 표시하지 않았습니다.');
+    if (after.revision !== revision) throw new Error(L({ ko: '검색 중 문서가 변경되어 오래된 결과를 표시하지 않았습니다.', en: "The document changed during search; stale results were not displayed." }));
     this.searchRevision = revision; this.searchCurrentIndex = -1;
     if (this.findBarEl) this.findBarEl.hidden = false;
     this.setTargetBrowser(this.searchBrowser, matches.map((match: DocumentSearchMatch) => ({
@@ -1082,15 +1083,15 @@ export class HwpView extends FileView {
     this.updatePageSelectionOverlay();
   }
   private async replaceCurrentSearchResult(): Promise<void> {
-    if (this.composing || this.draft) throw new Error('입력을 적용하거나 조합을 마친 뒤 바꾸세요.');
+    if (this.composing || this.draft) throw new Error(L({ ko: '입력을 적용하거나 조합을 마친 뒤 바꾸세요.', en: "Apply input or finish composition before replacing." }));
     const revision = this.state?.revision, target = this.currentSearchTarget();
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
-    if (this.searchRevision !== revision) throw new Error('검색 결과가 오래되었습니다. 다시 검색하세요.');
-    if (!target?.searchResult || target.start === undefined || target.end === undefined) throw new Error('현재 검색 결과를 선택하세요.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
+    if (this.searchRevision !== revision) throw new Error(L({ ko: '검색 결과가 오래되었습니다. 다시 검색하세요.', en: "Search results are stale. Search again." }));
+    if (!target?.searchResult || target.start === undefined || target.end === undefined) throw new Error(L({ ko: '현재 검색 결과를 선택하세요.', en: "Select the current search result." }));
     if (target.address.kind !== 'body' || target.address.cellPath?.length) {
-      throw new Error('현재 결과 바꾸기는 본문 문단만 지원합니다. 표 셀과 머리말·꼬리말·각주는 모두 바꾸기를 사용하세요.');
+      throw new Error(L({ ko: '현재 결과 바꾸기는 본문 문단만 지원합니다. 표 셀과 머리말·꼬리말·각주는 모두 바꾸기를 사용하세요.', en: "Replacing the current match supports body paragraphs only. Use Replace all for table cells, headers, footers, and footnotes." }));
     }
-    if (/[\r\n\u2028]/u.test(this.searchReplacementInput.value)) throw new Error('현재 결과 바꾸기는 한 문단 안의 텍스트만 삽입할 수 있습니다.');
+    if (/[\r\n\u2028]/u.test(this.searchReplacementInput.value)) throw new Error(L({ ko: '현재 결과 바꾸기는 한 문단 안의 텍스트만 삽입할 수 있습니다.', en: "Replacing the current match can insert text only within one paragraph." }));
     const afterPosition: TextPosition = { address: target.address, offset: target.start };
     await this.execute([{
       type: 'replaceRange',
@@ -1102,7 +1103,7 @@ export class HwpView extends FileView {
     await this.runSearch();
   }
   private async guard(action: () => Promise<unknown> | void, immediate = false, queueAfterCurrent = false): Promise<void> {
-    if (this.tasks.busy && !queueAfterCurrent) { new Notice('화면 작업이 진행 중입니다. 완료 후 다시 시도하세요.'); return; }
+    if (this.tasks.busy && !queueAfterCurrent) { new Notice(L({ ko: '화면 작업이 진행 중입니다. 완료 후 다시 시도하세요.', en: "A view operation is running. Try again after it finishes." })); return; }
     this.operationError = undefined; this.updateStatus();
     try {
       const operation = queueAfterCurrent ? this.tasks.runAfterCurrent(action)
@@ -1207,7 +1208,7 @@ export class HwpView extends FileView {
     if (!rebased || !next || base === undefined || receiver === undefined) {
       // The later keys cannot be moved onto one paragraph of the new revision: keep them in the receiver and its recovery copy.
       this.draftAutosave.schedule(this.captureInputDraft());
-      throw new Error('입력을 반영하는 동안 입력한 내용을 이어 붙이지 못했습니다. 입력한 내용은 편집창과 복구 목록에 남아 있습니다.');
+      throw new Error(L({ ko: '입력을 반영하는 동안 입력한 내용을 이어 붙이지 못했습니다. 입력한 내용은 편집창과 복구 목록에 남아 있습니다.', en: "Could not append input typed while applying changes. Your input remains in the editor and recovery list." }));
     }
     this.rebuildItemList(tree);
     const target = next, index = this.items.findIndex(item => isParagraph(target) ? isParagraph(item) && item.nodePath === target.nodePath : !isParagraph(item) && item.fieldId === target.fieldId);
@@ -1222,7 +1223,7 @@ export class HwpView extends FileView {
     this.draft = this.textarea.value !== base;
     if (this.draft) this.draftAutosave.schedule(this.captureInputDraft());
     else void this.draftAutosave.discard(id => this.plugin.discardInputDraft(id)).then(() => { this.draftSaveError = undefined; }, error => {
-      new Notice('입력은 적용했지만 오래된 복구본을 정리하지 못했습니다. 복구 목록에서 확인한 뒤 폐기하세요.', 8000);
+      new Notice(L({ ko: '입력은 적용했지만 오래된 복구본을 정리하지 못했습니다. 복구 목록에서 확인한 뒤 폐기하세요.', en: "Input was applied, but the old recovery copy could not be cleaned up. Inspect and discard it in the recovery list." }), 8000);
       this.plugin.report(error);
     });
     this.syncPageSelectionFromTextarea(); this.syncInlineEditor(); this.updateToolState(); this.updateStatus();
@@ -1234,7 +1235,7 @@ export class HwpView extends FileView {
    */
   private guardInput(action: () => Promise<unknown> | void, immediate = false): Promise<void> {
     if (!this.tasks.busy) return this.guard(action, immediate);
-    if (this.queuedInputAction) { new Notice('화면 작업이 진행 중입니다. 완료 후 다시 시도하세요.'); return Promise.resolve(); }
+    if (this.queuedInputAction) { new Notice(L({ ko: '화면 작업이 진행 중입니다. 완료 후 다시 시도하세요.', en: "A view operation is running. Try again after it finishes." })); return Promise.resolve(); }
     this.queuedInputAction = true;
     const release = this.lockInput();
     return this.guard(async () => { this.queuedInputAction = false; release(); await action(); }, false, true)
@@ -1261,13 +1262,13 @@ export class HwpView extends FileView {
   }
   private async replaceRootRangeWithText(range: SelectionRange, value: string): Promise<void> {
     const ordered = this.editableSelectionRange(range);
-    if (!ordered || this.rangeIsCollapsed(ordered)) throw new Error('선택 입력은 같은 구역 본문 범위에서만 지원합니다.');
+    if (!ordered || this.rangeIsCollapsed(ordered)) throw new Error(L({ ko: '선택 입력은 같은 구역 본문 범위에서만 지원합니다.', en: "Replacing selected text is supported only within a body range in the same section." }));
     if (/[\r\n\u2028]/u.test(value)) return this.pasteHtmlAtSelection(clipboardHtmlForText(value));
     const { start, end } = ordered, safeDelete: Extract<Command, { type: 'deleteRange' }> = { type: 'deleteRange', start, end };
     const commands: Command[] = [safeDelete, { type: 'insertText', target: start.address, offset: start.offset, text: value }];
     const after: TextPosition = { address: start.address, offset: start.offset + Array.from(value).length };
     const context = this.captureContext(), revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     try { await this.execute(commands, after, true); }
     catch (error) {
       const code = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
@@ -1275,7 +1276,7 @@ export class HwpView extends FileView {
       const confirmed = await new Promise<boolean>(resolve => new ConfirmAnchoredDelete(this.app, resolve).open());
       if (!confirmed) return;
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('확인 중 문서가 변경되었습니다. 다시 선택한 뒤 입력하세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '확인 중 문서가 변경되었습니다. 다시 선택한 뒤 입력하세요.', en: "The document changed during confirmation. Select again before typing." }));
       await this.execute([{ ...safeDelete, deleteAnchoredContent: true }, commands[1]], after, true);
     }
   }
@@ -1384,7 +1385,7 @@ export class HwpView extends FileView {
     return normalizeSelectionSegments(tree, range.start, range.end);
   }
   private formattingReason(changes: RangeFormatProperties): string | undefined {
-    if (!this.selected || !isParagraph(this.selected)) return '서식을 적용할 문단을 선택하세요.';
+    if (!this.selected || !isParagraph(this.selected)) return L({ ko: '서식을 적용할 문단을 선택하세요.', en: "Select a paragraph to format." });
     const block = this.cellBlockSelection;
     const table = block && this.documentTree?.tables.find(item => item.nodePath === block.tablePath);
     const addresses = table && block ? cellsInCellBlock(table, block).flatMap(cell => cell.paragraphs.map(paragraph => paragraph.address))
@@ -1412,7 +1413,7 @@ export class HwpView extends FileView {
     this.updatePageSelectionOverlay(); this.updateToolState(); this.updateStatus();
   }
   private async applySelectionFormatting(changes: RangeFormatProperties): Promise<void> {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 서식을 바꾸세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 서식을 바꾸세요.', en: "Finish Korean IME composition before changing formatting." }));
     if (this.draft) await this.applyDraft(true);
     const reason = this.formattingReason(changes);
     if (reason) throw new Error(reason);
@@ -1424,7 +1425,7 @@ export class HwpView extends FileView {
       return;
     }
     const segments = this.selectionSegments();
-    if (!segments.length) throw new Error('서식을 적용할 선택 위치가 없습니다.');
+    if (!segments.length) throw new Error(L({ ko: '서식을 적용할 선택 위치가 없습니다.', en: "No selected position to format." }));
     const collapsed = segments.length === 1 && this.rangeIsCollapsed(segments[0]);
     if (collapsed && changes.character) {
       let character = changes.character;
@@ -1434,13 +1435,13 @@ export class HwpView extends FileView {
         let families = this.pendingCaretProperties?.fontFamilies?.slice() ?? (this.pendingCaretProperties?.fontFamily && this.pendingCaretProperties.fontLanguage === undefined ? Array(7).fill(this.pendingCaretProperties.fontFamily) as string[] : runs[0]?.properties.fontFamilies?.slice());
         if (!families) {
           const context = this.captureContext(), state = this.state;
-          if (!state) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+          if (!state) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
           const caret = await this.plugin.api.query.caret(context.path, segments[0].start, { sessionId: state.sessionId, expectedRevision: state.revision });
           this.assertContext(context);
-          if (this.state?.revision !== state.revision || JSON.stringify(this.selectionSegments()) !== JSON.stringify(segments)) throw new Error('선택 위치가 바뀌었습니다. 다시 적용하세요.');
+          if (this.state?.revision !== state.revision || JSON.stringify(this.selectionSegments()) !== JSON.stringify(segments)) throw new Error(L({ ko: '선택 위치가 바뀌었습니다. 다시 적용하세요.', en: "The selected position changed. Apply again." }));
           families = caret.context.characterProperties?.fontFamilies?.slice();
         }
-        if (!families || families.length !== 7) throw new Error('언어별 글꼴 정보를 읽지 못했습니다.');
+        if (!families || families.length !== 7) throw new Error(L({ ko: '언어별 글꼴 정보를 읽지 못했습니다.', en: "Could not read language-specific font information." }));
         families[language] = character.fontFamily!;
         const { fontLanguage: _language, fontFamily: _family, ...rest } = character;
         character = { ...rest, fontFamilies: families };
@@ -1462,14 +1463,14 @@ export class HwpView extends FileView {
     let announced = false;
     const timer = setTimeout(() => {
       announced = true;
-      this.navigationStatus.setText('선택 범위 서식을 적용하는 중…');
+      this.navigationStatus.setText(L({ ko: '선택 범위 서식을 적용하는 중…', en: "Applying selection formatting…" }));
       this.navigationStatus.setAttribute('aria-busy', 'true');
     }, 150);
     try {
       await this.execute(commands);
-      if (announced) this.navigationStatus.setText('선택 범위 서식을 적용했습니다.');
+      if (announced) this.navigationStatus.setText(L({ ko: '선택 범위 서식을 적용했습니다.', en: "Applied selection formatting." }));
     } catch (error) {
-      if (announced) this.navigationStatus.setText('선택 범위 서식을 적용하지 못했습니다.');
+      if (announced) this.navigationStatus.setText(L({ ko: '선택 범위 서식을 적용하지 못했습니다.', en: "Could not apply selection formatting." }));
       throw error;
     } finally {
       clearTimeout(timer);
@@ -1517,7 +1518,7 @@ export class HwpView extends FileView {
   }
   private writeClipboardSelection(event: ClipboardEvent): 'written' | 'failed' | 'notHandled' {
     const result = writeClipboardSelection(event, this.clipboardSelection(), this.hasMultiParagraphSelection());
-    if (result === 'failed') new Notice('클립보드에 쓸 수 없어 작업을 취소했습니다.');
+    if (result === 'failed') new Notice(L({ ko: '클립보드에 쓸 수 없어 작업을 취소했습니다.', en: "Cannot write to the clipboard; operation cancelled." }));
     return result;
   }
   private onEditorCopy(event: ClipboardEvent): void { this.writeClipboardSelection(event); }
@@ -1547,7 +1548,7 @@ export class HwpView extends FileView {
   }
   private async applyPasteContents(html: string, text: string, files: readonly File[]): Promise<void> {
     const reason = this.selectionMutationReason(); if (reason) throw new Error(reason);
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 붙여넣으세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 붙여넣으세요.', en: "Finish Korean IME composition before pasting." }));
     const selected = this.selected;
     const rootBody = !!selected && isParagraph(selected) && selected.address.kind === 'body' && !selected.address.cellPath?.length && !selected.address.containerKinds?.includes('textBox');
     const collapsed = this.textarea.selectionStart === this.textarea.selectionEnd;
@@ -1561,8 +1562,8 @@ export class HwpView extends FileView {
       await this.pasteHtmlAtSelection(html);
       return;
     }
-    if (html && (htmlBytes > 1024 * 1024 || !rootBody || this.draft)) new Notice('이 위치에는 서식 있는 HTML을 붙일 수 없어 일반 텍스트로 붙입니다.');
-    if (!text) throw new Error(htmlBytes > 1024 * 1024 ? 'HTML 클립보드가 1 MiB 제한을 넘었고 일반 텍스트가 없습니다.' : '클립보드에 붙일 일반 텍스트가 없습니다.');
+    if (html && (htmlBytes > 1024 * 1024 || !rootBody || this.draft)) new Notice(L({ ko: '이 위치에는 서식 있는 HTML을 붙일 수 없어 일반 텍스트로 붙입니다.', en: "Formatted HTML cannot be pasted here; pasting plain text instead." }));
+    if (!text) throw new Error(htmlBytes > 1024 * 1024 ? L({ ko: 'HTML 클립보드가 1 MiB 제한을 넘었고 일반 텍스트가 없습니다.', en: "HTML clipboard exceeds the 1 MiB limit and has no plain text." }) : L({ ko: '클립보드에 붙일 일반 텍스트가 없습니다.', en: "No plain text to paste on the clipboard." }));
     const currentRange = this.selectionRange();
     if (currentRange && !this.rangeIsCollapsed(currentRange) && this.editableSelectionRange(currentRange)) {
       await this.pasteHtmlAtSelection(clipboardHtmlForText(text));
@@ -1583,7 +1584,7 @@ export class HwpView extends FileView {
   }
   private async pasteFromSystemClipboard(): Promise<void> {
     const clipboard = this.contentEl.ownerDocument.defaultView?.navigator.clipboard;
-    if (!clipboard) throw new Error('이 환경에서 시스템 클립보드 읽기를 사용할 수 없습니다.');
+    if (!clipboard) throw new Error(L({ ko: '이 환경에서 시스템 클립보드 읽기를 사용할 수 없습니다.', en: "System clipboard reading is unavailable in this environment." }));
     let html = '', text = '';
     const files: File[] = [];
     if (typeof clipboard.read === 'function') {
@@ -1600,14 +1601,14 @@ export class HwpView extends FileView {
         }
       }
     } else if (typeof clipboard.readText === 'function') text = await clipboard.readText();
-    if (!html && !text && !files.length) throw new Error('시스템 클립보드에 붙일 텍스트, HTML 또는 그림이 없습니다.');
+    if (!html && !text && !files.length) throw new Error(L({ ko: '시스템 클립보드에 붙일 텍스트, HTML 또는 그림이 없습니다.', en: "No text, HTML, or picture to paste on the system clipboard." }));
     await this.applyPasteContents(html, text, files);
   }
   private runClipboardCommand(action: 'cut' | 'copy' | 'paste'): Promise<void> | void {
     if (action !== 'copy') { const reason = this.selectionMutationReason(); if (reason) throw new Error(reason); }
     if (action === 'paste') return this.guard(() => this.pasteFromSystemClipboard());
     this.textarea.focus({ preventScroll: true });
-    if (!this.contentEl.ownerDocument.execCommand(action)) throw new Error(`${action === 'copy' ? '복사' : '오려두기'} 명령을 이 Obsidian 환경에서 실행하지 못했습니다.`);
+    if (!this.contentEl.ownerDocument.execCommand(action)) throw new Error(LT({ ko: () => `${action === 'copy' ? '복사' : '오려두기'} 명령을 이 Obsidian 환경에서 실행하지 못했습니다.`, en: () => `Could not execute ${action === 'copy' ? 'Copy' : 'Cut'} in this Obsidian environment.` }));
   }
   private async showPageContextMenu(event: MouseEvent, page: number): Promise<void> {
     await this.pageStack?.setActivePage(page);
@@ -1629,7 +1630,7 @@ export class HwpView extends FileView {
         const available = this.commandRegistry.isAvailable(id);
         const reason = command.unavailableReason?.();
         menu.addItem(item => item
-          .setTitle(available ? command.label : `${command.label} — ${reason || '현재 문맥에서 사용할 수 없습니다.'}`)
+          .setTitle(available ? command.label : LT({ ko: () => `${command.label} — ${reason || '현재 문맥에서 사용할 수 없습니다.'}`, en: () => `${command.label} — ${reason || 'Unavailable in the current context.'}` }))
           .setDisabled(!available)
           .onClick(() => this.runEditorCommand(id)));
       }
@@ -1638,21 +1639,21 @@ export class HwpView extends FileView {
   }
   private async selectBodySection(): Promise<void> {
     const tree = this.documentTree, state = this.state;
-    if (!tree || !state) throw new Error('문서 구조가 아직 준비되지 않았습니다.');
+    if (!tree || !state) throw new Error(L({ ko: '문서 구조가 아직 준비되지 않았습니다.', en: "Document structure is not ready yet." }));
     const selectedAddress = this.selected && isParagraph(this.selected) ? this.selected.address : undefined;
-    if (!selectedAddress) throw new Error('선택할 문단을 먼저 누르세요.');
+    if (!selectedAddress) throw new Error(L({ ko: '선택할 문단을 먼저 누르세요.', en: "Click a paragraph to select first." }));
     const range = selectAllTextRange(tree, selectedAddress);
-    if (!range) throw new Error('선택할 문단이 없습니다.');
+    if (!range) throw new Error(L({ ko: '선택할 문단이 없습니다.', en: "No paragraph to select." }));
     const last = this.paragraphForAddress(tree, range.end.address)!;
     const context = this.captureContext();
     const caret = await this.plugin.api.query.caret(context.path, { address: last.address, offset: last.length }, { sessionId: state.sessionId, expectedRevision: state.revision });
     this.assertContext(context);
-    if (this.state?.revision !== state.revision) throw new Error('문서가 변경되어 전체 선택을 취소했습니다. 다시 시도하세요.');
+    if (this.state?.revision !== state.revision) throw new Error(L({ ko: '문서가 변경되어 전체 선택을 취소했습니다. 다시 시도하세요.', en: "Select all cancelled because the document changed. Try again." }));
     const address = last.address;
     this.mode = address.kind !== 'body' || address.containerKinds?.includes('textBox') ? 'stories' : address.cellPath?.length ? 'cells' : 'paragraphs';
     this.modeSelector.value = this.mode; this.items = this.itemsForMode(tree);
     const index = this.items.findIndex(item => isParagraph(item) && item.nodePath === last.nodePath);
-    if (index < 0) throw new Error('마지막 본문 문단을 편집 목록에서 찾지 못했습니다.');
+    if (index < 0) throw new Error(L({ ko: '마지막 본문 문단을 편집 목록에서 찾지 못했습니다.', en: "Could not find the last body paragraph in the editor list." }));
     await this.pageStack?.setActivePage(caret.rect.pageIndex, true);
     this.selectItem(index, true);
     const end = utf16OffsetFromCodePoint(this.textarea.value, last.length);
@@ -1830,12 +1831,12 @@ export class HwpView extends FileView {
     if (this.cellBlockSelection) {
       this.cellBlockSelection = undefined;
       this.updatePageSelectionOverlay(); this.updateStatus();
-      this.navigationStatus.setText('표 셀 블록 선택을 끝냈습니다.');
+      this.navigationStatus.setText(L({ ko: '표 셀 블록 선택을 끝냈습니다.', en: "Table cell block selection ended." }));
       return;
     }
     const current = this.selectedTableCell();
     if (!current) {
-      this.navigationStatus.setText('F5 셀 블록 선택은 표 셀 안에 캐럿을 놓은 뒤 사용할 수 있습니다.');
+      this.navigationStatus.setText(L({ ko: 'F5 셀 블록 선택은 표 셀 안에 캐럿을 놓은 뒤 사용할 수 있습니다.', en: "Place the caret in a table cell before using F5 block selection." }));
       return;
     }
     this.cellBlockSelection = {
@@ -1844,7 +1845,7 @@ export class HwpView extends FileView {
       focus: { row: current.cell.row, col: current.cell.col },
     };
     this.updatePageSelectionOverlay(); this.updateStatus();
-    this.navigationStatus.setText('Shift+화살표로 표 셀 블록을 넓히고, F5로 선택을 끝냅니다.');
+    this.navigationStatus.setText(L({ ko: 'Shift+화살표로 표 셀 블록을 넓히고, F5로 선택을 끝냅니다.', en: "Use Shift+arrows to extend the table cell block and F5 to finish selection." }));
   }
   private extendCellBlockSelection(deltaRow: number, deltaCol: number): void {
     const range = this.cellBlockSelection;
@@ -1854,10 +1855,10 @@ export class HwpView extends FileView {
     this.updatePageSelectionOverlay(); this.updateStatus();
   }
   private async resizeSelectedCellBlock(axis: TableResizeAxis, delta: number): Promise<void> {
-    if (this.formMode || this.capabilityCheckPending || this.capabilitiesReadOnly()) throw new Error('현재 문서 상태에서는 표 크기를 바꿀 수 없습니다.');
+    if (this.formMode || this.capabilityCheckPending || this.capabilitiesReadOnly()) throw new Error(L({ ko: '현재 문서 상태에서는 표 크기를 바꿀 수 없습니다.', en: "Cannot resize the table in the current document state." }));
     const range = this.cellBlockSelection;
     const table = range && this.documentTree?.tables.find(item => item.nodePath === range.tablePath);
-    if (!range || !table) throw new Error('F5로 표 셀 블록을 선택한 뒤 크기를 조절하세요.');
+    if (!range || !table) throw new Error(L({ ko: 'F5로 표 셀 블록을 선택한 뒤 크기를 조절하세요.', en: "Select a table cell block with F5 before resizing." }));
     const cells = cellsInCellBlock(table, range);
     const changes = tableCellResizeChanges(cells, axis, delta);
     await this.execute([{ type: 'resizeTableCells', table: { ...table.address, control: table.control }, cells: changes }]);
@@ -1904,7 +1905,7 @@ export class HwpView extends FileView {
     if (this.shapeDrawMode) {
       if (hit?.kind !== 'paragraph' || hit.paragraph.address.kind !== 'body' || hit.paragraph.address.cellPath?.length
         || hit.paragraph.address.containerKinds?.includes('textBox')) {
-        this.navigationStatus.setText('도형은 표 셀이나 글상자가 아닌 본문 문단 위에서 그리세요.');
+        this.navigationStatus.setText(L({ ko: '도형은 표 셀이나 글상자가 아닌 본문 문단 위에서 그리세요.', en: "Draw shapes over body paragraphs, not table cells or text boxes." }));
         return;
       }
       const pageElement = this.pageStack?.pageElement(page), cached = this.pageLayouts.get(page), bounds = pageElement?.getBoundingClientRect(), state = this.state;
@@ -1976,22 +1977,22 @@ export class HwpView extends FileView {
     if (shapeStart && shapeStart.pointerId === event.pointerId) {
       this.shapeDrawStart = undefined; this.shapeDrawMode = false;
       this.pageStack?.pageElement(shapeStart.page)?.querySelector('.hwp-shape-draw-preview')?.remove();
-      if (this.shapeDrawButton) { this.shapeDrawButton.textContent = '도형 그리기'; this.shapeDrawButton.setAttribute('aria-pressed', 'false'); }
+      if (this.shapeDrawButton) { this.shapeDrawButton.textContent = L({ ko: '도형 그리기', en: "Draw shape" }); this.shapeDrawButton.setAttribute('aria-pressed', 'false'); }
       const distance = Math.hypot(event.clientX - shapeStart.clientX, event.clientY - shapeStart.clientY);
       event.preventDefault(); this.suppressPageClick = true;
       setTimeout(() => { this.suppressPageClick = false; }, 0);
-      if (distance < 3) { this.navigationStatus.setText('도형을 만들려면 쪽 위에서 1mm 이상 끌어 크기를 정하세요.'); return; }
+      if (distance < 3) { this.navigationStatus.setText(L({ ko: '도형을 만들려면 쪽 위에서 1mm 이상 끌어 크기를 정하세요.', en: "Drag at least 1 mm over the page to size a shape." })); return; }
       void this.guard(async () => {
         this.assertContext(shapeStart.context);
-        if (this.state?.revision !== shapeStart.revision) throw new Error('문서가 바뀌어 도형 그리기를 취소했습니다. 다시 그리세요.');
+        if (this.state?.revision !== shapeStart.revision) throw new Error(L({ ko: '문서가 바뀌어 도형 그리기를 취소했습니다. 다시 그리세요.', en: "Shape drawing cancelled because the document changed. Draw again." }));
         const pageElement = this.pageStack?.pageElement(shapeStart.page), bounds = pageElement?.getBoundingClientRect();
         const cached = this.pageLayouts.get(shapeStart.page);
-        if (!bounds || !cached || cached.revision !== shapeStart.revision) throw new Error('쪽 배치가 바뀌어 도형 그리기를 취소했습니다.');
+        if (!bounds || !cached || cached.revision !== shapeStart.revision) throw new Error(L({ ko: '쪽 배치가 바뀌어 도형 그리기를 취소했습니다.', en: "Shape drawing cancelled because page layout changed." }));
         const end = pagePointFromClient(event.clientX, event.clientY, bounds, cached.layout.info);
-        if (!end) throw new Error('도형 크기를 계산할 페이지 좌표를 확인하지 못했습니다.');
+        if (!end) throw new Error(L({ ko: '도형 크기를 계산할 페이지 좌표를 확인하지 못했습니다.', en: "Could not determine page coordinates for shape sizing." }));
         const width = Math.round(pixelsToMillimeters(Math.abs(end.x - shapeStart.originX)) * 100);
         const height = Math.round(pixelsToMillimeters(Math.abs(end.y - shapeStart.originY)) * 100);
-        if (width < 100 || height < 100) throw new Error('도형 너비와 높이는 각각 1mm 이상으로 그려야 합니다.');
+        if (width < 100 || height < 100) throw new Error(L({ ko: '도형 너비와 높이는 각각 1mm 이상으로 그려야 합니다.', en: "Draw a shape at least 1 mm wide and high." }));
         await this.insertShapeAt(shapeStart.target, shapeStart.offset, width, height, shapeStart.shape, shapeStart.text);
       });
       return;
@@ -2003,14 +2004,14 @@ export class HwpView extends FileView {
       event.preventDefault(); this.suppressPageClick = true;
       setTimeout(() => { this.suppressPageClick = false; }, 0);
       void this.guard(async () => {
-        if (this.state?.revision !== objectStart.revision) throw new Error('문서가 바뀌어 개체 조작을 취소했습니다. 다시 선택하세요.');
+        if (this.state?.revision !== objectStart.revision) throw new Error(L({ ko: '문서가 바뀌어 개체 조작을 취소했습니다. 다시 선택하세요.', en: "Object manipulation cancelled because the document changed. Select again." }));
         const element = this.pageStack?.pageElement(objectStart.page);
         const bounds = element?.getBoundingClientRect();
         const layout = this.pageLayouts.get(objectStart.page);
-        if (!bounds || !layout || layout.revision !== objectStart.revision) throw new Error('개체 쪽 배치가 바뀌어 조작을 취소했습니다.');
+        if (!bounds || !layout || layout.revision !== objectStart.revision) throw new Error(L({ ko: '개체 쪽 배치가 바뀌어 조작을 취소했습니다.', en: "Object manipulation cancelled because its page layout changed." }));
         const start = pagePointFromClient(objectStart.clientX, objectStart.clientY, bounds, layout.layout.info);
         const end = pagePointFromClient(event.clientX, event.clientY, bounds, layout.layout.info);
-        if (!start || !end) throw new Error('개체를 조작할 페이지 좌표를 확인하지 못했습니다.');
+        if (!start || !end) throw new Error(L({ ko: '개체를 조작할 페이지 좌표를 확인하지 못했습니다.', en: "Could not determine page coordinates for object manipulation." }));
         const properties = objectPropertiesForDrag(objectStart.properties, objectStart.rect, objectStart.handle,
           end.x - start.x, end.y - start.y, event.shiftKey);
         await this.execute([{ type: 'setObjectProperties', object: {
@@ -2030,12 +2031,12 @@ export class HwpView extends FileView {
       setTimeout(() => { this.suppressPageClick = false; }, 0);
       void this.guard(async () => {
         this.assertContext(tableStart.context);
-        if (this.state?.revision !== tableStart.revision) throw new Error('문서가 바뀌어 표 크기 조절을 취소했습니다. 다시 선택하세요.');
+        if (this.state?.revision !== tableStart.revision) throw new Error(L({ ko: '문서가 바뀌어 표 크기 조절을 취소했습니다. 다시 선택하세요.', en: "Table resizing cancelled because the document changed. Select again." }));
         const pageElement = this.pageStack?.pageElement(tableStart.page), bounds = pageElement?.getBoundingClientRect();
         const cached = this.pageLayouts.get(tableStart.page);
-        if (!bounds || !cached || cached.revision !== tableStart.revision) throw new Error('표 쪽 배치가 바뀌어 크기 조절을 취소했습니다.');
+        if (!bounds || !cached || cached.revision !== tableStart.revision) throw new Error(L({ ko: '표 쪽 배치가 바뀌어 크기 조절을 취소했습니다.', en: "Table resizing cancelled because its page layout changed." }));
         const end = pagePointFromClient(event.clientX, event.clientY, bounds, cached.layout.info);
-        if (!end) throw new Error('표 크기를 계산할 페이지 좌표를 확인하지 못했습니다.');
+        if (!end) throw new Error(L({ ko: '표 크기를 계산할 페이지 좌표를 확인하지 못했습니다.', en: "Could not determine page coordinates for table sizing." }));
         const pageDelta = tableStart.axis === 'width' ? end.x - tableStart.originX : end.y - tableStart.originY;
         const delta = pagePixelsToHwpUnits(pageDelta);
         if (!delta) return;
@@ -2248,15 +2249,15 @@ export class HwpView extends FileView {
     const caret = await this.plugin.api.query.caret(context.path, position, { sessionId: state.sessionId, expectedRevision: revision });
     this.assertContext(context);
     const current = await this.plugin.api.documents.state(context.path); this.assertContext(context);
-    if (current.revision !== revision) throw new Error('문서가 이동 중 변경되어 선택을 접지 않았습니다.');
+    if (current.revision !== revision) throw new Error(L({ ko: '문서가 이동 중 변경되어 선택을 접지 않았습니다.', en: "The document changed during navigation; selection was not collapsed." }));
     const paragraph = this.paragraphForAddress(tree, caret.position.address);
-    if (!paragraph) throw new Error('선택 끝의 문단을 현재 문서 구조에서 찾지 못했습니다. 다시 조회하세요.');
+    if (!paragraph) throw new Error(L({ ko: '선택 끝의 문단을 현재 문서 구조에서 찾지 못했습니다. 다시 조회하세요.', en: "Could not find the selection's ending paragraph in the current structure. Query again." }));
     const address = paragraph.address;
     this.mode = address.kind !== 'body' || address.containerKinds?.includes('textBox') ? 'stories'
       : address.cellPath?.length || address.containerKinds?.includes('tableCell') ? 'cells' : 'paragraphs';
     this.modeSelector.value = this.mode; this.items = this.itemsForMode(tree);
     const index = this.items.findIndex(item => isParagraph(item) && item.nodePath === paragraph.nodePath);
-    if (index < 0) throw new Error('선택 끝의 문단이 현재 편집 목록에 없습니다.');
+    if (index < 0) throw new Error(L({ ko: '선택 끝의 문단이 현재 편집 목록에 없습니다.', en: "The selection's ending paragraph is not in the current editor list." }));
     this.state = current; this.page = Math.min(caret.rect.pageIndex, Math.max(0, current.pageCount - 1));
     await this.renderPage(true); this.assertContext(context);
     this.restoreTextPosition(caret.position, true);
@@ -2414,7 +2415,7 @@ export class HwpView extends FileView {
       sw: [rect.x, bottom], w: [rect.x, rect.y + rect.height / 2],
     };
     const labels: Record<Exclude<ObjectResizeHandle, 'move'>, string> = {
-      nw: '왼쪽 위', n: '위', ne: '오른쪽 위', e: '오른쪽', se: '오른쪽 아래', s: '아래', sw: '왼쪽 아래', w: '왼쪽',
+      nw: L({ ko: '왼쪽 위', en: "Top-left" }), n: L({ ko: '위', en: "Above" }), ne: L({ ko: '오른쪽 위', en: "Top-right" }), e: L({ ko: '오른쪽', en: "Right" }), se: L({ ko: '오른쪽 아래', en: "Bottom-right" }), s: L({ ko: '아래', en: "Below" }), sw: L({ ko: '왼쪽 아래', en: "Bottom-left" }), w: L({ ko: '왼쪽', en: "Left" }),
     };
     const supportedHandles = object.kind === 'equation' ? ['e', 's', 'se'] as const
       : ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
@@ -2424,7 +2425,7 @@ export class HwpView extends FileView {
       grip.classList.add('hwp-object-selection-handle'); grip.setAttribute('data-hwp-object-handle', handle);
       grip.setAttribute('x', String(x - half)); grip.setAttribute('y', String(y - half));
       grip.setAttribute('width', String(size)); grip.setAttribute('height', String(size));
-      grip.setAttribute('role', 'button'); grip.setAttribute('aria-label', `${objectKindLabel(object)} 크기 조절: ${labels[handle]}`);
+      grip.setAttribute('role', 'button'); grip.setAttribute('aria-label', LT({ ko: () => `${objectKindLabel(object)} 크기 조절: ${labels[handle]}`, en: () => `Resize ${objectKindLabel(object)}: ${labels[handle]}` }));
       grip.style.cursor = handle === 'n' || handle === 's' ? 'ns-resize'
         : handle === 'e' || handle === 'w' ? 'ew-resize'
           : handle === 'nw' || handle === 'se' ? 'nwse-resize' : 'nesw-resize';
@@ -2457,8 +2458,8 @@ export class HwpView extends FileView {
     const screenScale = page.getBoundingClientRect().width / layout.info.width;
     const size = screenScale > 0 ? 12 / screenScale : 12, half = size / 2;
     const handles: Array<{ axis: TableResizeAxis; x: number; y: number; label: string; cursor: string }> = [
-      { axis: 'width', x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2, label: `${cell.row + 1}행 ${cell.col + 1}열 너비`, cursor: 'ew-resize' },
-      { axis: 'height', x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height, label: `${cell.row + 1}행 ${cell.col + 1}열 높이`, cursor: 'ns-resize' },
+      { axis: 'width', x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2, label: LT({ ko: () => `${cell.row + 1}행 ${cell.col + 1}열 너비`, en: () => `Row ${cell.row + 1}, column ${cell.col + 1} width` }), cursor: 'ew-resize' },
+      { axis: 'height', x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height, label: LT({ ko: () => `${cell.row + 1}행 ${cell.col + 1}열 높이`, en: () => `Row ${cell.row + 1}, column ${cell.col + 1} height` }), cursor: 'ns-resize' },
     ];
     for (const handle of handles) {
       const grip = page.ownerDocument.createElementNS(namespace, 'rect');
@@ -2466,7 +2467,7 @@ export class HwpView extends FileView {
       grip.setAttribute('data-hwp-table-path', table.nodePath); grip.setAttribute('data-hwp-table-row', String(cell.row));
       grip.setAttribute('data-hwp-table-col', String(cell.col)); grip.setAttribute('x', String(handle.x - half));
       grip.setAttribute('y', String(handle.y - half)); grip.setAttribute('width', String(size)); grip.setAttribute('height', String(size));
-      grip.setAttribute('role', 'button'); grip.setAttribute('tabindex', '0'); grip.setAttribute('aria-label', `표 ${handle.label} 크기 조절`);
+      grip.setAttribute('role', 'button'); grip.setAttribute('tabindex', '0'); grip.setAttribute('aria-label', LT({ ko: () => `표 ${handle.label} 크기 조절`, en: () => `Resize table ${handle.label}` }));
       grip.style.cursor = handle.cursor; overlay.append(grip);
     }
     page.append(overlay);
@@ -2810,7 +2811,7 @@ export class HwpView extends FileView {
     this.updateStatus();
   }
   private async pasteHtmlAtSelection(html: string): Promise<void> {
-    if (!this.selected || !isParagraph(this.selected) || this.selected.address.kind !== 'body' || this.selected.address.containerKinds?.includes('textBox')) throw new Error('서식 있는 붙여넣기는 본문 또는 표 셀에서만 지원합니다.');
+    if (!this.selected || !isParagraph(this.selected) || this.selected.address.kind !== 'body' || this.selected.address.containerKinds?.includes('textBox')) throw new Error(L({ ko: '서식 있는 붙여넣기는 본문 또는 표 셀에서만 지원합니다.', en: "Formatted paste is supported only in body paragraphs or table cells." }));
     const selected = structuredClone(this.selected);
     const textareaRange: SelectionRange = {
       start: positionAfterEditorText(selected.address, this.textarea.value, this.textarea.selectionStart),
@@ -2820,14 +2821,14 @@ export class HwpView extends FileView {
     const orderedRootRange = this.editableSelectionRange(range);
     const sameParagraph = sameDocumentAddress(range.start.address, selected.address)
       && sameDocumentAddress(range.start.address, range.end.address);
-    if (!sameParagraph && !orderedRootRange) throw new Error('HTML 붙여넣기는 한 문단 또는 같은 구역 본문 선택에서만 지원합니다.');
+    if (!sameParagraph && !orderedRootRange) throw new Error(L({ ko: 'HTML 붙여넣기는 한 문단 또는 같은 구역 본문 선택에서만 지원합니다.', en: "HTML paste is supported only in one paragraph or a body selection in the same section." }));
     const ordered = orderedRootRange ?? range;
     const start = ordered.start, end = ordered.end;
     const deletion: Extract<Command, { type: 'deleteRange' }> | undefined = !this.rangeIsCollapsed(ordered) ? { type: 'deleteRange', start, end } : undefined;
     const commands: Command[] = [...(deletion ? [deletion] : []), { type: 'pasteHtml', target: start.address, offset: start.offset, html }];
     const position: TextPosition = { address: start.address, offset: start.offset };
     const context = this.captureContext(), revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     try { await this.execute(commands, position, true); }
     catch (error) {
       const code = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
@@ -2835,12 +2836,12 @@ export class HwpView extends FileView {
       const confirmed = await new Promise<boolean>(resolve => new ConfirmAnchoredDelete(this.app, resolve).open());
       if (!confirmed) return;
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('확인 중 문서가 변경되었습니다. 다시 선택한 뒤 붙여넣으세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '확인 중 문서가 변경되었습니다. 다시 선택한 뒤 붙여넣으세요.', en: "The document changed during confirmation. Select again before pasting." }));
       await this.execute(commands.map(command => command.type === 'deleteRange' ? { ...command, deleteAnchoredContent: true } : command), position, true);
     }
   }
   private async deleteSelectedRange(): Promise<void> {
-    if (this.composing) throw new Error('문자 조합을 마친 뒤 선택 영역을 삭제하세요.');
+    if (this.composing) throw new Error(L({ ko: '문자 조합을 마친 뒤 선택 영역을 삭제하세요.', en: "Finish character composition before deleting the selection." }));
     if (!this.selected || !isParagraph(this.selected)) return;
     const selected = structuredClone(this.selected);
     const textareaRange: SelectionRange = {
@@ -2850,11 +2851,11 @@ export class HwpView extends FileView {
     const range = this.selectionRange() ?? textareaRange, orderedRootRange = this.editableSelectionRange(range);
     const sameParagraph = sameDocumentAddress(range.start.address, selected.address)
       && sameDocumentAddress(range.start.address, range.end.address);
-    if (!sameParagraph && !orderedRootRange) throw new Error('선택한 범위는 한 문단 또는 같은 구역 본문 안에서만 삭제할 수 있습니다.');
+    if (!sameParagraph && !orderedRootRange) throw new Error(L({ ko: '선택한 범위는 한 문단 또는 같은 구역 본문 안에서만 삭제할 수 있습니다.', en: "Deletion is supported only within one paragraph or a body range in the same section." }));
     const ordered = orderedRootRange ?? range, start = ordered.start, end = ordered.end;
     if (this.rangeIsCollapsed(ordered)) return;
     const context = this.captureContext(), revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const safeDelete: Command = { type: 'deleteRange', start, end };
     try {
       await this.execute([safeDelete], start, true);
@@ -2865,12 +2866,12 @@ export class HwpView extends FileView {
       const confirmed = await new Promise<boolean>(resolve => new ConfirmAnchoredDelete(this.app, resolve).open());
       if (!confirmed) return;
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('확인 중 문서가 변경되었습니다. 범위를 다시 선택한 뒤 삭제하세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '확인 중 문서가 변경되었습니다. 범위를 다시 선택한 뒤 삭제하세요.', en: "The document changed during confirmation. Select the range again before deleting." }));
       await this.execute([{ ...safeDelete, deleteAnchoredContent: true }], start, true);
     }
   }
   private async mergeAtBoundary(direction: 'backward' | 'forward'): Promise<void> {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 문단을 병합하세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 문단을 병합하세요.', en: "Finish Korean IME composition before merging paragraphs." }));
     if (!this.selected || !isParagraph(this.selected)) return;
     if (this.draft && this.textarea.value.includes('\n')) {
       await this.applyDraft(true);
@@ -2879,8 +2880,8 @@ export class HwpView extends FileView {
     const selected = structuredClone(this.selected), value = this.draft ? this.textarea.value : selected.text;
     const sibling = siblingAddress(selected.address, direction === 'backward' ? -1 : 1);
     const neighbor = sibling && this.documentTree ? paragraphAtAddress(this.documentTree, sibling) : undefined;
-    if (!neighbor) throw new Error(direction === 'backward' ? '이 영역의 첫 문단 앞에는 병합할 문단이 없습니다.' : '이 영역의 마지막 문단 뒤에는 병합할 문단이 없습니다.');
-    if (isTextboxParagraph(selected) || isTextboxParagraph(neighbor)) throw new Error('글상자의 별도 문단 병합은 현재 엔진에서 지원하지 않습니다. 줄바꿈 문자는 입력란에서 삭제하세요.');
+    if (!neighbor) throw new Error(direction === 'backward' ? L({ ko: '이 영역의 첫 문단 앞에는 병합할 문단이 없습니다.', en: "No preceding paragraph to merge before this area's first paragraph." }) : L({ ko: '이 영역의 마지막 문단 뒤에는 병합할 문단이 없습니다.', en: "No following paragraph to merge after this area's last paragraph." }));
+    if (isTextboxParagraph(selected) || isTextboxParagraph(neighbor)) throw new Error(L({ ko: '글상자의 별도 문단 병합은 현재 엔진에서 지원하지 않습니다. 줄바꿈 문자는 입력란에서 삭제하세요.', en: "Merging separate text-box paragraphs is unsupported by the current engine. Delete line-break characters in the input field." }));
     const mergeTarget = direction === 'backward' ? selected.address : neighbor.address;
     const after: TextPosition = direction === 'backward'
       ? { address: neighbor.address, offset: neighbor.length }
@@ -2905,7 +2906,7 @@ export class HwpView extends FileView {
       button.disabled = !available;
       button.setAttribute('aria-label', label);
       button.title = available ? `${label}${command?.shortcut ? ` (${command.shortcut})` : ''}`
-        : command?.unavailableReason?.() || `${label} 명령을 현재 상태에서 사용할 수 없습니다.`;
+        : command?.unavailableReason?.() || LT({ ko: () => `${label} 명령을 현재 상태에서 사용할 수 없습니다.`, en: () => `${label} is unavailable in the current state.` });
     }
   }
   private toolDetails(parent: HTMLElement, title: string): HTMLElement {
@@ -2929,7 +2930,7 @@ export class HwpView extends FileView {
     const paragraph = next?.paragraphs[0];
     if (!next || !paragraph) return;
     await this.jumpToNavigationTarget({
-      kind: 'paragraph', label: `표 ${current.table.rows}×${current.table.cols} · ${next.row + 1}행 ${next.col + 1}열`,
+      kind: 'paragraph', label: LT({ ko: () => `표 ${current.table.rows}×${current.table.cols} · ${next.row + 1}행 ${next.col + 1}열`, en: () => `Table ${current.table.rows}×${current.table.cols} · row ${next.row + 1}, column ${next.col + 1}` }),
       filterText: '', address: paragraph.address, nodePath: paragraph.nodePath,
       cell: { tablePath: current.table.nodePath, cellIndex: next.index },
     });
@@ -2938,7 +2939,7 @@ export class HwpView extends FileView {
     const owner = this.selectedTableCell()?.table;
     const cell = owner?.cells.find(item => item.paragraphs.some(candidate => candidate.nodePath === paragraph.nodePath));
     await this.jumpToNavigationTarget({
-      kind: 'paragraph', label: '표 셀 캐럿 이동', filterText: '', address: paragraph.address, nodePath: paragraph.nodePath,
+      kind: 'paragraph', label: L({ ko: '표 셀 캐럿 이동', en: "Move caret in table cells" }), filterText: '', address: paragraph.address, nodePath: paragraph.nodePath,
       ...(owner && cell ? { cell: { tablePath: owner.nodePath, cellIndex: cell.index } } : {}),
     });
     if (!this.selected || !isParagraph(this.selected)) return;
@@ -2996,8 +2997,8 @@ export class HwpView extends FileView {
         this.draftToolsLocked = true;
       }
       this.toolReasonEl.setText(this.composing
-        ? '한글 조합이 끝날 때까지 모든 문서 명령을 사용할 수 없습니다.'
-        : '미적용 입력을 적용하거나 취소한 뒤 도구를 사용하세요.');
+        ? L({ ko: '한글 조합이 끝날 때까지 모든 문서 명령을 사용할 수 없습니다.', en: "All document commands are unavailable until Korean IME composition ends." })
+        : L({ ko: '미적용 입력을 적용하거나 취소한 뒤 도구를 사용하세요.', en: "Apply or cancel pending input before using tools." }));
       return;
     }
     this.draftToolsLocked = false;
@@ -3033,7 +3034,7 @@ export class HwpView extends FileView {
     }
     if (this.applyCopiedStyleButton) {
       this.applyCopiedStyleButton.disabled = !canMutate || !enabled.text || !enabled.paragraph || !this.copiedFormat;
-      this.applyCopiedStyleButton.title = this.copiedFormat ? '' : '먼저 모양을 복사하세요.';
+      this.applyCopiedStyleButton.title = this.copiedFormat ? '' : L({ ko: '먼저 모양을 복사하세요.', en: "Copy formatting first." });
     }
     this.equationScriptInput.disabled = !canMutate || !(rootBody || objectRoot && object?.kind === 'equation');
     if (this.listLevelDownButton) {
@@ -3063,10 +3064,10 @@ export class HwpView extends FileView {
       if (this.toolbarLineSpacingSelect.dataset.spacingState !== spacingState) {
         this.toolbarLineSpacingSelect.dataset.spacingState = spacingState;
         this.toolbarLineSpacingSelect.replaceChildren();
-        const modeLabels: Record<string, string> = { Fixed: '고정', SpaceOnly: '여백만', Minimum: '최소', BetweenLines: '줄 사이' };
+        const modeLabels: Record<string, string> = { Fixed: L({ ko: '고정', en: "Fixed" }), SpaceOnly: L({ ko: '여백만', en: "Spacing only" }), Minimum: L({ ko: '최소', en: "Minimum" }), BetweenLines: L({ ko: '줄 사이', en: "Between lines" }) };
         const modeLabel = modeLabels[properties?.lineSpacingType ?? ''];
         this.toolbarLineSpacingSelect.createEl('option', { value: '', text: modeLabel && typeof value === 'number'
-          ? `${modeLabel} · ${Number(pixelsToPoints(value).toFixed(2))} pt` : '혼합 / 미확인' });
+          ? `${modeLabel} · ${Number(pixelsToPoints(value).toFixed(2))} pt` : L({ ko: '혼합 / 미확인', en: "Mixed / unverified" }) });
         const values = [0, 50, 100, 130, 150, 160, 180, 200, 250, 300];
         if (percent && typeof value === 'number' && Number.isFinite(value)) values.push(value);
         for (const number of [...new Set(values)].sort((a, b) => a - b)) this.toolbarLineSpacingSelect.createEl('option', { value: String(number), text: `${number}%` });
@@ -3074,42 +3075,42 @@ export class HwpView extends FileView {
       this.toolbarLineSpacingSelect.value = percent && typeof value === 'number' ? String(value) : '';
       this.toolbarLineSpacingSelect.title = this.toolbarLineSpacingSelect.disabled
         ? this.formattingReason({ paragraph: {} }) ?? this.lineSpacingReason()
-        : '문단 줄 간격 (%). 값을 선택하면 퍼센트 기준으로 적용합니다.';
+        : L({ ko: '문단 줄 간격 (%). 값을 선택하면 퍼센트 기준으로 적용합니다.', en: "Paragraph line spacing (%). Selecting a value applies percentage spacing." });
     }
     const reasons: string[] = [];
-    if (this.capabilityCheckPending) reasons.push('첫 쪽은 열렸습니다. 원본 저장 안전성을 확인하는 동안 편집 도구를 잠시 사용할 수 없습니다.');
-    if (this.composing) reasons.push('한글 조합이 끝날 때까지 모든 문서 명령을 사용할 수 없습니다.');
-    else if (this.draft) reasons.push('서식 명령을 실행하면 미적용 입력을 먼저 적용합니다.');
-    if (this.formMode) reasons.push('양식 모드에서는 누름틀만 선택하고 입력할 수 있습니다. 해제하려면 보기 → 양식 모드를 실행하세요.');
-    if (multiParagraphSelection) reasons.push('선택 범위 전체에 서식을 적용합니다.');
-    if (this.capabilityCheckError) reasons.push(`저장 안전성 검증에 실패해 읽기 전용입니다. ${this.capabilityCheckError}`);
-    else if (readOnly && !this.capabilityCheckPending) reasons.push(...(this.capabilities?.readOnlyReasons.length ? this.capabilities.readOnlyReasons : ['현재 형식의 안전한 저장 검증에 실패해 읽기 전용입니다.']));
-    else if (field) reasons.push('선택한 필드 값은 위 입력란에서 수정할 수 있습니다. 필드 생성 명령은 아직 공개되지 않았습니다.');
-    else if (!paragraph && !object) reasons.push('페이지의 문단, 표 셀, 필드 또는 개체를 선택하세요.');
-    if (address?.kind === 'footnote' || address?.kind === 'endnote') reasons.push('각주·미주 글자 서식은 현재 RHWP 코어에서 지원하지 않습니다. 문단 서식은 사용할 수 있습니다.');
-    if (nestedCell) reasons.push('깊은 중첩 셀은 글자 서식과 텍스트 편집만 지원합니다. 문단 서식·목록·스타일·표 구조 변경은 사용할 수 없습니다.');
-    if (textBox) reasons.push('글상자 문단의 스타일 적용은 현재 RHWP 코어에서 지원하지 않습니다. 글자·문단·목록 서식과 텍스트 편집은 사용할 수 있습니다.');
-    if (paragraph && !rootBody) reasons.push('표 생성과 그림·수식·도형 삽입은 본문 문단에서만 지원합니다.');
-    if (object && !objectRoot) reasons.push('중첩 셀 안의 개체 속성 변경은 지원하지 않습니다.');
-    if (this.selectedObject && !objectRoot) reasons.push(`선택한 ${objectKindLabel(this.selectedObject)}는 현재 속성 편집 대상이 아닙니다.`);
+    if (this.capabilityCheckPending) reasons.push(L({ ko: '첫 쪽은 열렸습니다. 원본 저장 안전성을 확인하는 동안 편집 도구를 잠시 사용할 수 없습니다.', en: "The first page is open. Editing tools are temporarily unavailable while original save safety is checked." }));
+    if (this.composing) reasons.push(L({ ko: '한글 조합이 끝날 때까지 모든 문서 명령을 사용할 수 없습니다.', en: "All document commands are unavailable until Korean IME composition ends." }));
+    else if (this.draft) reasons.push(L({ ko: '서식 명령을 실행하면 미적용 입력을 먼저 적용합니다.', en: "Formatting commands apply pending input first." }));
+    if (this.formMode) reasons.push(L({ ko: '양식 모드에서는 누름틀만 선택하고 입력할 수 있습니다. 해제하려면 보기 → 양식 모드를 실행하세요.', en: "Form mode permits selecting/typing only in input fields. Disable through View → Form mode." }));
+    if (multiParagraphSelection) reasons.push(L({ ko: '선택 범위 전체에 서식을 적용합니다.', en: "Applies formatting to the entire selection." }));
+    if (this.capabilityCheckError) reasons.push(LT({ ko: () => `저장 안전성 검증에 실패해 읽기 전용입니다. ${this.capabilityCheckError}`, en: () => `Read-only because save safety validation failed. ${this.capabilityCheckError}` }));
+    else if (readOnly && !this.capabilityCheckPending) reasons.push(...(this.capabilities?.readOnlyReasons.length ? this.capabilities.readOnlyReasons : [L({ ko: '현재 형식의 안전한 저장 검증에 실패해 읽기 전용입니다.', en: "Read-only because safe saving validation failed for the current format." })]));
+    else if (field) reasons.push(L({ ko: '선택한 필드 값은 위 입력란에서 수정할 수 있습니다. 필드 생성 명령은 아직 공개되지 않았습니다.', en: "Edit the selected field value in the input above. Field creation commands are not yet public." }));
+    else if (!paragraph && !object) reasons.push(L({ ko: '페이지의 문단, 표 셀, 필드 또는 개체를 선택하세요.', en: "Select a paragraph, table cell, field, or object on the page." }));
+    if (address?.kind === 'footnote' || address?.kind === 'endnote') reasons.push(L({ ko: '각주·미주 글자 서식은 현재 RHWP 코어에서 지원하지 않습니다. 문단 서식은 사용할 수 있습니다.', en: "Footnote/endnote character formatting is unsupported by the current RHWP core. Paragraph formatting is available." }));
+    if (nestedCell) reasons.push(L({ ko: '깊은 중첩 셀은 글자 서식과 텍스트 편집만 지원합니다. 문단 서식·목록·스타일·표 구조 변경은 사용할 수 없습니다.', en: "Deeply nested cells support character formatting and text editing only. Paragraph formatting, lists, styles, and table structure changes are unavailable." }));
+    if (textBox) reasons.push(L({ ko: '글상자 문단의 스타일 적용은 현재 RHWP 코어에서 지원하지 않습니다. 글자·문단·목록 서식과 텍스트 편집은 사용할 수 있습니다.', en: "Applying styles to text-box paragraphs is unsupported by the current RHWP core. Character/paragraph/list formatting and text editing are available." }));
+    if (paragraph && !rootBody) reasons.push(L({ ko: '표 생성과 그림·수식·도형 삽입은 본문 문단에서만 지원합니다.', en: "Table creation and picture/equation/shape insertion are supported only in body paragraphs." }));
+    if (object && !objectRoot) reasons.push(L({ ko: '중첩 셀 안의 개체 속성 변경은 지원하지 않습니다.', en: "Changing object properties in nested cells is unsupported." }));
+    if (this.selectedObject && !objectRoot) reasons.push(L({ ko: `선택한 ${objectKindLabel(this.selectedObject)}는 현재 속성 편집 대상이 아닙니다.`, en: `The selected ${objectKindLabel(this.selectedObject)} is not a supported property editing target.` }));
     if (this.styleSelect && this.formattingModel) {
       const styleFormatting = this.selectedParagraphFormatting(), currentStyle = styleFormatting?.style?.id;
       this.styleSelect.empty();
-      this.styleSelect.createEl('option', { value: '', text: styleFormatting ? '스타일 혼합 / 미확인' : '문단 스타일 선택' });
-      for (const style of this.formattingModel.styles) this.styleSelect.createEl('option', { value: String(style.id), text: style.name || style.englishName || `스타일 ${style.id}` });
+      this.styleSelect.createEl('option', { value: '', text: styleFormatting ? L({ ko: '스타일 혼합 / 미확인', en: "Mixed / unverified style" }) : L({ ko: '문단 스타일 선택', en: "Select paragraph style" }) });
+      for (const style of this.formattingModel.styles) this.styleSelect.createEl('option', { value: String(style.id), text: style.name || style.englishName || LT({ ko: () => `스타일 ${style.id}`, en: () => `Style ${style.id}` }) });
       this.styleSelect.value = currentStyle === undefined ? '' : String(currentStyle);
       this.updateFontSuggestions();
     }
     if (this.listSelect && this.formattingModel) {
       const old = this.listSelect.value;
       this.listSelect.empty();
-      this.listSelect.createEl('option', { value: '', text: '혼합 / 미확인' });
-      this.listSelect.createEl('option', { value: 'none', text: '목록 없음' });
-      this.listSelect.createEl('option', { value: 'numbering:auto', text: '번호 목록' });
-      for (const item of this.formattingModel.numbering) this.listSelect.createEl('option', { value: `numbering:${item.id}`, text: `번호 목록 ${item.id}` });
+      this.listSelect.createEl('option', { value: '', text: L({ ko: '혼합 / 미확인', en: "Mixed / unverified" }) });
+      this.listSelect.createEl('option', { value: 'none', text: L({ ko: '목록 없음', en: "No list" }) });
+      this.listSelect.createEl('option', { value: 'numbering:auto', text: L({ ko: '번호 목록', en: "Numbered list" }) });
+      for (const item of this.formattingModel.numbering) this.listSelect.createEl('option', { value: `numbering:${item.id}`, text: LT({ ko: () => `번호 목록 ${item.id}`, en: () => `Numbered list ${item.id}` }) });
       if (this.formattingModel.bullets.length) {
-        for (const item of this.formattingModel.bullets) this.listSelect.createEl('option', { value: `bullet:${item.id}`, text: `글머리표 ${item.char}` });
-      } else this.listSelect.createEl('option', { value: 'bullet:default', text: '글머리표 •' });
+        for (const item of this.formattingModel.bullets) this.listSelect.createEl('option', { value: `bullet:${item.id}`, text: LT({ ko: () => `글머리표 ${item.char}`, en: () => `Bullet ${item.char}` }) });
+      } else this.listSelect.createEl('option', { value: 'bullet:default', text: L({ ko: '글머리표 •', en: "Bullet •" }) });
       const formatting = this.selectedParagraphFormatting();
       const props = formatting?.properties;
       const listKind = props?.headType === 'Bullet' ? 'bullet' : props?.headType === 'Number' ? 'numbering' : 'none';
@@ -3126,7 +3127,7 @@ export class HwpView extends FileView {
       const setNumber = (input: HTMLInputElement, key: 'indent' | 'spacingBefore' | 'spacingAfter' | 'lineSpacing') => {
         const value = properties?.[key];
         if (this.contentEl.ownerDocument.activeElement === input) return;
-        if (typeof value !== 'number') { input.value = ''; input.placeholder = '혼합 / 미확인'; return; }
+        if (typeof value !== 'number') { input.value = ''; input.placeholder = L({ ko: '혼합 / 미확인', en: "Mixed / unverified" }); return; }
         input.placeholder = '';
         const mode = properties?.lineSpacingType;
         input.value = key === 'lineSpacing' && mode !== 'Percent' ? String(pixelsToPoints(value))
@@ -3137,18 +3138,18 @@ export class HwpView extends FileView {
       if (properties?.lineSpacingType && [...this.paragraphLineSpacingTypeSelect.options].some(option => option.value === properties.lineSpacingType)) this.paragraphLineSpacingTypeSelect.value = properties.lineSpacingType;
       const percentMode = this.paragraphLineSpacingTypeSelect.value === 'Percent';
       this.paragraphLineSpacingUnit.setText(percentMode ? '%' : 'pt');
-      this.paragraphLineSpacingInput.setAttribute('aria-label', `줄 간격 값 (${percentMode ? '%' : 'pt'})`);
+      this.paragraphLineSpacingInput.setAttribute('aria-label', LT({ ko: () => `줄 간격 값 (${percentMode ? '%' : 'pt'})`, en: () => `Line spacing value (${percentMode ? '%' : 'pt'})` }));
     } else {
       this.alignmentSelect.value = '';
       for (const input of [this.paragraphIndentInput, this.paragraphSpacingBeforeInput, this.paragraphSpacingAfterInput, this.paragraphLineSpacingInput]) {
         if (this.contentEl.ownerDocument.activeElement === input) continue;
-        input.value = ''; input.placeholder = '혼합 / 미확인';
+        input.value = ''; input.placeholder = L({ ko: '혼합 / 미확인', en: "Mixed / unverified" });
       }
     }
     for (const [alignment, button] of this.alignmentButtons) {
       const id = `format.align-${alignment}`, available = this.commandRegistry.isAvailable(id);
       button.disabled = !available;
-      button.title = available ? this.commandRegistry.get(id)!.label : this.commandRegistry.get(id)?.unavailableReason?.() ?? '문단을 선택하세요.';
+      button.title = available ? this.commandRegistry.get(id)!.label : this.commandRegistry.get(id)?.unavailableReason?.() ?? L({ ko: '문단을 선택하세요.', en: "Select a paragraph." });
       button.setAttribute('aria-pressed', this.alignmentSelect.value ? String(this.alignmentSelect.value === alignment) : 'mixed');
     }
     const tableContext = this.selectedTableCell();
@@ -3156,10 +3157,10 @@ export class HwpView extends FileView {
       this.mergeEndRowInput.value = String(tableContext.cell.row + tableContext.cell.rowSpan);
       this.mergeEndColInput.value = String(tableContext.cell.col + tableContext.cell.colSpan);
     }
-    this.toolReasonEl.setText(reasons.length ? [...new Set(reasons)].join(' ') : '선택 위치에서 사용할 수 있는 도구가 활성화되어 있습니다. 명령이 실패하면 엔진이 반환한 구체적인 사유를 표시합니다.');
+    this.toolReasonEl.setText(reasons.length ? [...new Set(reasons)].join(' ') : L({ ko: '선택 위치에서 사용할 수 있는 도구가 활성화되어 있습니다. 명령이 실패하면 엔진이 반환한 구체적인 사유를 표시합니다.', en: "Tools available at the selected position are enabled. Failed commands show the specific reason returned by the engine." }));
     const formatting = this.selectedParagraphFormatting();
     if (this.formatStateEl) {
-      if (!paragraph) this.formatStateEl.setText(field ? '필드 값 편집: 위 입력란을 사용하세요.' : object ? `${objectKindLabel(object)} 개체가 선택되었습니다.` : '서식 범위를 확인하려면 문단을 선택하세요.');
+      if (!paragraph) this.formatStateEl.setText(field ? L({ ko: '필드 값 편집: 위 입력란을 사용하세요.', en: "Edit field value using the input above." }) : object ? LT({ ko: () => `${objectKindLabel(object)} 개체가 선택되었습니다.`, en: () => `${objectKindLabel(object)} object selected.` }) : L({ ko: '서식 범위를 확인하려면 문단을 선택하세요.', en: "Select a paragraph to inspect formatting scope." }));
       else {
         const start = this.pageSelection && sameDocumentAddress(this.pageSelection.address, paragraph.address) ? Math.min(this.pageSelection.start, this.pageSelection.end) : 0;
         const end = this.pageSelection && sameDocumentAddress(this.pageSelection.address, paragraph.address) ? Math.max(this.pageSelection.start, this.pageSelection.end) : 0;
@@ -3177,13 +3178,13 @@ export class HwpView extends FileView {
         }
         const describe = (key: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'fontSize' | 'fontFamily' | 'textColor' | 'shadeColor'): string => {
           const values = [...new Set(runs.map(run => run.properties[key]).filter(value => value !== undefined).map(String))];
-          if (values.length > 1) return '혼합';
-          if (!values.length) return '미확인';
-          return values[0] === 'true' ? '켜짐' : values[0] === 'false' ? '꺼짐' : values[0];
+          if (values.length > 1) return L({ ko: '혼합', en: "Mixed" });
+          if (!values.length) return L({ ko: '미확인', en: "Unverified" });
+          return values[0] === 'true' ? L({ ko: '켜짐', en: "On" }) : values[0] === 'false' ? L({ ko: '꺼짐', en: "Off" }) : values[0];
         };
-        const coverage = formatting?.characterCoverage === 'complete' ? '전체 확인' : formatting?.characterCoverage === 'unsupported' ? '지원 안 됨' : '일부만 확인';
-        const paragraphCoverage = formatting?.propertyCoverage === 'complete' ? '문단 속성 전체 확인' : formatting?.propertyCoverage === 'nativeOnly' ? 'native 문단 값만 확인' : '문단 속성 미확인';
-        this.formatStateEl.setText(`글자 서식 ${start === end ? `문단 전체 (커서 ${start})` : `${start}–${end} 범위`} · ${coverage} · 굵게 ${describe('bold')} · 기울임 ${describe('italic')} · 밑줄 ${describe('underline')} · 취소선 ${describe('strikethrough')} · 크기 ${describe('fontSize')} · 글꼴 ${describe('fontFamily')} · 색 ${describe('textColor')} · 형광펜 ${describe('shadeColor')} · ${paragraphCoverage}`);
+        const coverage = formatting?.characterCoverage === 'complete' ? L({ ko: '전체 확인', en: "Fully verified" }) : formatting?.characterCoverage === 'unsupported' ? L({ ko: '지원 안 됨', en: "Unsupported" }) : L({ ko: '일부만 확인', en: "Partially verified" });
+        const paragraphCoverage = formatting?.propertyCoverage === 'complete' ? L({ ko: '문단 속성 전체 확인', en: "All paragraph properties verified" }) : formatting?.propertyCoverage === 'nativeOnly' ? L({ ko: 'native 문단 값만 확인', en: "Only native paragraph values verified" }) : L({ ko: '문단 속성 미확인', en: "Paragraph properties unverified" });
+        this.formatStateEl.setText(LT({ ko: () => `글자 서식 ${start === end ? `문단 전체 (커서 ${start})` : `${start}–${end} 범위`} · ${coverage} · 굵게 ${describe('bold')} · 기울임 ${describe('italic')} · 밑줄 ${describe('underline')} · 취소선 ${describe('strikethrough')} · 크기 ${describe('fontSize')} · 글꼴 ${describe('fontFamily')} · 색 ${describe('textColor')} · 형광펜 ${describe('shadeColor')} · ${paragraphCoverage}`, en: () => `Character formatting ${start === end ? `entire paragraph (caret ${start})` : `range ${start}–${end}`} · ${coverage} · bold ${describe('bold')} · italic ${describe('italic')} · underline ${describe('underline')} · strikethrough ${describe('strikethrough')} · size ${describe('fontSize')} · font ${describe('fontFamily')} · color ${describe('textColor')} · highlight ${describe('shadeColor')} · ${paragraphCoverage}` }));
         if (runs.length) {
           // A change made at a collapsed caret is shown before any text carries it, as 굵게 already is.
           const pending = start === end ? this.pendingCaretProperties : undefined;
@@ -3197,10 +3198,10 @@ export class HwpView extends FileView {
             ? [...new Set(runs.map(run => familyFor(run.properties)!))] : [];
           const colors = pending?.textColor !== undefined ? [pending.textColor] : [...new Set(runs.map(run => run.properties.textColor).filter((value): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)))];
           const highlightColors = pending?.shadeColor !== undefined ? [pending.shadeColor].filter(value => value.toLowerCase() !== '#ffffff') : [...new Set(runs.map(run => run.properties.shadeColor).filter((value): value is string => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) && value.toLowerCase() !== '#ffffff'))];
-          this.markMixedControl(this.fontSizeInput, fontSizes.length !== 1, '글자 크기');
-          this.markMixedControl(this.fontFamilyInput, fontFamilies.length !== 1, '글꼴');
-          this.markMixedControl(this.fontColorInput, colors.length !== 1, '글자 색');
-          this.markMixedControl(this.highlightColorInput, highlightColors.length > 1, '형광펜');
+          this.markMixedControl(this.fontSizeInput, fontSizes.length !== 1, L({ ko: '글자 크기', en: "Font size" }));
+          this.markMixedControl(this.fontFamilyInput, fontFamilies.length !== 1, L({ ko: '글꼴', en: "Font" }));
+          this.markMixedControl(this.fontColorInput, colors.length !== 1, L({ ko: '글자 색', en: "Text color" }));
+          this.markMixedControl(this.highlightColorInput, highlightColors.length > 1, L({ ko: '형광펜', en: "Highlight" }));
           if (fontSizes.length === 1 && this.contentEl.ownerDocument.activeElement !== this.fontSizeInput) this.fontSizeInput.value = String(fontSizes[0]);
           if (fontFamilies.length === 1 && this.contentEl.ownerDocument.activeElement !== this.fontFamilyInput) this.fontFamilyInput.value = fontFamilies[0]!;
           if (colors.length === 1 && this.contentEl.ownerDocument.activeElement !== this.fontColorInput) this.fontColorInput.value = colors[0]!;
@@ -3210,7 +3211,7 @@ export class HwpView extends FileView {
           if (this.contentEl.ownerDocument.activeElement !== this.fontColorInput && colors.length !== 1) this.fontColorInput.value = '#000000';
           if (this.contentEl.ownerDocument.activeElement !== this.highlightColorInput && highlightColors.length !== 1) this.highlightColorInput.value = '#ffff00';
         } else {
-          for (const [input, label] of [[this.fontSizeInput, '글자 크기'], [this.fontFamilyInput, '글꼴'], [this.fontColorInput, '글자 색'], [this.highlightColorInput, '형광펜']] as const) this.markMixedControl(input, true, label);
+          for (const [input, label] of [[this.fontSizeInput, L({ ko: '글자 크기', en: "Font size" })], [this.fontFamilyInput, L({ ko: '글꼴', en: "Font" })], [this.fontColorInput, L({ ko: '글자 색', en: "Text color" })], [this.highlightColorInput, L({ ko: '형광펜', en: "Highlight" })]] as const) this.markMixedControl(input, true, label);
           if (this.contentEl.ownerDocument.activeElement !== this.fontSizeInput) this.fontSizeInput.value = '';
           if (this.contentEl.ownerDocument.activeElement !== this.fontFamilyInput) this.fontFamilyInput.value = '';
           if (this.contentEl.ownerDocument.activeElement !== this.fontColorInput) this.fontColorInput.value = '#000000';
@@ -3225,7 +3226,7 @@ export class HwpView extends FileView {
     if (this.pageSectionSelect && this.formattingModel) {
       const old = Number(this.pageSectionSelect.value);
       this.pageSectionSelect.empty();
-      for (const section of this.formattingModel.sections) this.pageSectionSelect.createEl('option', { value: String(section.section), text: `구역 ${section.section + 1}` });
+      for (const section of this.formattingModel.sections) this.pageSectionSelect.createEl('option', { value: String(section.section), text: LT({ ko: () => `구역 ${section.section + 1}`, en: () => `Section ${section.section + 1}` }) });
       const wanted = this.formattingModel.sections.some(section => section.section === old) ? old : pageSection;
       this.pageSectionSelect.value = String(this.formattingModel.sections.some(section => section.section === wanted) ? wanted : this.formattingModel.sections[0]?.section ?? 0);
       const section = this.formattingModel.sections.find(item => item.section === Number(this.pageSectionSelect.value));
@@ -3240,7 +3241,7 @@ export class HwpView extends FileView {
     if (this.sectionGotoSelect && this.formattingModel) {
       const old = Number(this.sectionGotoSelect.value), pageSection = this.pageLayout?.info.sectionIndex ?? 0;
       this.sectionGotoSelect.empty();
-      for (const section of this.formattingModel.sections) this.sectionGotoSelect.createEl('option', { value: String(section.section), text: `구역 ${section.section + 1}` });
+      for (const section of this.formattingModel.sections) this.sectionGotoSelect.createEl('option', { value: String(section.section), text: LT({ ko: () => `구역 ${section.section + 1}`, en: () => `Section ${section.section + 1}` }) });
       this.sectionGotoSelect.value = String(this.formattingModel.sections.some(section => section.section === old) ? old
         : this.formattingModel.sections.some(section => section.section === pageSection) ? pageSection : this.formattingModel.sections[0]?.section ?? 0);
       this.sectionGotoSelect.disabled = !this.formattingModel.sections.length || this.draft || this.composing;
@@ -3278,165 +3279,165 @@ export class HwpView extends FileView {
       options: { shortcut?: string; available?: () => boolean; reason?: () => string | undefined } = {},
     ): void => {
       const definition = editorCommandDefinition(id);
-      if (!definition) throw new Error(`명령 카탈로그에 등록되지 않은 ID: ${id}`);
+      if (!definition) throw new Error(LT({ ko: () => `명령 카탈로그에 등록되지 않은 ID: ${id}`, en: () => `ID not registered in command catalog: ${id}` }));
       this.commandRegistry.register({
         ...definition,
         run: () => {
-          if (this.composing) throw new Error('한글 조합을 마친 뒤 명령을 실행하세요.');
+          if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 명령을 실행하세요.', en: "Finish Korean IME composition before running commands." }));
           return run();
         },
         isAvailable: () => !this.composing && (options.available?.() ?? true),
-        unavailableReason: () => this.composing ? '한글 조합을 마친 뒤 사용하세요.' : options.reason?.(),
+        unavailableReason: () => this.composing ? L({ ko: '한글 조합을 마친 뒤 사용하세요.', en: "Finish Korean IME composition before use." }) : options.reason?.(),
       });
     };
-    const editBlockReason = (): string | undefined => !this.state ? '문서를 먼저 여세요.'
-      : this.composing ? '한글 조합을 마친 뒤 사용하세요.'
-        : this.formMode ? '양식 모드에서는 누름틀 값만 입력할 수 있습니다.'
-        : this.saving || this.inputLocks ? '현재 작업이 끝난 뒤 사용하세요.'
-          : this.capabilityCheckPending ? '문서 저장 안전성을 확인하고 있습니다.'
-            : this.capabilitiesReadOnly() ? this.capabilities?.readOnlyReasons.join(' ') || '읽기 전용 문서입니다.' : undefined;
+    const editBlockReason = (): string | undefined => !this.state ? L({ ko: '문서를 먼저 여세요.', en: "Open a document first." })
+      : this.composing ? L({ ko: '한글 조합을 마친 뒤 사용하세요.', en: "Finish Korean IME composition before use." })
+        : this.formMode ? L({ ko: '양식 모드에서는 누름틀 값만 입력할 수 있습니다.', en: "Form mode permits typing only input field values." })
+        : this.saving || this.inputLocks ? L({ ko: '현재 작업이 끝난 뒤 사용하세요.', en: "Wait for the current operation to finish." })
+          : this.capabilityCheckPending ? L({ ko: '문서 저장 안전성을 확인하고 있습니다.', en: "Checking document save safety." })
+            : this.capabilitiesReadOnly() ? this.capabilities?.readOnlyReasons.join(' ') || L({ ko: '읽기 전용 문서입니다.', en: "Read-only document." }) : undefined;
     const bodyEditReason = (): string | undefined => editBlockReason()
-      ?? (this.selected && isParagraph(this.selected) && this.selected.address.kind === 'body' && !this.selected.address.cellPath?.length && !this.selected.address.containerKinds?.includes('textBox') ? undefined : '글상자가 아닌 본문 문단을 선택하세요.');
+      ?? (this.selected && isParagraph(this.selected) && this.selected.address.kind === 'body' && !this.selected.address.cellPath?.length && !this.selected.address.containerKinds?.includes('textBox') ? undefined : L({ ko: '글상자가 아닌 본문 문단을 선택하세요.', en: "Select a body paragraph, not a text box." }));
     const fieldInsertReason = (): string | undefined => editBlockReason()
-      ?? (this.selected && isParagraph(this.selected) && this.selected.address.kind === 'body' && !this.selected.address.containerKinds?.includes('textBox') ? undefined : '본문 또는 표 셀 문단을 선택하세요.');
+      ?? (this.selected && isParagraph(this.selected) && this.selected.address.kind === 'body' && !this.selected.address.containerKinds?.includes('textBox') ? undefined : L({ ko: '본문 또는 표 셀 문단을 선택하세요.', en: "Select a body or table-cell paragraph." }));
     const tableEditReason = (): string | undefined => editBlockReason()
-      ?? (this.selectedTableCell() ? undefined : '본문의 표 셀 안 문단을 선택하세요. 중첩 표 구조 변경은 지원하지 않습니다.');
+      ?? (this.selectedTableCell() ? undefined : L({ ko: '본문의 표 셀 안 문단을 선택하세요. 중첩 표 구조 변경은 지원하지 않습니다.', en: "Select a paragraph in a body table cell. Nested table structural changes are unsupported." }));
     const objectEditReason = (): string | undefined => {
       const object = this.selectedObject;
       return editBlockReason() ?? (object && object.address.kind === 'body' && !object.address.cellPath?.length
-        && ['picture', 'shape', 'equation'].includes(object.kind) ? undefined : '속성을 편집할 본문 그림·수식·도형을 선택하세요.');
+        && ['picture', 'shape', 'equation'].includes(object.kind) ? undefined : L({ ko: '속성을 편집할 본문 그림·수식·도형을 선택하세요.', en: "Select a body picture, equation, or shape to edit properties." }));
     };
     const tableStructureReason = (action: TableStructureAction): string | undefined => {
       const blocked = tableEditReason();
       if (blocked) return blocked;
       const current = this.selectedTableCell()!;
-      if (action === 'delete-row' && current.table.rows <= 1) return '표의 마지막 행은 삭제할 수 없습니다.';
-      if (action === 'delete-column' && current.table.cols <= 1) return '표의 마지막 칸은 삭제할 수 없습니다.';
+      if (action === 'delete-row' && current.table.rows <= 1) return L({ ko: '표의 마지막 행은 삭제할 수 없습니다.', en: "The last table row cannot be deleted." });
+      if (action === 'delete-column' && current.table.cols <= 1) return L({ ko: '표의 마지막 칸은 삭제할 수 없습니다.', en: "The last table column cannot be deleted." });
       return undefined;
     };
-    register('file.save', '저장', () => this.save(), {
+    register('file.save', L({ ko: '저장', en: "Save" }), () => this.save(), {
       shortcut: 'Mod+S', available: () => !!this.state,
-      reason: () => '문서가 열리지 않았습니다.',
+      reason: () => L({ ko: '문서가 열리지 않았습니다.', en: "No document is open." }),
     });
-    register('file.new-document', '새 HWPX 문서', () => this.plugin.createNewDocument(), { shortcut: 'Alt+N' });
-    register('file.open', 'HWP/HWPX 문서 열기', () => this.plugin.openDocumentPicker());
-    register('file.save-as', '새 파일로 저장', () => this.saveAs(), { shortcut: 'Mod+Shift+S' });
-    register('file.save-hwp', 'HWP 형식으로 저장…', () => this.saveAs('hwp'));
-    register('file.save-hwpx', 'HWPX 형식으로 저장…', () => this.saveAs('hwpx'));
-    register('file.print', '인쇄 / PDF로 저장', () => this.openPrintDialog(), { available: () => !!this.state && !this.draft && !this.composing, reason: () => !this.state ? '문서가 아직 준비되지 않았습니다.' : this.draft ? '미적용 입력을 먼저 처리하세요.' : this.composing ? '한글 조합을 마친 뒤 인쇄하세요.' : undefined });
-    register('file.reload', '다시 불러오기', () => this.reloadFromDisk());
-    register('file.refresh-index', '검색 인덱스 갱신', () => this.refreshIndex());
-    register('edit.undo', '되돌리기', () => this.historyCommand(false), { shortcut: 'Mod+Z', available: () => this.historyAvailable(false), reason: () => '되돌릴 변경이 없습니다.' });
-    register('edit.redo', '다시 실행', () => this.historyCommand(true), { shortcut: 'Mod+Shift+Z', available: () => this.historyAvailable(true), reason: () => '다시 실행할 변경이 없습니다.' });
+    register('file.new-document', L({ ko: '새 HWPX 문서', en: "New HWPX document" }), () => this.plugin.createNewDocument(), { shortcut: 'Alt+N' });
+    register('file.open', L({ ko: 'HWP/HWPX 문서 열기', en: "Open HWP/HWPX document" }), () => this.plugin.openDocumentPicker());
+    register('file.save-as', L({ ko: '새 파일로 저장', en: "Save as new file" }), () => this.saveAs(), { shortcut: 'Mod+Shift+S' });
+    register('file.save-hwp', L({ ko: 'HWP 형식으로 저장…', en: "Save as HWP…" }), () => this.saveAs('hwp'));
+    register('file.save-hwpx', L({ ko: 'HWPX 형식으로 저장…', en: "Save as HWPX…" }), () => this.saveAs('hwpx'));
+    register('file.print', L({ ko: '인쇄 / PDF로 저장', en: "Print / Save as PDF" }), () => this.openPrintDialog(), { available: () => !!this.state && !this.draft && !this.composing, reason: () => !this.state ? L({ ko: '문서가 아직 준비되지 않았습니다.', en: "The document is not ready yet." }) : this.draft ? L({ ko: '미적용 입력을 먼저 처리하세요.', en: "Handle pending input first." }) : this.composing ? L({ ko: '한글 조합을 마친 뒤 인쇄하세요.', en: "Finish Korean IME composition before printing." }) : undefined });
+    register('file.reload', L({ ko: '다시 불러오기', en: "Reload" }), () => this.reloadFromDisk());
+    register('file.refresh-index', L({ ko: '검색 인덱스 갱신', en: "Refresh search index" }), () => this.refreshIndex());
+    register('edit.undo', L({ ko: '되돌리기', en: "Undo" }), () => this.historyCommand(false), { shortcut: 'Mod+Z', available: () => this.historyAvailable(false), reason: () => L({ ko: '되돌릴 변경이 없습니다.', en: "No changes to undo." }) });
+    register('edit.redo', L({ ko: '다시 실행', en: "Redo" }), () => this.historyCommand(true), { shortcut: 'Mod+Shift+Z', available: () => this.historyAvailable(true), reason: () => L({ ko: '다시 실행할 변경이 없습니다.', en: "No changes to redo." }) });
     const hasTextSelection = (): boolean => !!this.textarea && (this.textarea.selectionEnd > this.textarea.selectionStart || !this.rangeIsCollapsed(this.selectionRange()));
-    register('edit.cut', '오려두기', () => this.runClipboardCommand('cut'), {
+    register('edit.cut', L({ ko: '오려두기', en: "Cut" }), () => this.runClipboardCommand('cut'), {
       shortcut: 'Mod+X', available: () => hasTextSelection() && !this.composing && !this.capabilitiesReadOnly() && !this.selectionMutationReason(),
-      reason: () => this.selectionMutationReason() ?? (!hasTextSelection() ? '먼저 오려낼 텍스트를 선택하세요.' : this.composing ? '한글 조합을 마친 뒤 오려두세요.' : '읽기 전용 상태에서는 오려낼 수 없습니다.'),
+      reason: () => this.selectionMutationReason() ?? (!hasTextSelection() ? L({ ko: '먼저 오려낼 텍스트를 선택하세요.', en: "Select text to cut first." }) : this.composing ? L({ ko: '한글 조합을 마친 뒤 오려두세요.', en: "Finish Korean IME composition before cutting." }) : L({ ko: '읽기 전용 상태에서는 오려낼 수 없습니다.', en: "Cannot cut in read-only mode." })),
     });
-    register('edit.copy', '복사', () => this.runClipboardCommand('copy'), {
+    register('edit.copy', L({ ko: '복사', en: "Copy" }), () => this.runClipboardCommand('copy'), {
       shortcut: 'Mod+C', available: () => hasTextSelection() && !this.composing,
-      reason: () => !hasTextSelection() ? '먼저 복사할 텍스트를 선택하세요.' : '한글 조합을 마친 뒤 복사하세요.',
+      reason: () => !hasTextSelection() ? L({ ko: '먼저 복사할 텍스트를 선택하세요.', en: "Select text to copy first." }) : L({ ko: '한글 조합을 마친 뒤 복사하세요.', en: "Finish Korean IME composition before copying." }),
     });
-    register('edit.paste', '붙이기', () => this.runClipboardCommand('paste'), {
+    register('edit.paste', L({ ko: '붙이기', en: "Paste" }), () => this.runClipboardCommand('paste'), {
       shortcut: 'Mod+V', available: () => !!this.state && !this.composing && !this.capabilitiesReadOnly() && !this.selectionMutationReason(),
-      reason: () => this.selectionMutationReason() ?? (!this.state ? '문서를 먼저 여세요.' : this.composing ? '한글 조합을 마친 뒤 붙여넣으세요.' : '읽기 전용 상태에서는 붙여넣을 수 없습니다.'),
+      reason: () => this.selectionMutationReason() ?? (!this.state ? L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }) : this.composing ? L({ ko: '한글 조합을 마친 뒤 붙여넣으세요.', en: "Finish Korean IME composition before pasting." }) : L({ ko: '읽기 전용 상태에서는 붙여넣을 수 없습니다.', en: "Cannot paste in read-only mode." })),
     });
-    register('edit.compare', '변경 비교', () => this.showDocumentChanges());
-    register('edit.document-history', '문서 이력 관리', () => {}, { available: () => false, reason: () => '이 플러그인은 저장 전 백업과 복구 저널을 사용합니다.' });
-    register('edit.recover-input', '미적용 입력 복구', () => this.openInputRecovery());
-    register('edit.delete', '지우기', () => this.deleteSelectedRange(), {
+    register('edit.compare', L({ ko: '변경 비교', en: "Compare changes" }), () => this.showDocumentChanges());
+    register('edit.document-history', L({ ko: '문서 이력 관리', en: "Document history" }), () => {}, { available: () => false, reason: () => L({ ko: '이 플러그인은 저장 전 백업과 복구 저널을 사용합니다.', en: "This plugin uses pre-save backups and recovery journals." }) });
+    register('edit.recover-input', L({ ko: '미적용 입력 복구', en: "Recover unapplied input" }), () => this.openInputRecovery());
+    register('edit.delete', L({ ko: '지우기', en: "Delete" }), () => this.deleteSelectedRange(), {
       shortcut: 'Ctrl+E', available: () => !!this.selectionRange() && !this.rangeIsCollapsed(this.selectionRange()) && !editBlockReason() && !this.selectionMutationReason(),
-      reason: () => editBlockReason() ?? this.selectionMutationReason() ?? '지울 범위를 먼저 선택하세요.',
+      reason: () => editBlockReason() ?? this.selectionMutationReason() ?? L({ ko: '지울 범위를 먼저 선택하세요.', en: "Select a range to delete first." }),
     });
-    register('edit.select-all', '모두 선택', () => this.selectBodySection(), {
-      shortcut: 'Mod+A', available: () => !!this.selected && isParagraph(this.selected), reason: () => '본문 문단을 먼저 선택하세요.',
+    register('edit.select-all', L({ ko: '모두 선택', en: "Select all" }), () => this.selectBodySection(), {
+      shortcut: 'Mod+A', available: () => !!this.selected && isParagraph(this.selected), reason: () => L({ ko: '본문 문단을 먼저 선택하세요.', en: "Select a body paragraph first." }),
     });
-    for (const [alignment, label] of [['left', '왼쪽 정렬'], ['center', '가운데 정렬'], ['right', '오른쪽 정렬'], ['justify', '양쪽 정렬'], ['distribute', '배분 정렬'], ['split', '나눔 정렬']] as const) {
+    for (const [alignment, label] of [['left', L({ ko: '왼쪽 정렬', en: "Align left" })], ['center', L({ ko: '가운데 정렬', en: "Align center" })], ['right', L({ ko: '오른쪽 정렬', en: "Align right" })], ['justify', L({ ko: '양쪽 정렬', en: "Justify" })], ['distribute', L({ ko: '배분 정렬', en: "Distribute" })], ['split', L({ ko: '나눔 정렬', en: "Split alignment" })]] as const) {
       register(`format.align-${alignment}`, label, () => this.paragraphFormat(alignment), {
         available: () => !editBlockReason() && !this.formattingReason({ paragraph: {} }),
         reason: () => editBlockReason() ?? this.formattingReason({ paragraph: {} }),
       });
     }
-    const rootInsertReason = (): string | undefined => editBlockReason() ?? (!this.selected || !isParagraph(this.selected) || this.selected.address.kind !== 'body' || this.selected.address.cellPath?.length || this.selected.address.containerKinds?.includes('textBox') ? '본문 문단을 선택하세요.' : undefined);
-    register('insert.picture-file', '그림', () => this.pictureFileInput?.click(), { available: () => !rootInsertReason(), reason: rootInsertReason });
-    register('insert.equation-dialog', '수식', () => this.openEquationInsertDialog(), { available: () => !rootInsertReason(), reason: rootInsertReason });
-    register('insert.shape-draw', '도형 그리기', () => this.startShapeDrawMode('rectangle'), { available: () => !rootInsertReason(), reason: rootInsertReason });
-    register('insert.text-box-draw', '글상자 그리기', () => this.startShapeDrawMode('textBox'), { available: () => !rootInsertReason(), reason: rootInsertReason });
+    const rootInsertReason = (): string | undefined => editBlockReason() ?? (!this.selected || !isParagraph(this.selected) || this.selected.address.kind !== 'body' || this.selected.address.cellPath?.length || this.selected.address.containerKinds?.includes('textBox') ? L({ ko: '본문 문단을 선택하세요.', en: "Select a body paragraph." }) : undefined);
+    register('insert.picture-file', L({ ko: '그림', en: "Picture" }), () => this.pictureFileInput?.click(), { available: () => !rootInsertReason(), reason: rootInsertReason });
+    register('insert.equation-dialog', L({ ko: '수식', en: "Equation" }), () => this.openEquationInsertDialog(), { available: () => !rootInsertReason(), reason: rootInsertReason });
+    register('insert.shape-draw', L({ ko: '도형 그리기', en: "Draw shape" }), () => this.startShapeDrawMode('rectangle'), { available: () => !rootInsertReason(), reason: rootInsertReason });
+    register('insert.text-box-draw', L({ ko: '글상자 그리기', en: "Draw text box" }), () => this.startShapeDrawMode('textBox'), { available: () => !rootInsertReason(), reason: rootInsertReason });
     const captionTargetReason = (): string | undefined => {
       const object = this.selectedObject;
       if (object) return object.kind === 'picture' && object.address.kind === 'body' && !object.address.cellPath?.length
-        ? undefined : '본문 그림 또는 표를 선택하세요. 그림·표 캡션만 지원합니다.';
-      return this.selectedTableCell() ? undefined : '본문 그림 또는 표 셀 안 문단을 선택하세요.';
+        ? undefined : L({ ko: '본문 그림 또는 표를 선택하세요. 그림·표 캡션만 지원합니다.', en: "Select a body picture or table. Only picture/table captions are supported." });
+      return this.selectedTableCell() ? undefined : L({ ko: '본문 그림 또는 표 셀 안 문단을 선택하세요.', en: "Select a body picture or a paragraph in a table cell." });
     };
     for (const [id, direction] of [
       ['insert.caption-top', 'Top'], ['insert.caption-bottom', 'Bottom'], ['insert.caption-left', 'Left'], ['insert.caption-right', 'Right'], ['insert.caption-none', 'None'],
-    ] as const) register(id, direction === 'None' ? '캡션 없음' : `캡션 ${direction}`, () => this.setCaptionDirection(direction), {
+    ] as const) register(id, direction === 'None' ? L({ ko: '캡션 없음', en: "No caption" }) : LT({ ko: () => `캡션 ${direction}`, en: () => `Caption ${direction}` }), () => this.setCaptionDirection(direction), {
       available: () => !editBlockReason() && !captionTargetReason(),
       reason: () => editBlockReason() ?? captionTargetReason(),
     });
-    register('view.previous-page', '이전 쪽', async () => {
-      if (this.draft || this.composing) throw new Error('입력을 적용한 뒤 쪽을 이동하세요.');
+    register('view.previous-page', L({ ko: '이전 쪽', en: "Previous page" }), async () => {
+      if (this.draft || this.composing) throw new Error(L({ ko: '입력을 적용한 뒤 쪽을 이동하세요.', en: "Apply input before changing pages." }));
       if (this.page > 0) { this.page--; await this.renderPage(true); }
-    }, { available: () => this.page > 0 && !this.draft && !this.composing, reason: () => this.draft || this.composing ? '미적용 입력을 먼저 처리하세요.' : '첫 쪽입니다.' });
-    register('view.next-page', '다음 쪽', async () => {
-      if (this.draft || this.composing) throw new Error('입력을 적용한 뒤 쪽을 이동하세요.');
+    }, { available: () => this.page > 0 && !this.draft && !this.composing, reason: () => this.draft || this.composing ? L({ ko: '미적용 입력을 먼저 처리하세요.', en: "Handle pending input first." }) : L({ ko: '첫 쪽입니다.', en: "This is the first page." }) });
+    register('view.next-page', L({ ko: '다음 쪽', en: "Next page" }), async () => {
+      if (this.draft || this.composing) throw new Error(L({ ko: '입력을 적용한 뒤 쪽을 이동하세요.', en: "Apply input before changing pages." }));
       if (this.state && this.page + 1 < this.state.pageCount) { this.page++; await this.renderPage(true); }
-    }, { available: () => !!this.state && this.page + 1 < this.state.pageCount && !this.draft && !this.composing, reason: () => this.draft || this.composing ? '미적용 입력을 먼저 처리하세요.' : '마지막 쪽입니다.' });
-    register('view.fit-width', '폭 맞춤', () => this.applyZoomPreset('fit-width'), { available: () => !!this.state });
-    register('view.fit-page', '쪽 맞춤', () => this.applyZoomPreset('fit-page'), { available: () => !!this.state && !!this.pageLayout });
-    register('view.zoom-in', '확대', () => this.stepZoom(1), { available: () => !!this.state && this.zoomPercent < 500 });
-    register('view.zoom-out', '축소', () => this.stepZoom(-1), { available: () => !!this.state && this.zoomPercent > 50 });
+    }, { available: () => !!this.state && this.page + 1 < this.state.pageCount && !this.draft && !this.composing, reason: () => this.draft || this.composing ? L({ ko: '미적용 입력을 먼저 처리하세요.', en: "Handle pending input first." }) : L({ ko: '마지막 쪽입니다.', en: "This is the last page." }) });
+    register('view.fit-width', L({ ko: '폭 맞춤', en: "Fit width" }), () => this.applyZoomPreset('fit-width'), { available: () => !!this.state });
+    register('view.fit-page', L({ ko: '쪽 맞춤', en: "Fit page" }), () => this.applyZoomPreset('fit-page'), { available: () => !!this.state && !!this.pageLayout });
+    register('view.zoom-in', L({ ko: '확대', en: "Zoom in" }), () => this.stepZoom(1), { available: () => !!this.state && this.zoomPercent < 500 });
+    register('view.zoom-out', L({ ko: '축소', en: "Zoom out" }), () => this.stepZoom(-1), { available: () => !!this.state && this.zoomPercent > 50 });
     for (const percent of [50, 75, 100, 125, 150, 200, 300]) {
       register(`view.zoom-${percent}`, `${percent}%`, () => this.applyZoomPreset(String(percent)), { available: () => !!this.state });
     }
-    register('file.about', '제품 정보', () => this.openProductInfo());
-    register('tool.settings', '환경 설정', () => this.openPluginSettings());
-    register('view.form-mode', '양식 모드', () => this.toggleFormMode(), {
+    register('file.about', L({ ko: '제품 정보', en: "About" }), () => this.openProductInfo());
+    register('tool.settings', L({ ko: '환경 설정', en: "Preferences" }), () => this.openPluginSettings());
+    register('view.form-mode', L({ ko: '양식 모드', en: "Form mode" }), () => this.toggleFormMode(), {
       shortcut: 'Ctrl+Shift+F', available: () => !!this.state && !this.composing && !this.draft,
-      reason: () => this.draft || this.composing ? '미적용 입력 또는 한글 조합을 먼저 처리하세요.' : '문서를 먼저 여세요.',
+      reason: () => this.draft || this.composing ? L({ ko: '미적용 입력 또는 한글 조합을 먼저 처리하세요.', en: "Handle pending input or Korean IME composition first." }) : L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }),
     });
-    register('view.toggle-toolbars', '도구 상자 접기/펴기', () => this.toggleToolbars(), { shortcut: 'Ctrl+F1' });
-    register('view.toggle-format-toolbox', '서식 도구줄 접기/펴기', () => {
+    register('view.toggle-toolbars', L({ ko: '도구 상자 접기/펴기', en: "Collapse/expand toolbox" }), () => this.toggleToolbars(), { shortcut: 'Ctrl+F1' });
+    register('view.toggle-format-toolbox', L({ ko: '서식 도구줄 접기/펴기', en: "Collapse/expand formatting toolbar" }), () => {
       const chrome = this.plugin.settings.editorChrome;
       return this.plugin.setEditorChrome({ ...chrome, formatToolbox: !chrome.formatToolbox });
     });
-    register('view.toggle-all-chrome', '메뉴 모두 접기/펴기', () => this.toggleAllChrome(), { shortcut: 'Ctrl+Shift+F1' });
-    register('view.go-to-page', '찾아가기', () => this.openGoToDialog(), { shortcut: 'Alt+G' });
-    register('view.ruler', '눈금자', () => this.setRulerVisible(!this.rulerVisible));
-    register('view.grid', '격자 보기', () => this.setGridSettings({ ...this.gridSettings, visible: !this.gridSettings.visible }));
-    register('view.grid-settings', '격자 설정', () => this.openGridSettingsDialog());
-    register('view.paragraph-marks', '문단 부호', () => this.toggleDisplayOption('showParagraphMarks'));
-    register('view.control-codes', '조판 부호', () => this.toggleDisplayOption('showControlCodes'));
-    register('view.transparent-borders', '투명 선', () => this.toggleDisplayOption('showTransparentBorders'));
-    register('view.overflow', '잘림 보기', () => this.toggleDisplayOption('showOverflow'));
-    register('insert.paragraph', '새 문단', () => this.insertParagraph(), { available: () => !bodyEditReason(), reason: bodyEditReason });
-    register('insert.table', '표 삽입', () => this.openTableGridDialog(), { available: () => !bodyEditReason(), reason: bodyEditReason });
-    register('insert.table-custom', '사용자 지정 표 삽입', () => this.openCustomTableDialog(), { available: () => !bodyEditReason(), reason: bodyEditReason });
-    register('insert.clickhere-field', '누름틀 삽입', () => this.openClickHereFieldModal(), {
+    register('view.toggle-all-chrome', L({ ko: '메뉴 모두 접기/펴기', en: "Collapse/expand all menus" }), () => this.toggleAllChrome(), { shortcut: 'Ctrl+Shift+F1' });
+    register('view.go-to-page', L({ ko: '찾아가기', en: "Go to" }), () => this.openGoToDialog(), { shortcut: 'Alt+G' });
+    register('view.ruler', L({ ko: '눈금자', en: "Ruler" }), () => this.setRulerVisible(!this.rulerVisible));
+    register('view.grid', L({ ko: '격자 보기', en: "Show grid" }), () => this.setGridSettings({ ...this.gridSettings, visible: !this.gridSettings.visible }));
+    register('view.grid-settings', L({ ko: '격자 설정', en: "Grid settings" }), () => this.openGridSettingsDialog());
+    register('view.paragraph-marks', L({ ko: '문단 부호', en: "Paragraph marks" }), () => this.toggleDisplayOption('showParagraphMarks'));
+    register('view.control-codes', L({ ko: '조판 부호', en: "Control codes" }), () => this.toggleDisplayOption('showControlCodes'));
+    register('view.transparent-borders', L({ ko: '투명 선', en: "Transparent borders" }), () => this.toggleDisplayOption('showTransparentBorders'));
+    register('view.overflow', L({ ko: '잘림 보기', en: "Show clipping" }), () => this.toggleDisplayOption('showOverflow'));
+    register('insert.paragraph', L({ ko: '새 문단', en: "New paragraph" }), () => this.insertParagraph(), { available: () => !bodyEditReason(), reason: bodyEditReason });
+    register('insert.table', L({ ko: '표 삽입', en: "Insert table" }), () => this.openTableGridDialog(), { available: () => !bodyEditReason(), reason: bodyEditReason });
+    register('insert.table-custom', L({ ko: '사용자 지정 표 삽입', en: "Insert custom table" }), () => this.openCustomTableDialog(), { available: () => !bodyEditReason(), reason: bodyEditReason });
+    register('insert.clickhere-field', L({ ko: '누름틀 삽입', en: "Insert input field" }), () => this.openClickHereFieldModal(), {
       available: () => !fieldInsertReason() && !this.formMode && !this.draft && !this.composing,
-      reason: () => this.formMode ? '양식 모드를 끈 뒤 누름틀을 삽입하세요.' : this.draft || this.composing ? '미적용 입력 또는 한글 조합을 먼저 처리하세요.' : fieldInsertReason(),
+      reason: () => this.formMode ? L({ ko: '양식 모드를 끈 뒤 누름틀을 삽입하세요.', en: "Disable form mode before inserting an input field." }) : this.draft || this.composing ? L({ ko: '미적용 입력 또는 한글 조합을 먼저 처리하세요.', en: "Handle pending input or Korean IME composition first." }) : fieldInsertReason(),
     });
     const clickHereSelectedReason = (): string | undefined => editBlockReason()
-      ?? (this.selected && !isParagraph(this.selected) && this.selected.fieldType === 'clickhere' ? undefined : '고치거나 지울 누름틀을 선택하세요. 문서의 누름틀을 누르거나 문서 탐색의 필드 목록에서 고르세요.');
-    register('field.edit', '필드 고치기', () => this.openFieldEditDialog(), { available: () => !clickHereSelectedReason(), reason: clickHereSelectedReason });
-    register('field.remove', '필드 지우기', () => this.openFieldRemoveDialog(), { available: () => !clickHereSelectedReason(), reason: clickHereSelectedReason });
-    register('insert.character-table', '문자표', () => this.openCharacterTable(), {
+      ?? (this.selected && !isParagraph(this.selected) && this.selected.fieldType === 'clickhere' ? undefined : L({ ko: '고치거나 지울 누름틀을 선택하세요. 문서의 누름틀을 누르거나 문서 탐색의 필드 목록에서 고르세요.', en: "Select an input field to edit/delete. Click it in the document or choose it from Document navigation → Fields." }));
+    register('field.edit', L({ ko: '필드 고치기', en: "Edit field" }), () => this.openFieldEditDialog(), { available: () => !clickHereSelectedReason(), reason: clickHereSelectedReason });
+    register('field.remove', L({ ko: '필드 지우기', en: "Delete field" }), () => this.openFieldRemoveDialog(), { available: () => !clickHereSelectedReason(), reason: clickHereSelectedReason });
+    register('insert.character-table', L({ ko: '문자표', en: "Character map" }), () => this.openCharacterTable(), {
       shortcut: 'Alt+F10', available: () => !editBlockReason() && !!this.selected && isParagraph(this.selected),
-      reason: () => editBlockReason() ?? '먼저 문서 문단을 선택하세요.',
+      reason: () => editBlockReason() ?? L({ ko: '먼저 문서 문단을 선택하세요.', en: "Select a document paragraph first." }),
     });
-    register('insert.bookmark', '책갈피', () => this.openBookmarkModal(), { available: () => !!this.state && !!this.path, reason: () => '문서를 먼저 여세요.' });
-    register('view.go-to-bookmark', '책갈피로 이동', () => this.pickBookmark(), { available: () => !!this.state && !!this.path && !this.draft, reason: () => this.draft ? '미적용 입력을 먼저 처리하세요.' : '문서를 먼저 여세요.' });
-    register('insert.page-break', '쪽 나누기', () => this.insertPageBreak('page'), { shortcut: 'Mod+Enter', available: () => !bodyEditReason(), reason: bodyEditReason });
-    register('insert.column-break', '단 나누기', () => this.insertPageBreak('column'), { shortcut: 'Mod+Shift+Enter', available: () => !bodyEditReason(), reason: bodyEditReason });
-    const noteInsertReason = (): string | undefined => this.draft ? '미적용 입력을 먼저 적용하거나 취소하세요.' : bodyEditReason();
-    register('insert.footnote', '각주 삽입', () => this.insertNote('footnote'), { available: () => !noteInsertReason(), reason: noteInsertReason });
-    register('insert.endnote', '미주 삽입', () => this.insertNote('endnote'), { available: () => !noteInsertReason(), reason: noteInsertReason });
-    register('insert.endnote-shape', '미주 모양', () => this.openEndnoteShapeModal(), {
+    register('insert.bookmark', L({ ko: '책갈피', en: "Bookmark" }), () => this.openBookmarkModal(), { available: () => !!this.state && !!this.path, reason: () => L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }) });
+    register('view.go-to-bookmark', L({ ko: '책갈피로 이동', en: "Go to bookmark" }), () => this.pickBookmark(), { available: () => !!this.state && !!this.path && !this.draft, reason: () => this.draft ? L({ ko: '미적용 입력을 먼저 처리하세요.', en: "Handle pending input first." }) : L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }) });
+    register('insert.page-break', L({ ko: '쪽 나누기', en: "Page break" }), () => this.insertPageBreak('page'), { shortcut: 'Mod+Enter', available: () => !bodyEditReason(), reason: bodyEditReason });
+    register('insert.column-break', L({ ko: '단 나누기', en: "Column break" }), () => this.insertPageBreak('column'), { shortcut: 'Mod+Shift+Enter', available: () => !bodyEditReason(), reason: bodyEditReason });
+    const noteInsertReason = (): string | undefined => this.draft ? L({ ko: '미적용 입력을 먼저 적용하거나 취소하세요.', en: "Apply or cancel pending input first." }) : bodyEditReason();
+    register('insert.footnote', L({ ko: '각주 삽입', en: "Insert footnote" }), () => this.insertNote('footnote'), { available: () => !noteInsertReason(), reason: noteInsertReason });
+    register('insert.endnote', L({ ko: '미주 삽입', en: "Insert endnote" }), () => this.insertNote('endnote'), { available: () => !noteInsertReason(), reason: noteInsertReason });
+    register('insert.endnote-shape', L({ ko: '미주 모양', en: "Endnote format" }), () => this.openEndnoteShapeModal(), {
       available: () => !editBlockReason() && !!this.formattingModel?.sections.length,
-      reason: () => editBlockReason() ?? (!this.formattingModel?.sections.length ? '구역 설정을 아직 읽지 못했습니다.' : undefined),
+      reason: () => editBlockReason() ?? (!this.formattingModel?.sections.length ? L({ ko: '구역 설정을 아직 읽지 못했습니다.', en: "Section settings have not been read yet." }) : undefined),
     });
     for (const [id, property] of [['format.bold', 'bold'], ['format.italic', 'italic'], ['format.underline', 'underline'], ['format.strikethrough', 'strikethrough']] as const) {
-      register(id, property === 'bold' ? '굵게' : property === 'italic' ? '기울임' : property === 'underline' ? '밑줄' : '취소선', () => this.toggleCharacterProperty(property), {
+      register(id, property === 'bold' ? L({ ko: '굵게', en: "Bold" }) : property === 'italic' ? L({ ko: '기울임', en: "Italic" }) : property === 'underline' ? L({ ko: '밑줄', en: "Underline" }) : L({ ko: '취소선', en: "Strikethrough" }), () => this.toggleCharacterProperty(property), {
         ...(property === 'bold' ? { shortcut: 'Mod+B' } : property === 'italic' ? { shortcut: 'Mod+I' } : property === 'underline' ? { shortcut: 'Mod+U' } : {}),
         available: () => !editBlockReason() && !this.formattingReason({ character: {} }),
         reason: () => editBlockReason() ?? this.formattingReason({ character: {} }),
@@ -3448,90 +3449,90 @@ export class HwpView extends FileView {
         reason: () => editBlockReason() ?? this.formattingReason({ character: {} }),
       });
     }
-    register('format.list-level-down', '목록 수준 내리기', () => this.changeListLevel(-1), {
+    register('format.list-level-down', L({ ko: '목록 수준 내리기', en: "Demote list level" }), () => this.changeListLevel(-1), {
       available: () => this.canChangeListLevel(-1), reason: () => this.listLevelReason(-1),
     });
-    register('format.toggle-numbering', '번호 목록 토글', () => this.toggleParagraphList('numbering'), {
+    register('format.toggle-numbering', L({ ko: '번호 목록 토글', en: "Toggle numbering" }), () => this.toggleParagraphList('numbering'), {
       available: () => !this.listToggleReason(), reason: () => this.listToggleReason(),
     });
-    register('format.toggle-bullet', '글머리표 토글', () => this.toggleParagraphList('bullet'), {
+    register('format.toggle-bullet', L({ ko: '글머리표 토글', en: "Toggle bullets" }), () => this.toggleParagraphList('bullet'), {
       available: () => !this.listToggleReason(), reason: () => this.listToggleReason(),
     });
-    register('format.list-level-up', '목록 수준 올리기', () => this.changeListLevel(1), {
+    register('format.list-level-up', L({ ko: '목록 수준 올리기', en: "Promote list level" }), () => this.changeListLevel(1), {
       available: () => this.canChangeListLevel(1), reason: () => this.listLevelReason(1),
     });
     for (const [id, direction] of [['format.line-spacing-decrease', -1], ['format.line-spacing-increase', 1]] as const) {
-      register(id, direction < 0 ? '줄 간격 줄이기' : '줄 간격 늘리기', () => this.adjustLineSpacing(direction), {
+      register(id, direction < 0 ? L({ ko: '줄 간격 줄이기', en: "Decrease line spacing" }) : L({ ko: '줄 간격 늘리기', en: "Increase line spacing" }), () => this.adjustLineSpacing(direction), {
         shortcut: direction < 0 ? 'Mod+Shift+Alt+[' : 'Mod+Shift+Alt+]',
         available: () => this.canAdjustLineSpacing(), reason: () => this.lineSpacingReason(),
       });
     }
     const fontSizeReason = (): string | undefined => characterFormatReason()
-      ?? (this.selectedFontSizes().length > 1 ? '서로 다른 글자 크기를 한 번에 증감할 수 없습니다. 같은 크기 범위를 선택하세요.' : undefined);
-    register('format.font-size-increase', '글자 크기 늘리기', () => this.adjustFontSize(1), {
+      ?? (this.selectedFontSizes().length > 1 ? L({ ko: '서로 다른 글자 크기를 한 번에 증감할 수 없습니다. 같은 크기 범위를 선택하세요.', en: "Cannot increment/decrement mixed font sizes together. Select a uniformly sized range." }) : undefined);
+    register('format.font-size-increase', L({ ko: '글자 크기 늘리기', en: "Increase font size" }), () => this.adjustFontSize(1), {
       shortcut: 'Mod+]', available: () => !fontSizeReason(), reason: fontSizeReason,
     });
-    register('format.font-size-decrease', '글자 크기 줄이기', () => this.adjustFontSize(-1), {
+    register('format.font-size-decrease', L({ ko: '글자 크기 줄이기', en: "Decrease font size" }), () => this.adjustFontSize(-1), {
       shortcut: 'Mod+[', available: () => !fontSizeReason(), reason: fontSizeReason,
     });
     const characterFormatReason = (): string | undefined => editBlockReason() ?? this.formattingReason({ character: {} });
     for (const [id, label, metric, direction, shortcut] of [
-      ['format.ratio-increase', '장평 늘리기', 'ratio', 1, 'Mod+Shift+]'],
-      ['format.ratio-decrease', '장평 줄이기', 'ratio', -1, 'Mod+Shift+['],
-      ['format.character-spacing-increase', '자간 넓히기', 'characterSpacing', 1, 'Mod+Alt+]'],
-      ['format.character-spacing-decrease', '자간 좁히기', 'characterSpacing', -1, 'Mod+Alt+['],
+      ['format.ratio-increase', L({ ko: '장평 늘리기', en: "Increase character width" }), 'ratio', 1, 'Mod+Shift+]'],
+      ['format.ratio-decrease', L({ ko: '장평 줄이기', en: "Decrease character width" }), 'ratio', -1, 'Mod+Shift+['],
+      ['format.character-spacing-increase', L({ ko: '자간 넓히기', en: "Increase character spacing" }), 'characterSpacing', 1, 'Mod+Alt+]'],
+      ['format.character-spacing-decrease', L({ ko: '자간 좁히기', en: "Decrease character spacing" }), 'characterSpacing', -1, 'Mod+Alt+['],
     ] as const) {
       const metricReason = (): string | undefined => characterFormatReason()
-        ?? (this.selectedUniformCharacterMetric(metric) === undefined ? '언어별 장평·자간이 다르거나 조회되지 않습니다. 글자 모양 대화상자에서 새 값을 지정하세요.' : undefined);
+        ?? (this.selectedUniformCharacterMetric(metric) === undefined ? L({ ko: '언어별 장평·자간이 다르거나 조회되지 않습니다. 글자 모양 대화상자에서 새 값을 지정하세요.', en: "Language-specific width/spacing differs or is unavailable. Set a new value in the Character format dialog." }) : undefined);
       register(id, label, () => this.adjustCharacterMetric(metric, direction), {
         shortcut, available: () => !metricReason(), reason: metricReason,
       });
     }
     const paragraphFormatReason = (): string | undefined => editBlockReason() ?? this.formattingReason({ paragraph: {} });
     const styleFormatReason = (): string | undefined => editBlockReason() ?? this.formattingReason({ styleId: 0 })
-      ?? (!this.formattingModel?.styles.length ? '현재 문서의 문단 스타일 목록을 읽지 못했습니다.' : undefined);
-    register('format.character-dialog', '글자 모양', () => this.openCharacterFormatDialog(), {
+      ?? (!this.formattingModel?.styles.length ? L({ ko: '현재 문서의 문단 스타일 목록을 읽지 못했습니다.', en: "Could not read the current paragraph style list." }) : undefined);
+    register('format.character-dialog', L({ ko: '글자 모양', en: "Character format" }), () => this.openCharacterFormatDialog(), {
       shortcut: 'Alt+L', available: () => !characterFormatReason(), reason: characterFormatReason,
     });
-    register('format.paragraph-dialog', '문단 모양', () => this.openParagraphFormatDialog(), {
+    register('format.paragraph-dialog', L({ ko: '문단 모양', en: "Paragraph format" }), () => this.openParagraphFormatDialog(), {
       shortcut: 'Alt+T', available: () => !paragraphFormatReason(), reason: paragraphFormatReason,
     });
-    register('format.style-dialog', '문단 스타일', () => this.openStyleSelectionDialog(), {
+    register('format.style-dialog', L({ ko: '문단 스타일', en: "paragraph style" }), () => this.openStyleSelectionDialog(), {
       shortcut: 'F6', available: () => !styleFormatReason(), reason: styleFormatReason,
     });
-    register('format.copy-style', '모양 복사', () => this.copySelectedFormat(), {
+    register('format.copy-style', L({ ko: '모양 복사', en: "Copy formatting" }), () => this.copySelectedFormat(), {
       shortcut: 'Alt+C', available: () => !!this.selected && isParagraph(this.selected) && !this.hasMultiParagraphSelection() && !this.draft && !this.composing,
-      reason: () => this.hasMultiParagraphSelection() ? '모양 복사는 한 문단 선택에서만 지원합니다.' : this.draft ? '미적용 입력을 먼저 적용하세요.' : '모양을 복사할 문단을 선택하세요.',
+      reason: () => this.hasMultiParagraphSelection() ? L({ ko: '모양 복사는 한 문단 선택에서만 지원합니다.', en: "Copy formatting supports a selection within one paragraph only." }) : this.draft ? L({ ko: '미적용 입력을 먼저 적용하세요.', en: "Apply pending input first." }) : L({ ko: '모양을 복사할 문단을 선택하세요.', en: "Select a paragraph to copy formatting from." }),
     });
-    register('format.apply-copied-style', '모양 붙이기', () => this.applyCopiedFormat(), {
+    register('format.apply-copied-style', L({ ko: '모양 붙이기', en: "Paste formatting" }), () => this.applyCopiedFormat(), {
       available: () => !!this.copiedFormat && !editBlockReason() && !this.formattingReason(this.copiedFormat),
-      reason: () => !this.copiedFormat ? '먼저 모양을 복사하세요.' : editBlockReason() ?? this.formattingReason(this.copiedFormat),
+      reason: () => !this.copiedFormat ? L({ ko: '먼저 모양을 복사하세요.', en: "Copy formatting first." }) : editBlockReason() ?? this.formattingReason(this.copiedFormat),
     });
-    const styleDefinitionReason = (): string | undefined => editBlockReason() ?? (this.formattingModel?.styles.length ? undefined : '스타일 정보를 아직 읽지 못했습니다.');
-    register('format.style-new', '스타일 추가', () => this.openStyleEditor('create'), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
-    register('format.style-edit', '스타일 편집', () => this.openStyleEditor('edit'), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
-    register('format.style-delete', '스타일 지우기', () => this.deleteStyleInteractive(), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
-    register('format.numbering-define', '문단 번호 모양', () => this.openNumberingDialog(), { available: () => !bodyEditReason(), reason: bodyEditReason });
-    register('page.apply-settings', '쪽 설정 적용', () => this.applyPageSettings(), { available: () => !editBlockReason() && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? (!this.formattingModel?.sections.length ? '쪽 설정 정보를 아직 읽지 못했습니다.' : undefined) });
-    register('page.setup-dialog', '편집 용지', () => this.openPageSetupDialog(), { shortcut: 'F7', available: () => !editBlockReason() && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? (!this.formattingModel?.sections.length ? '쪽 설정 정보를 아직 읽지 못했습니다.' : undefined) });
+    const styleDefinitionReason = (): string | undefined => editBlockReason() ?? (this.formattingModel?.styles.length ? undefined : L({ ko: '스타일 정보를 아직 읽지 못했습니다.', en: "Style information has not been read yet." }));
+    register('format.style-new', L({ ko: '스타일 추가', en: "add style" }), () => this.openStyleEditor('create'), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
+    register('format.style-edit', L({ ko: '스타일 편집', en: "edit style" }), () => this.openStyleEditor('edit'), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
+    register('format.style-delete', L({ ko: '스타일 지우기', en: "Clear style" }), () => this.deleteStyleInteractive(), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
+    register('format.numbering-define', L({ ko: '문단 번호 모양', en: "Paragraph numbering format" }), () => this.openNumberingDialog(), { available: () => !bodyEditReason(), reason: bodyEditReason });
+    register('page.apply-settings', L({ ko: '쪽 설정 적용', en: "Apply page settings" }), () => this.applyPageSettings(), { available: () => !editBlockReason() && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? (!this.formattingModel?.sections.length ? L({ ko: '쪽 설정 정보를 아직 읽지 못했습니다.', en: "Page setup information has not been read yet." }) : undefined) });
+    register('page.setup-dialog', L({ ko: '편집 용지', en: "Page setup" }), () => this.openPageSetupDialog(), { shortcut: 'F7', available: () => !editBlockReason() && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? (!this.formattingModel?.sections.length ? L({ ko: '쪽 설정 정보를 아직 읽지 못했습니다.', en: "Page setup information has not been read yet." }) : undefined) });
     const storyAddress = (): HeaderFooterAddress | Extract<DocumentAddress, { kind: 'footnote' | 'endnote' }> | undefined => {
       const address = this.selected && isParagraph(this.selected) ? this.selected.address : undefined;
       return address?.kind === 'headerFooter' || address?.kind === 'footnote' || address?.kind === 'endnote' ? address : undefined;
     };
-    const storyReason = (): string | undefined => editBlockReason() ?? (!storyAddress() ? '머리말·꼬리말·각주·미주를 먼저 편집하세요.' : undefined);
-    for (const direction of [-1, 1] as const) register(direction === -1 ? 'story.previous' : 'story.next', direction === -1 ? '이전 영역' : '다음 영역', () => this.navigateStory(direction), { available: () => !storyReason(), reason: storyReason });
-    register('story.close', '편집 닫기', () => this.closeHeaderFooterEditor(), { available: () => !!storyAddress() && !this.composing, reason: storyReason });
-    register('story.delete', '영역 지우기', () => this.deleteStory(), { available: () => !storyReason(), reason: storyReason });
+    const storyReason = (): string | undefined => editBlockReason() ?? (!storyAddress() ? L({ ko: '머리말·꼬리말·각주·미주를 먼저 편집하세요.', en: "Edit a header, footer, footnote, or endnote first." }) : undefined);
+    for (const direction of [-1, 1] as const) register(direction === -1 ? 'story.previous' : 'story.next', direction === -1 ? L({ ko: '이전 영역', en: "Previous area" }) : L({ ko: '다음 영역', en: "Next area" }), () => this.navigateStory(direction), { available: () => !storyReason(), reason: storyReason });
+    register('story.close', L({ ko: '편집 닫기', en: "Close editing" }), () => this.closeHeaderFooterEditor(), { available: () => !!storyAddress() && !this.composing, reason: storyReason });
+    register('story.delete', L({ ko: '영역 지우기', en: "Delete area" }), () => this.deleteStory(), { available: () => !storyReason(), reason: storyReason });
     for (const [id, field] of [['page-number', 'pageNumber'], ['total-pages', 'totalPages'], ['file-name', 'fileName']] as const) {
-      const reason = (): string | undefined => storyReason() ?? 'RHWP 직접 필드 삽입은 저장 재파싱 검증을 통과하지 못합니다. 쪽 메뉴의 머리말·꼬리말 템플릿을 사용하세요.';
+      const reason = (): string | undefined => storyReason() ?? L({ ko: 'RHWP 직접 필드 삽입은 저장 재파싱 검증을 통과하지 못합니다. 쪽 메뉴의 머리말·꼬리말 템플릿을 사용하세요.', en: "Direct RHWP field insertion fails save/reparse validation. Use header/footer templates in the Page menu." });
       register(`story.${id}`, field, () => { throw new Error(reason()); }, { available: () => false, reason });
     }
-    register('insert.hyperlink', '하이퍼링크', () => {}, { available: () => false, reason: () => 'RHWP 코어에 하이퍼링크 삽입 API가 없습니다.' });
-    register('page.footer-template', '꼬리말', () => this.openHeaderFooterTemplateModal(false), { available: () => !editBlockReason() && !!this.documentTree && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? '문서를 먼저 여세요.' });
-    const headerFooterReason = (): string | undefined => editBlockReason() ?? (!this.documentTree || !this.formattingModel?.sections.length ? '문서를 먼저 여세요.' : undefined);
+    register('insert.hyperlink', L({ ko: '하이퍼링크', en: "Hyperlink" }), () => {}, { available: () => false, reason: () => L({ ko: 'RHWP 코어에 하이퍼링크 삽입 API가 없습니다.', en: "RHWP core has no hyperlink insertion API." }) });
+    register('page.footer-template', L({ ko: '꼬리말', en: "footer" }), () => this.openHeaderFooterTemplateModal(false), { available: () => !editBlockReason() && !!this.documentTree && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }) });
+    const headerFooterReason = (): string | undefined => editBlockReason() ?? (!this.documentTree || !this.formattingModel?.sections.length ? L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }) : undefined);
     for (const isHeader of [true, false]) {
-      register(`page.edit-${isHeader ? 'header' : 'footer'}`, `${isHeader ? '머리말' : '꼬리말'} 편집…`, () => this.editHeaderFooter(isHeader), {
-        available: () => !headerFooterReason() && !!this.findHeaderFooter(isHeader), reason: () => headerFooterReason() ?? '현재 쪽에 해당 영역이 없습니다.',
+      register(`page.edit-${isHeader ? 'header' : 'footer'}`, LT({ ko: () => `${isHeader ? '머리말' : '꼬리말'} 편집…`, en: () => `Edit ${isHeader ? 'header' : 'footer'}…` }), () => this.editHeaderFooter(isHeader), {
+        available: () => !headerFooterReason() && !!this.findHeaderFooter(isHeader), reason: () => headerFooterReason() ?? L({ ko: '현재 쪽에 해당 영역이 없습니다.', en: "This area does not exist on the current page." }),
       });
       for (const applyTo of [0, 2, 1] as const) HEADER_FOOTER_TEMPLATES.forEach((label, templateId) => {
         register(headerFooterCommandId(isHeader, applyTo, templateId), label, () => this.applyHeaderFooterTemplate(isHeader, applyTo, templateId), {
@@ -3539,79 +3540,79 @@ export class HwpView extends FileView {
         });
       });
     }
-    register('page.header-footer-template', '머리말 / 꼬리말', () => this.openHeaderFooterTemplateModal(), { available: () => !editBlockReason() && !!this.documentTree && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? (!this.formattingModel?.sections.length ? '쪽 구역 정보를 아직 읽지 못했습니다.' : '문서를 먼저 여세요.') });
-    const sectionReady = (): string | undefined => editBlockReason() ?? (!this.formattingModel?.sections.length ? '구역 설정을 아직 읽지 못했습니다.' : undefined);
-    register('page.columns', '다단 설정', () => this.openColumnsDialog(), { available: () => !sectionReady(), reason: sectionReady });
-    for (const [id, label, count] of [['page.columns-one', '단 하나', 1], ['page.columns-two', '단 둘', 2], ['page.columns-three', '단 셋', 3]] as const) {
+    register('page.header-footer-template', L({ ko: '머리말 / 꼬리말', en: "Header / Footer" }), () => this.openHeaderFooterTemplateModal(), { available: () => !editBlockReason() && !!this.documentTree && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? (!this.formattingModel?.sections.length ? L({ ko: '쪽 구역 정보를 아직 읽지 못했습니다.', en: "Page section information has not been read yet." }) : L({ ko: '문서를 먼저 여세요.', en: "Open a document first." })) });
+    const sectionReady = (): string | undefined => editBlockReason() ?? (!this.formattingModel?.sections.length ? L({ ko: '구역 설정을 아직 읽지 못했습니다.', en: "Section settings have not been read yet." }) : undefined);
+    register('page.columns', L({ ko: '다단 설정', en: "Column settings" }), () => this.openColumnsDialog(), { available: () => !sectionReady(), reason: sectionReady });
+    for (const [id, label, count] of [['page.columns-one', L({ ko: '단 하나', en: "One column" }), 1], ['page.columns-two', L({ ko: '단 둘', en: "Two columns" }), 2], ['page.columns-three', L({ ko: '단 셋', en: "Three columns" }), 3]] as const) {
       register(id, label, () => this.execute([{ type: 'setColumnSettings', section: this.activeSectionIndex(), properties: { count } }]), { available: () => !sectionReady(), reason: sectionReady });
     }
-    register('page.border-fill', '쪽 테두리 / 배경', () => this.openPageBorderDialog(), { available: () => !sectionReady(), reason: sectionReady });
-    register('page.section-settings', '구역 설정', () => this.openSectionSettingsDialog(), { available: () => !sectionReady(), reason: sectionReady });
-    const pageHideReason = (): string | undefined => bodyEditReason() ?? (!this.formattingModel ? '쪽 정보를 아직 읽지 못했습니다.' : undefined);
-    register('page.hide', '현재 쪽 감추기', () => this.openPageHideDialog(), { available: () => !pageHideReason(), reason: pageHideReason });
-    register('page.new-number', '새 번호로 시작', () => this.openNewNumberDialog(), { available: () => !bodyEditReason(), reason: bodyEditReason });
-    register('table.merge-cells', '선택 셀 병합', () => this.mergeSelectedCells(), { available: () => !tableEditReason(), reason: tableEditReason });
-    register('table.split-cell', '선택 셀 나누기', () => this.splitSelectedCell(), { available: () => !tableEditReason(), reason: tableEditReason });
-    for (const [operation, label] of [['thousands', '1,000 단위 구분 쉼표'], ['decimal-add', '자릿점 넣기'], ['decimal-remove', '자릿점 빼기']] as const) {
+    register('page.border-fill', L({ ko: '쪽 테두리 / 배경', en: "Page border / Background" }), () => this.openPageBorderDialog(), { available: () => !sectionReady(), reason: sectionReady });
+    register('page.section-settings', L({ ko: '구역 설정', en: "Section settings" }), () => this.openSectionSettingsDialog(), { available: () => !sectionReady(), reason: sectionReady });
+    const pageHideReason = (): string | undefined => bodyEditReason() ?? (!this.formattingModel ? L({ ko: '쪽 정보를 아직 읽지 못했습니다.', en: "Page information has not been read yet." }) : undefined);
+    register('page.hide', L({ ko: '현재 쪽 감추기', en: "Hide on current page" }), () => this.openPageHideDialog(), { available: () => !pageHideReason(), reason: pageHideReason });
+    register('page.new-number', L({ ko: '새 번호로 시작', en: "Restart numbering" }), () => this.openNewNumberDialog(), { available: () => !bodyEditReason(), reason: bodyEditReason });
+    register('table.merge-cells', L({ ko: '선택 셀 병합', en: "Merge selected cells" }), () => this.mergeSelectedCells(), { available: () => !tableEditReason(), reason: tableEditReason });
+    register('table.split-cell', L({ ko: '선택 셀 나누기', en: "Split selected cells" }), () => this.splitSelectedCell(), { available: () => !tableEditReason(), reason: tableEditReason });
+    for (const [operation, label] of [['thousands', L({ ko: '1,000 단위 구분 쉼표', en: "Thousands separator" })], ['decimal-add', L({ ko: '자릿점 넣기', en: "Add decimal place" })], ['decimal-remove', L({ ko: '자릿점 빼기', en: "Remove decimal place" })]] as const) {
       register(`table.${operation}`, label, () => this.formatCellNumbers(operation), { available: () => !tableEditReason(), reason: tableEditReason });
     }
-    register('table.borders-each', '각 셀마다 적용', () => this.openCellFormatDialog('each'), { available: () => !tableEditReason(), reason: tableEditReason });
-    register('table.borders-outside', '하나의 셀처럼 적용', () => this.openCellFormatDialog('outside'), { available: () => !tableEditReason(), reason: tableEditReason });
-    register('table.cell-properties', '표 / 셀 속성', () => this.openCellFormatDialog(), { available: () => !tableEditReason(), reason: tableEditReason });
-    register('table.formula', '계산식', () => this.openFormulaDialog(), { available: () => !tableEditReason(), reason: tableEditReason });
-    for (const [id, label, fn] of [['table.block-sum', '블록 합계', 'SUM'], ['table.block-average', '블록 평균', 'AVERAGE'], ['table.block-product', '블록 곱', 'PRODUCT']] as const) {
+    register('table.borders-each', L({ ko: '각 셀마다 적용', en: "Apply to each cell" }), () => this.openCellFormatDialog('each'), { available: () => !tableEditReason(), reason: tableEditReason });
+    register('table.borders-outside', L({ ko: '하나의 셀처럼 적용', en: "Apply as one cell" }), () => this.openCellFormatDialog('outside'), { available: () => !tableEditReason(), reason: tableEditReason });
+    register('table.cell-properties', L({ ko: '표 / 셀 속성', en: "Table / Cell properties" }), () => this.openCellFormatDialog(), { available: () => !tableEditReason(), reason: tableEditReason });
+    register('table.formula', L({ ko: '계산식', en: "Formula" }), () => this.openFormulaDialog(), { available: () => !tableEditReason(), reason: tableEditReason });
+    for (const [id, label, fn] of [['table.block-sum', L({ ko: '블록 합계', en: "Block sum" }), 'SUM'], ['table.block-average', L({ ko: '블록 평균', en: "Block average" }), 'AVERAGE'], ['table.block-product', L({ ko: '블록 곱', en: "Block product" }), 'PRODUCT']] as const) {
       register(id, label, () => this.blockCalculation(fn), { available: () => !tableEditReason(), reason: tableEditReason });
     }
-    register('table.equalize-widths', '셀 너비를 같게', () => this.equalizeSelectedTable('width'), { available: () => !tableEditReason(), reason: tableEditReason });
-    register('table.equalize-heights', '셀 높이를 같게', () => this.equalizeSelectedTable('height'), { available: () => !tableEditReason(), reason: tableEditReason });
-    register('table.transpose', '행/열 바꿈', () => this.transposeSelectedTable(), { available: () => !tableEditReason(), reason: tableEditReason });
-    const splitTableReason = (): string | undefined => tableEditReason() ?? (this.selectedTableCell()!.cell.row < 1 ? '나눌 위치의 줄(둘째 줄 이후)에 캐럿을 두세요. 그 줄부터 새 표가 됩니다.' : undefined);
-    register('table.split-table', '표 나누기', () => this.splitSelectedTable(), { available: () => !splitTableReason(), reason: splitTableReason });
-    register('table.merge-next', '표 붙이기', () => this.mergeNextTable(), { available: () => !tableEditReason(), reason: tableEditReason });
-    register('table.delete', '표 지우기', () => this.deleteSelectedTable(), { available: () => !tableEditReason(), reason: tableEditReason });
-    register('table.caption-toggle', '표 캡션 넣기/빼기', () => this.toggleTableCaption(), { available: () => !tableEditReason(), reason: tableEditReason });
+    register('table.equalize-widths', L({ ko: '셀 너비를 같게', en: "Equalize cell widths" }), () => this.equalizeSelectedTable('width'), { available: () => !tableEditReason(), reason: tableEditReason });
+    register('table.equalize-heights', L({ ko: '셀 높이를 같게', en: "Equalize cell heights" }), () => this.equalizeSelectedTable('height'), { available: () => !tableEditReason(), reason: tableEditReason });
+    register('table.transpose', L({ ko: '행/열 바꿈', en: "Transpose rows/columns" }), () => this.transposeSelectedTable(), { available: () => !tableEditReason(), reason: tableEditReason });
+    const splitTableReason = (): string | undefined => tableEditReason() ?? (this.selectedTableCell()!.cell.row < 1 ? L({ ko: '나눌 위치의 줄(둘째 줄 이후)에 캐럿을 두세요. 그 줄부터 새 표가 됩니다.', en: "Place the caret in the split row (second or later). That row starts a new table." }) : undefined);
+    register('table.split-table', L({ ko: '표 나누기', en: "Split table" }), () => this.splitSelectedTable(), { available: () => !splitTableReason(), reason: splitTableReason });
+    register('table.merge-next', L({ ko: '표 붙이기', en: "Join tables" }), () => this.mergeNextTable(), { available: () => !tableEditReason(), reason: tableEditReason });
+    register('table.delete', L({ ko: '표 지우기', en: "Delete table" }), () => this.deleteSelectedTable(), { available: () => !tableEditReason(), reason: tableEditReason });
+    register('table.caption-toggle', L({ ko: '표 캡션 넣기/빼기', en: "Add/remove table caption" }), () => this.toggleTableCaption(), { available: () => !tableEditReason(), reason: tableEditReason });
     const tableStructureCommands: Array<[string, string, TableStructureAction, string?]> = [
-      ['table.insert-row-above', '위에 행 삽입', 'insert-row-above'],
-      ['table.insert-row-below', '아래에 행 삽입', 'insert-row-below'],
-      ['table.delete-row', '행 삭제', 'delete-row'],
-      ['table.insert-column-left', '왼쪽에 칸 삽입', 'insert-column-left'],
-      ['table.insert-column-right', '오른쪽에 칸 삽입', 'insert-column-right'],
-      ['table.delete-column', '칸 삭제', 'delete-column'],
+      ['table.insert-row-above', L({ ko: '위에 행 삽입', en: "Insert row above" }), 'insert-row-above'],
+      ['table.insert-row-below', L({ ko: '아래에 행 삽입', en: "Insert row below" }), 'insert-row-below'],
+      ['table.delete-row', L({ ko: '행 삭제', en: "Delete row" }), 'delete-row'],
+      ['table.insert-column-left', L({ ko: '왼쪽에 칸 삽입', en: "Insert column left" }), 'insert-column-left'],
+      ['table.insert-column-right', L({ ko: '오른쪽에 칸 삽입', en: "Insert column right" }), 'insert-column-right'],
+      ['table.delete-column', L({ ko: '칸 삭제', en: "Delete column" }), 'delete-column'],
     ];
     for (const [id, label, action, shortcut] of tableStructureCommands) register(id, label, () => this.editTableStructure(action), {
       ...(shortcut ? { shortcut } : {}), available: () => !tableStructureReason(action), reason: () => tableStructureReason(action),
     });
-    register('table.insert-dialog', '줄/칸 추가하기…', () => this.openTableStructureDialog('insert'), { shortcut: 'Alt+Enter', available: () => !tableEditReason(), reason: tableEditReason });
-    register('table.delete-dialog', '줄/칸 지우기…', () => this.openTableStructureDialog('delete'), { shortcut: 'Alt+Delete', available: () => !tableEditReason(), reason: tableEditReason });
-    register('object.delete', '선택 개체 삭제', () => this.deleteSelectedObject(), {
+    register('table.insert-dialog', L({ ko: '줄/칸 추가하기…', en: "Add rows/columns…" }), () => this.openTableStructureDialog('insert'), { shortcut: 'Alt+Enter', available: () => !tableEditReason(), reason: tableEditReason });
+    register('table.delete-dialog', L({ ko: '줄/칸 지우기…', en: "Delete rows/columns…" }), () => this.openTableStructureDialog('delete'), { shortcut: 'Alt+Delete', available: () => !tableEditReason(), reason: tableEditReason });
+    register('object.delete', L({ ko: '선택 개체 삭제', en: "Delete selected object" }), () => this.deleteSelectedObject(), {
       available: () => !!this.selectedObject && !editBlockReason() && this.selectedObject.address.kind === 'body' && !this.selectedObject.address.cellPath?.length,
-      reason: () => !this.selectedObject ? '먼저 본문 개체를 선택하세요.' : editBlockReason() ?? '본문 개체만 삭제할 수 있습니다.',
+      reason: () => !this.selectedObject ? L({ ko: '먼저 본문 개체를 선택하세요.', en: "Select a body object first." }) : editBlockReason() ?? L({ ko: '본문 개체만 삭제할 수 있습니다.', en: "Only body objects can be deleted." }),
     });
     const shapeOrPictureReason = (): string | undefined => {
       const object = this.selectedObject;
       return editBlockReason() ?? (object && object.address.kind === 'body' && !object.address.cellPath?.length && (object.kind === 'picture' || object.kind === 'shape')
-        ? undefined : '본문의 그림이나 도형을 선택하세요. 수식은 지원하지 않습니다.');
+        ? undefined : L({ ko: '본문의 그림이나 도형을 선택하세요. 수식은 지원하지 않습니다.', en: "Select a body picture or shape. Equations are unsupported." }));
     };
-    register('object.rotate', '개체 회전', () => this.openObjectRotationDialog(), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
-    register('object.rotate-right', '오른쪽 90° 회전', () => this.rotateSelectedObject(90), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
-    register('object.rotate-left', '왼쪽 90° 회전', () => this.rotateSelectedObject(-90), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
-    register('object.flip-horizontal', '좌우 대칭', () => this.flipSelectedObject('horzFlip'), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
-    register('object.flip-vertical', '상하 대칭', () => this.flipSelectedObject('vertFlip'), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
-    const pictureReason = (): string | undefined => shapeOrPictureReason() ?? (this.selectedObject?.kind === 'picture' ? undefined : '캡션은 그림에서만 지원합니다.');
-    register('object.caption-toggle', '그림 캡션 넣기/빼기', () => this.toggleSelectedPictureCaption(), { available: () => !pictureReason(), reason: pictureReason });
-    for (const [id, label, operation] of [['object.z-front', '맨 앞으로', 'front'], ['object.z-forward', '앞으로', 'forward'], ['object.z-backward', '뒤로', 'backward'], ['object.z-back', '맨 뒤로', 'back'],
-      ['object.z-in-front-of-text', '글 앞으로', 'inFrontOfText'], ['object.z-behind-text', '글 뒤로', 'behindText']] as const) {
+    register('object.rotate', L({ ko: '개체 회전', en: "Rotate object" }), () => this.openObjectRotationDialog(), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
+    register('object.rotate-right', L({ ko: '오른쪽 90° 회전', en: "Rotate 90° right" }), () => this.rotateSelectedObject(90), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
+    register('object.rotate-left', L({ ko: '왼쪽 90° 회전', en: "Rotate 90° left" }), () => this.rotateSelectedObject(-90), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
+    register('object.flip-horizontal', L({ ko: '좌우 대칭', en: "Flip horizontally" }), () => this.flipSelectedObject('horzFlip'), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
+    register('object.flip-vertical', L({ ko: '상하 대칭', en: "Flip vertically" }), () => this.flipSelectedObject('vertFlip'), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
+    const pictureReason = (): string | undefined => shapeOrPictureReason() ?? (this.selectedObject?.kind === 'picture' ? undefined : L({ ko: '캡션은 그림에서만 지원합니다.', en: "Captions are supported only for pictures." }));
+    register('object.caption-toggle', L({ ko: '그림 캡션 넣기/빼기', en: "Add/remove picture caption" }), () => this.toggleSelectedPictureCaption(), { available: () => !pictureReason(), reason: pictureReason });
+    for (const [id, label, operation] of [['object.z-front', L({ ko: '맨 앞으로', en: "Bring to front" }), 'front'], ['object.z-forward', L({ ko: '앞으로', en: "Bring forward" }), 'forward'], ['object.z-backward', L({ ko: '뒤로', en: "Send backward" }), 'backward'], ['object.z-back', L({ ko: '맨 뒤로', en: "Send to back" }), 'back'],
+      ['object.z-in-front-of-text', L({ ko: '글 앞으로', en: "In front of text" }), 'inFrontOfText'], ['object.z-behind-text', L({ ko: '글 뒤로', en: "Behind text" }), 'behindText']] as const) {
       register(id, label, () => this.reorderSelectedObject(operation), { available: () => !shapeOrPictureReason(), reason: shapeOrPictureReason });
     }
-    register('object.group', '개체 묶기', () => this.openObjectGroupDialog(), { available: () => !editBlockReason() && !!this.documentTree, reason: () => editBlockReason() ?? '문서 구조를 아직 읽지 못했습니다.' });
-    const ungroupReason = (): string | undefined => shapeOrPictureReason() ?? (this.selectedObject?.kind === 'shape' ? undefined : '묶음 도형을 선택하세요.');
-    register('object.ungroup', '개체 풀기', () => this.ungroupSelectedObject(), { available: () => !ungroupReason(), reason: ungroupReason });
-    register('object.edit-properties', '선택 개체 속성', () => this.openObjectPropertiesDialog(), {
+    register('object.group', L({ ko: '개체 묶기', en: "Group objects" }), () => this.openObjectGroupDialog(), { available: () => !editBlockReason() && !!this.documentTree, reason: () => editBlockReason() ?? L({ ko: '문서 구조를 아직 읽지 못했습니다.', en: "Document structure has not been read yet." }) });
+    const ungroupReason = (): string | undefined => shapeOrPictureReason() ?? (this.selectedObject?.kind === 'shape' ? undefined : L({ ko: '묶음 도형을 선택하세요.', en: "Select a grouped shape." }));
+    register('object.ungroup', L({ ko: '개체 풀기', en: "Ungroup objects" }), () => this.ungroupSelectedObject(), { available: () => !ungroupReason(), reason: ungroupReason });
+    register('object.edit-properties', L({ ko: '선택 개체 속성', en: "Selected object properties" }), () => this.openObjectPropertiesDialog(), {
       available: () => !objectEditReason(), reason: objectEditReason,
     });
-    register('tool.find', '찾기', () => { this.focusToolInput(this.searchQueryInput); }, { shortcut: 'Mod+F', available: () => !!this.state, reason: () => '문서를 먼저 여세요.' });
-    register('tool.replace', '바꾸기', () => { this.focusToolInput(this.searchReplacementInput); }, { shortcut: 'Mod+H', available: () => !!this.state, reason: () => '문서를 먼저 여세요.' });
-    register('tool.replace-current', '현재 검색 결과 바꾸기', () => this.replaceCurrentSearchResult(), {
+    register('tool.find', L({ ko: '찾기', en: "Find" }), () => { this.focusToolInput(this.searchQueryInput); }, { shortcut: 'Mod+F', available: () => !!this.state, reason: () => L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }) });
+    register('tool.replace', L({ ko: '바꾸기', en: "Replace" }), () => { this.focusToolInput(this.searchReplacementInput); }, { shortcut: 'Mod+H', available: () => !!this.state, reason: () => L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }) });
+    register('tool.replace-current', L({ ko: '현재 검색 결과 바꾸기', en: "Replace current match" }), () => this.replaceCurrentSearchResult(), {
       available: () => {
         const target = this.currentSearchTarget();
         return this.searchRevision === this.state?.revision && target?.searchResult === true
@@ -3620,17 +3621,17 @@ export class HwpView extends FileView {
       },
       reason: () => {
         const target = this.currentSearchTarget();
-        if (this.searchRevision !== this.state?.revision) return '먼저 최신 검색 결과를 만드세요.';
-        if (!target?.searchResult) return '바꿀 검색 결과를 선택하세요.';
-        if (target.address.kind !== 'body' || target.address.cellPath?.length) return '현재 결과 바꾸기는 본문 문단만 지원합니다.';
-        if (/[\r\n\u2028]/u.test(this.searchReplacementInput?.value ?? '')) return '현재 결과 바꾸기는 한 문단 안의 텍스트만 삽입할 수 있습니다.';
+        if (this.searchRevision !== this.state?.revision) return L({ ko: '먼저 최신 검색 결과를 만드세요.', en: "Create fresh search results first." });
+        if (!target?.searchResult) return L({ ko: '바꿀 검색 결과를 선택하세요.', en: "Select a search result to replace." });
+        if (target.address.kind !== 'body' || target.address.cellPath?.length) return L({ ko: '현재 결과 바꾸기는 본문 문단만 지원합니다.', en: "Replacing the current match supports body paragraphs only." });
+        if (/[\r\n\u2028]/u.test(this.searchReplacementInput?.value ?? '')) return L({ ko: '현재 결과 바꾸기는 한 문단 안의 텍스트만 삽입할 수 있습니다.', en: "Replacing the current match can insert text only within one paragraph." });
         return undefined;
       },
     });
-    register('tool.next-search-result', '다음 검색 결과', () => this.showAdjacentSearchResult(1), { shortcut: 'Mod+L' });
+    register('tool.next-search-result', L({ ko: '다음 검색 결과', en: "Next match" }), () => this.showAdjacentSearchResult(1), { shortcut: 'Mod+L' });
     const menuItem = (id: string): MenuBarItem => {
       const command = this.commandRegistry.get(id);
-      if (!command) throw new Error(`메뉴에서 명령을 찾을 수 없습니다: ${id}`);
+      if (!command) throw new Error(LT({ ko: () => `메뉴에서 명령을 찾을 수 없습니다: ${id}`, en: () => `Command not found in menu: ${id}` }));
       return {
         label: command.label,
         ...(command.shortcut ? { shortcut: command.shortcut } : {}),
@@ -3670,7 +3671,7 @@ export class HwpView extends FileView {
     this.setEditorChrome(this.plugin.settings.editorChrome);
     const menuHost = this.contentEl.createDiv({ cls: 'hwp-menubar-host' });
     this.installMenuBar(menuHost);
-    this.button(menuHost, '⌃', () => this.toggleToolbars()).setAttr('aria-label', '기본 도구 상자 접기/펴기');
+    this.button(menuHost, '⌃', () => this.toggleToolbars()).setAttr('aria-label', L({ ko: '기본 도구 상자 접기/펴기', en: "Collapse/expand basic toolbox" }));
     menuHost.addEventListener('keydown', event => {
       if (event.key === 'Escape' && this.contentEl.hasClass('hwp-menu-temporary')) this.contentEl.removeClass('hwp-menu-temporary');
     });
@@ -3681,53 +3682,53 @@ export class HwpView extends FileView {
     // Hancom Office's 편집 ribbon order: 저장, 클립보드, 찾기, 입력, 각주·미주, 하이퍼링크·문자표, 모양, 개체, 머리말·꼬리말, 보기.
     // Lists, alignment and character effects live in the format toolbox below it, as in Hancom's second row.
     this.commandToolbar = mountCommandToolbar(toolbar, this.commandRegistry, [
-      { label: '저장', tools: [{ command: 'file.save', icon: 'save', label: '저장하기' }] },
-      { label: '클립보드', tools: [
-        { command: 'edit.cut', icon: 'scissors', label: '오려 두기' },
-        { command: 'edit.copy', icon: 'copy', label: '복사하기' },
-        { command: 'edit.paste', icon: 'clipboard-paste', label: '붙이기' },
-        { command: 'format.copy-style', icon: 'paintbrush', label: '모양 복사' },
+      { label: L({ ko: '저장', en: "Save" }), tools: [{ command: 'file.save', icon: 'save', label: L({ ko: '저장하기', en: "Save" }) }] },
+      { label: L({ ko: '클립보드', en: "Clipboard" }), tools: [
+        { command: 'edit.cut', icon: 'scissors', label: L({ ko: '오려 두기', en: "Cut" }) },
+        { command: 'edit.copy', icon: 'copy', label: L({ ko: '복사하기', en: "Copy" }) },
+        { command: 'edit.paste', icon: 'clipboard-paste', label: L({ ko: '붙이기', en: "Paste" }) },
+        { command: 'format.copy-style', icon: 'paintbrush', label: L({ ko: '모양 복사', en: "Copy formatting" }) },
       ] },
-      { label: '찾기', tools: [{ command: 'tool.find', icon: 'search', label: '찾기', menu: FIND_MENU_COMMANDS }] },
-      { label: '입력', tools: [
-        { command: 'insert.shape-draw', icon: 'shapes', label: '도형' },
-        { command: 'insert.picture-file', icon: 'image', label: '그림' },
-        { command: 'insert.table', icon: 'table', label: '표' },
+      { label: L({ ko: '찾기', en: "Find" }), tools: [{ command: 'tool.find', icon: 'search', label: L({ ko: '찾기', en: "Find" }), menu: FIND_MENU_COMMANDS }] },
+      { label: L({ ko: '입력', en: "Insert" }), tools: [
+        { command: 'insert.shape-draw', icon: 'shapes', label: L({ ko: '도형', en: "Shapes" }) },
+        { command: 'insert.picture-file', icon: 'image', label: L({ ko: '그림', en: "Picture" }) },
+        { command: 'insert.table', icon: 'table', label: L({ ko: '표', en: "Table" }) },
       ] },
-      { label: '각주·미주', tools: [
-        { command: 'insert.footnote', icon: 'superscript', label: '각주' },
-        { command: 'insert.endnote', icon: 'list-end', label: '미주' },
+      { label: L({ ko: '각주·미주', en: "Footnotes/endnotes" }), tools: [
+        { command: 'insert.footnote', icon: 'superscript', label: L({ ko: '각주', en: "footnote" }) },
+        { command: 'insert.endnote', icon: 'list-end', label: L({ ko: '미주', en: "endnote" }) },
       ] },
-      { label: '하이퍼링크·문자표', tools: [
-        { command: 'insert.hyperlink', icon: 'link', label: '하이퍼링크' },
-        { command: 'insert.character-table', icon: 'omega', label: '문자표' },
+      { label: L({ ko: '하이퍼링크·문자표', en: "Hyperlink/character map" }), tools: [
+        { command: 'insert.hyperlink', icon: 'link', label: L({ ko: '하이퍼링크', en: "Hyperlink" }) },
+        { command: 'insert.character-table', icon: 'omega', label: L({ ko: '문자표', en: "Character map" }) },
       ] },
-      { label: '모양', tools: [
-        { command: 'format.character-dialog', icon: 'type', label: '글자 모양' },
-        { command: 'format.paragraph-dialog', icon: 'align-left', label: '문단 모양' },
+      { label: L({ ko: '모양', en: "Appearance" }), tools: [
+        { command: 'format.character-dialog', icon: 'type', label: L({ ko: '글자 모양', en: "Character format" }) },
+        { command: 'format.paragraph-dialog', icon: 'align-left', label: L({ ko: '문단 모양', en: "Paragraph format" }) },
       ] },
-      { label: '개체', tools: [{ command: 'object.edit-properties', icon: 'settings-2', label: '개체 속성' }] },
-      { label: '개체 방향', visible: () => this.selectedObject?.kind === 'picture' || this.selectedObject?.kind === 'shape', tools: [
-        { command: 'object.rotate-left', icon: 'rotate-ccw', label: '왼쪽 회전' },
-        { command: 'object.rotate-right', icon: 'rotate-cw', label: '오른쪽 회전' },
-        { command: 'object.flip-horizontal', icon: 'flip-horizontal', label: '좌우 대칭' },
-        { command: 'object.flip-vertical', icon: 'flip-vertical', label: '상하 대칭' },
+      { label: L({ ko: '개체', en: "Object" }), tools: [{ command: 'object.edit-properties', icon: 'settings-2', label: L({ ko: '개체 속성', en: "Object properties" }) }] },
+      { label: L({ ko: '개체 방향', en: "Object orientation" }), visible: () => this.selectedObject?.kind === 'picture' || this.selectedObject?.kind === 'shape', tools: [
+        { command: 'object.rotate-left', icon: 'rotate-ccw', label: L({ ko: '왼쪽 회전', en: "Rotate left" }) },
+        { command: 'object.rotate-right', icon: 'rotate-cw', label: L({ ko: '오른쪽 회전', en: "Rotate right" }) },
+        { command: 'object.flip-horizontal', icon: 'flip-horizontal', label: L({ ko: '좌우 대칭', en: "Flip horizontally" }) },
+        { command: 'object.flip-vertical', icon: 'flip-vertical', label: L({ ko: '상하 대칭', en: "Flip vertically" }) },
       ] },
-      { label: '머리말·꼬리말', tools: [
-        { command: 'page.header-footer-template', icon: 'panel-top', label: '머리말' },
-        { command: 'page.footer-template', icon: 'panel-bottom', label: '꼬리말' },
+      { label: L({ ko: '머리말·꼬리말', en: "Headers/footers" }), tools: [
+        { command: 'page.header-footer-template', icon: 'panel-top', label: L({ ko: '머리말', en: "header" }) },
+        { command: 'page.footer-template', icon: 'panel-bottom', label: L({ ko: '꼬리말', en: "footer" }) },
       ] },
-      { label: '보기', tools: [
-        { command: 'view.control-codes', icon: 'pilcrow', label: '조판 부호' },
-        { command: 'view.paragraph-marks', icon: 'text-cursor', label: '문단 부호' },
-        { command: 'view.grid', icon: 'grid', label: '격자 보기' },
+      { label: L({ ko: '보기', en: "View" }), tools: [
+        { command: 'view.control-codes', icon: 'pilcrow', label: L({ ko: '조판 부호', en: "Control codes" }) },
+        { command: 'view.paragraph-marks', icon: 'text-cursor', label: L({ ko: '문단 부호', en: "Paragraph marks" }) },
+        { command: 'view.grid', icon: 'grid', label: L({ ko: '격자 보기', en: "Show grid" }) },
       ] },
-      { label: '검토', tools: [
-        { command: 'edit.compare', icon: 'git-compare', label: '변경 비교' },
-        { command: 'edit.document-history', icon: 'history', label: '이력 관리' },
+      { label: L({ ko: '검토', en: "Review" }), tools: [
+        { command: 'edit.compare', icon: 'git-compare', label: L({ ko: '변경 비교', en: "Compare changes" }) },
+        { command: 'edit.document-history', icon: 'history', label: L({ ko: '이력 관리', en: "History" }) },
       ] },
       // Commands with no button above, grouped by menu. Groups that do not fit the pane join them under 더 보기.
-      { label: '쪽', overflow: true, tools: [
+      { label: L({ ko: '쪽', en: "Page" }), overflow: true, tools: [
         { command: 'insert.page-break', icon: 'file-plus' },
         { command: 'insert.column-break', icon: 'columns' },
         { command: 'page.columns', icon: 'columns-2' },
@@ -3736,7 +3737,7 @@ export class HwpView extends FileView {
         { command: 'page.new-number', icon: 'list-start' },
         { command: 'page.hide', icon: 'eye-off' },
       ] },
-      { label: '표', overflow: true, tools: [
+      { label: L({ ko: '표', en: "Table" }), overflow: true, tools: [
         { command: 'table.cell-properties', icon: 'settings-2' },
         { command: 'table.insert-row-below', icon: 'rows-3' },
         { command: 'table.delete-row', icon: 'rows-2' },
@@ -3749,85 +3750,85 @@ export class HwpView extends FileView {
         { command: 'table.split-table', icon: 'separator-horizontal' },
         { command: 'table.merge-next', icon: 'merge' },
       ] },
-      { label: '입력과 개체', overflow: true, tools: [
+      { label: L({ ko: '입력과 개체', en: "Input and objects" }), overflow: true, tools: [
         { command: 'insert.endnote-shape', icon: 'settings-2' },
         { command: 'insert.bookmark', icon: 'bookmark' },
         { command: 'object.rotate', icon: 'rotate-cw' },
         { command: 'object.z-front', icon: 'bring-to-front' },
         { command: 'object.group', icon: 'group' },
       ] },
-      { label: '배율', overflow: true, tools: [
+      { label: L({ ko: '배율', en: "Zoom" }), overflow: true, tools: [
         { command: 'view.fit-width', icon: 'move-horizontal' },
         { command: 'view.fit-page', icon: 'maximize' },
       ] },
     ], id => this.runEditorCommand(id), (button, icon) => setIcon(button, icon));
-    this.storyToolbar = mountCommandToolbar(toolbar, this.commandRegistry, [{ label: '본문 밖 영역 편집', tools: [
-      { command: 'story.previous', icon: 'chevron-left', label: '이전' },
-      { command: 'story.next', icon: 'chevron-right', label: '다음' },
-      { command: 'story.close', icon: 'x', label: '닫기' },
-      { command: 'story.delete', icon: 'trash-2', label: '지우기' },
-      { command: 'story.page-number', icon: 'hash', label: '쪽 번호' },
-      { command: 'story.total-pages', icon: 'files', label: '총 쪽수' },
-      { command: 'story.file-name', icon: 'file-text', label: '파일 이름' },
-    ] }, { label: '추가 도구', overflow: true, tools: [] }], id => this.runEditorCommand(id), (button, icon) => setIcon(button, icon));
+    this.storyToolbar = mountCommandToolbar(toolbar, this.commandRegistry, [{ label: L({ ko: '본문 밖 영역 편집', en: "Edit non-body areas" }), tools: [
+      { command: 'story.previous', icon: 'chevron-left', label: L({ ko: '이전', en: "Previous" }) },
+      { command: 'story.next', icon: 'chevron-right', label: L({ ko: '다음', en: "Next" }) },
+      { command: 'story.close', icon: 'x', label: L({ ko: '닫기', en: "Close" }) },
+      { command: 'story.delete', icon: 'trash-2', label: L({ ko: '지우기', en: "Delete" }) },
+      { command: 'story.page-number', icon: 'hash', label: L({ ko: '쪽 번호', en: "Page number" }) },
+      { command: 'story.total-pages', icon: 'files', label: L({ ko: '총 쪽수', en: "Total pages" }) },
+      { command: 'story.file-name', icon: 'file-text', label: L({ ko: '파일 이름', en: "File name" }) },
+    ] }, { label: L({ ko: '추가 도구', en: "Additional tools" }), overflow: true, tools: [] }], id => this.runEditorCommand(id), (button, icon) => setIcon(button, icon));
     this.storyToolbar.element.hidden = true;
     this.statusEl = this.contentEl.createDiv({ cls: 'hwp-status', attr: { role: 'status', 'aria-live': 'polite' } });
-    this.statusPageButton = this.button(this.statusEl, '1/1쪽', () => this.runEditorCommand('view.go-to-page'));
-    if (this.statusPageButton) this.statusPageButton.setAttribute('aria-label', '쪽 번호로 이동');
+    this.statusPageButton = this.button(this.statusEl, L({ ko: '1/1쪽', en: "Page 1/1" }), () => this.runEditorCommand('view.go-to-page'));
+    if (this.statusPageButton) this.statusPageButton.setAttribute('aria-label', L({ ko: '쪽 번호로 이동', en: "Go to page number" }));
     this.statusTextEl = this.statusEl.createSpan({ cls: 'hwp-status-text' });
     // The save/activity state never shrinks: a narrow tab ellipsizes the context text before it hides whether the document is saved.
     this.statusActivityEl = this.statusEl.createSpan({ cls: 'hwp-status-activity' });
     this.autosaveStatusEl = this.statusEl.createSpan({ cls: 'hwp-autosave-status', attr: { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' } });
     this.autosaveStatusEl.hidden = true;
-    this.statusBannersEl = this.contentEl.createDiv({ cls: 'hwp-status-banners', attr: { role: 'region', 'aria-label': '문서 상태 알림' } });
+    this.statusBannersEl = this.contentEl.createDiv({ cls: 'hwp-status-banners', attr: { role: 'region', 'aria-label': L({ ko: '문서 상태 알림', en: "Document status" }) } });
     this.statusBannersEl.hidden = true;
     this.layoutWarningEl = this.statusBannersEl.createDiv({ cls: 'hwp-layout-warning', attr: { role: 'status', 'aria-live': 'polite' } });
-    this.layoutWarningEl.setText('미주 위치와 쪽 나눔은 한컴 한글과 다를 수 있습니다. 최종 페이지를 확인할 때 한컴 한글에서 다시 여세요.');
+    this.layoutWarningEl.setText(L({ ko: '미주 위치와 쪽 나눔은 한컴 한글과 다를 수 있습니다. 최종 페이지를 확인할 때 한컴 한글에서 다시 여세요.', en: "Endnote positions and page breaks may differ from Hancom Hangul. Reopen in Hancom Hangul to verify final pages." }));
     this.layoutWarningEl.hidden = true;
-    this.resolutionPanel = this.statusBannersEl.createDiv({ cls: 'hwp-resolution-panel', attr: { role: 'group', 'aria-label': '저장, 충돌 및 복구 작업' } });
+    this.resolutionPanel = this.statusBannersEl.createDiv({ cls: 'hwp-resolution-panel', attr: { role: 'group', 'aria-label': L({ ko: '저장, 충돌 및 복구 작업', en: "Save, conflict, and recovery operations" }) } });
     this.resolutionMessage = this.resolutionPanel.createDiv({ cls: 'hwp-resolution-message', attr: { role: 'status', 'aria-live': 'polite' } });
     const resolutionActions = this.resolutionPanel.createDiv({ cls: 'hwp-edit-actions' });
-    this.compareChangesButton = this.button(resolutionActions, '변경 비교', () => this.showDocumentChanges());
-    this.saveCopyButton = this.button(resolutionActions, '변경본을 새 파일로 저장', () => this.saveAs());
-    this.reloadConflictButton = this.button(resolutionActions, '디스크에서 다시 불러오기', () => this.reloadFromDisk());
-    this.recoverInputButton = this.button(resolutionActions, '입력 복구 목록', () => this.openInputRecovery());
+    this.compareChangesButton = this.button(resolutionActions, L({ ko: '변경 비교', en: "Compare changes" }), () => this.showDocumentChanges());
+    this.saveCopyButton = this.button(resolutionActions, L({ ko: '변경본을 새 파일로 저장', en: "Save changes to a new file" }), () => this.saveAs());
+    this.reloadConflictButton = this.button(resolutionActions, L({ ko: '디스크에서 다시 불러오기', en: "Reload from disk" }), () => this.reloadFromDisk());
+    this.recoverInputButton = this.button(resolutionActions, L({ ko: '입력 복구 목록', en: "Input recovery list" }), () => this.openInputRecovery());
     this.resolutionPanel.hidden = true;
     // AI edits a person has not looked through yet. The marks are a review aid; saving stays a separate decision.
-    this.editMarksEl = this.statusBannersEl.createDiv({ cls: 'hwp-edit-marks-banner', attr: { role: 'group', 'aria-label': '검토하지 않은 AI 편집' } });
+    this.editMarksEl = this.statusBannersEl.createDiv({ cls: 'hwp-edit-marks-banner', attr: { role: 'group', 'aria-label': L({ ko: '검토하지 않은 AI 편집', en: "Unreviewed AI edits" }) } });
     this.editMarksTextEl = this.editMarksEl.createSpan({ cls: 'hwp-edit-marks-text', attr: { role: 'status', 'aria-live': 'polite' } });
-    this.button(this.editMarksEl, '위치 보기', () => this.revealNextEditMark());
-    this.button(this.editMarksEl, '검토 완료', () => { if (this.path) this.plugin.editMarks.clear(this.path); });
+    this.button(this.editMarksEl, L({ ko: '위치 보기', en: "Reveal location" }), () => this.revealNextEditMark());
+    this.button(this.editMarksEl, L({ ko: '검토 완료', en: "Mark reviewed" }), () => { if (this.path) this.plugin.editMarks.clear(this.path); });
     this.editMarksEl.hidden = true;
     const layout = this.contentEl.createDiv({ cls: 'hwp-layout' });
     const preview = layout.createDiv({ cls: 'hwp-preview' });
     const navigation = preview.createDiv({ cls: 'hwp-navigation' });
-    this.button(navigation, '이전 쪽', () => this.runEditorCommand('view.previous-page'));
+    this.button(navigation, L({ ko: '이전 쪽', en: "Previous page" }), () => this.runEditorCommand('view.previous-page'));
     this.pageLabel = navigation.createSpan({ attr: { role: 'status', 'aria-live': 'polite' } });
-    this.button(navigation, '다음 쪽', () => this.runEditorCommand('view.next-page'));
-    this.pageInput = navigation.createEl('input', { type: 'number', value: '1', cls: 'hwp-page-number', attr: { min: '1', step: '1', 'aria-label': '이동할 쪽 번호' } });
-    this.button(navigation, '쪽 이동', () => this.goToPage());
+    this.button(navigation, L({ ko: '다음 쪽', en: "Next page" }), () => this.runEditorCommand('view.next-page'));
+    this.pageInput = navigation.createEl('input', { type: 'number', value: '1', cls: 'hwp-page-number', attr: { min: '1', step: '1', 'aria-label': L({ ko: '이동할 쪽 번호', en: "Page number to navigate to" }) } });
+    this.button(navigation, L({ ko: '쪽 이동', en: "Go to page" }), () => this.goToPage());
     this.pageInput.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); void this.guard(() => this.goToPage()); } };
-    this.sectionGotoSelect = navigation.createEl('select', { attr: { 'aria-label': '이동할 구역' } });
-    this.button(navigation, '구역 이동', () => this.goToSection());
-    this.button(navigation, '폭 맞춤', () => this.runEditorCommand('view.fit-width'));
-    this.button(navigation, '쪽 맞춤', () => this.runEditorCommand('view.fit-page'));
-    this.zoomPreset = navigation.createEl('select', { cls: 'hwp-zoom-preset', attr: { 'aria-label': '미리보기 배율 프리셋' } });
+    this.sectionGotoSelect = navigation.createEl('select', { attr: { 'aria-label': L({ ko: '이동할 구역', en: "Section to navigate to" }) } });
+    this.button(navigation, L({ ko: '구역 이동', en: "Go to section" }), () => this.goToSection());
+    this.button(navigation, L({ ko: '폭 맞춤', en: "Fit width" }), () => this.runEditorCommand('view.fit-width'));
+    this.button(navigation, L({ ko: '쪽 맞춤', en: "Fit page" }), () => this.runEditorCommand('view.fit-page'));
+    this.zoomPreset = navigation.createEl('select', { cls: 'hwp-zoom-preset', attr: { 'aria-label': L({ ko: '미리보기 배율 프리셋', en: "Preview zoom presets" }) } });
     for (const [value, label] of [
-      ['fit-width', '폭 맞춤'], ['fit-page', '쪽 맞춤'], ['50', '50%'], ['75', '75%'], ['100', '100%'],
-      ['125', '125%'], ['150', '150%'], ['200', '200%'], ['300', '300%'], ['400', '400%'], ['500', '500%'], ['custom', '사용자 지정'],
+      ['fit-width', L({ ko: '폭 맞춤', en: "Fit width" })], ['fit-page', L({ ko: '쪽 맞춤', en: "Fit page" })], ['50', '50%'], ['75', '75%'], ['100', '100%'],
+      ['125', '125%'], ['150', '150%'], ['200', '200%'], ['300', '300%'], ['400', '400%'], ['500', '500%'], ['custom', L({ ko: '사용자 지정', en: "Custom" })],
     ]) this.zoomPreset.createEl('option', { value, text: label });
     this.zoomPreset.onchange = () => this.applyZoomPreset(this.zoomPreset.value);
-    this.zoomInput = navigation.createEl('input', { type: 'range', value: '100', cls: 'hwp-zoom-input', attr: { min: '50', max: '500', step: '10', 'aria-label': '미리보기 배율' } });
-    this.zoomLabel = navigation.createSpan({ text: '폭 맞춤', attr: { role: 'status', 'aria-live': 'polite' } });
+    this.zoomInput = navigation.createEl('input', { type: 'range', value: '100', cls: 'hwp-zoom-input', attr: { min: '50', max: '500', step: '10', 'aria-label': L({ ko: '미리보기 배율', en: "Preview zoom" }) } });
+    this.zoomLabel = navigation.createSpan({ text: L({ ko: '폭 맞춤', en: "Fit width" }), attr: { role: 'status', 'aria-live': 'polite' } });
     this.zoomInput.oninput = () => {
       this.zoomMode = 'custom';
       this.pageStack?.setScale(Number(this.zoomInput.value));
     };
-    this.button(navigation, '−', () => this.runEditorCommand('view.zoom-out')).setAttr('aria-label', '축소');
-    this.button(navigation, '+', () => this.runEditorCommand('view.zoom-in')).setAttr('aria-label', '확대');
+    this.button(navigation, '−', () => this.runEditorCommand('view.zoom-out')).setAttr('aria-label', L({ ko: '축소', en: "Zoom out" }));
+    this.button(navigation, '+', () => this.runEditorCommand('view.zoom-in')).setAttr('aria-label', L({ ko: '확대', en: "Zoom in" }));
     this.statusEl.append(navigation);
     const displayOptions = preview.createEl('details', { cls: 'hwp-view-options' });
-    displayOptions.createEl('summary', { text: '쪽 표시 옵션' });
+    displayOptions.createEl('summary', { text: L({ ko: '쪽 표시 옵션', en: "Page display options" }) });
     const displayControls = displayOptions.createDiv({ cls: 'hwp-edit-search-options' });
     const addDisplayOption = (key: keyof PageRenderOptions, label: string): void => {
       const optionLabel = displayControls.createEl('label', { cls: 'hwp-check-label' });
@@ -3840,10 +3841,10 @@ export class HwpView extends FileView {
         void this.pageStack?.invalidateAll();
       });
     };
-    addDisplayOption('showParagraphMarks', '문단 부호');
-    addDisplayOption('showControlCodes', '조판 부호');
-    addDisplayOption('showTransparentBorders', '투명 선');
-    addDisplayOption('showOverflow', '잘림 보기');
+    addDisplayOption('showParagraphMarks', L({ ko: '문단 부호', en: "Paragraph marks" }));
+    addDisplayOption('showControlCodes', L({ ko: '조판 부호', en: "Control codes" }));
+    addDisplayOption('showTransparentBorders', L({ ko: '투명 선', en: "Transparent borders" }));
+    addDisplayOption('showOverflow', L({ ko: '잘림 보기', en: "Show clipping" }));
     this.previewEl = preview;
     const rulerHost = preview.createDiv({ cls: 'hwp-ruler-host', attr: { 'aria-hidden': 'true' } });
     const horizontalRuler = rulerHost.createEl('canvas', { cls: 'hwp-ruler hwp-ruler-h' });
@@ -3851,7 +3852,7 @@ export class HwpView extends FileView {
     const verticalRuler = scrollRow.createEl('canvas', { cls: 'hwp-ruler hwp-ruler-v', attr: { 'aria-hidden': 'true' } });
     this.rulers = new PageRulers(horizontalRuler, verticalRuler);
     preview.toggleClass('hwp-ruler-on', this.rulerVisible);
-    const scroll = this.pageScroll = scrollRow.createDiv({ cls: 'hwp-page-scroll', attr: { role: 'region', tabindex: '0', 'aria-label': '문서 쪽 미리보기. 스크롤해 문서 쪽을 보고 편집할 대상을 선택할 수 있습니다.' } });
+    const scroll = this.pageScroll = scrollRow.createDiv({ cls: 'hwp-page-scroll', attr: { role: 'region', tabindex: '0', 'aria-label': L({ ko: '문서 쪽 미리보기. 스크롤해 문서 쪽을 보고 편집할 대상을 선택할 수 있습니다.', en: "Document page preview. Scroll through pages and select targets to edit." }) } });
     this.pageImages = new SvgPageImages(this.contentEl.ownerDocument);
     this.pageStack = new PageStack(scroll, {
       onActivate: (page, element) => this.onActivePageChanged(page, element),
@@ -3893,14 +3894,14 @@ export class HwpView extends FileView {
       if (page === undefined || !event.dataTransfer?.types.includes('Files')) return;
       event.preventDefault();
       const image = Array.from(event.dataTransfer.files).map(file => this.clipboardImage(file)).find((file): file is File => !!file);
-      if (!image) { new Notice('PNG, JPG, GIF, BMP 그림 파일을 쪽 위에 놓으세요.'); return; }
+      if (!image) { new Notice(L({ ko: 'PNG, JPG, GIF, BMP 그림 파일을 쪽 위에 놓으세요.', en: "Drop a PNG, JPG, GIF, or BMP picture onto the page." })); return; }
       void this.guard(async () => {
-        if (this.draft || this.composing) throw new Error('입력을 적용하고 한글 조합을 마친 뒤 그림을 놓으세요.');
+        if (this.draft || this.composing) throw new Error(L({ ko: '입력을 적용하고 한글 조합을 마친 뒤 그림을 놓으세요.', en: "Apply input and finish Korean IME composition before dropping a picture." }));
         await this.pageStack?.setActivePage(page);
         const position = await this.selectPageTarget(event, undefined, undefined, true, page);
-        if (!position) throw new Error('그림을 넣을 본문 문단 위치를 찾지 못했습니다.');
+        if (!position) throw new Error(L({ ko: '그림을 넣을 본문 문단 위치를 찾지 못했습니다.', en: "Could not locate a body paragraph for picture insertion." }));
         if (position.address.kind !== 'body' || position.address.cellPath?.length || position.address.containerKinds?.includes('textBox')) {
-          throw new Error('그림 파일은 글상자나 표 셀이 아닌 본문 문단에 놓으세요.');
+          throw new Error(L({ ko: '그림 파일은 글상자나 표 셀이 아닌 본문 문단에 놓으세요.', en: "Drop pictures onto body paragraphs, not text boxes or table cells." }));
         }
         await this.insertPicture(image);
       });
@@ -3926,27 +3927,27 @@ export class HwpView extends FileView {
       });
     });
     const editor = layout.createDiv({ cls: 'hwp-edit-panel' });
-    editor.createEl('h3', { text: '내용 편집' });
-    editor.createEl('p', { cls: 'hwp-hint', text: '페이지에서 문단을 클릭하거나 드래그해 바로 편집하세요. 입력은 짧은 입력 묶음 뒤 문서에 자동 반영되고 Ctrl+Z로 되돌릴 수 있습니다. 한글 조합은 조합이 끝난 뒤 반영합니다. Enter는 문단을 나누고, 문단 앞뒤의 Backspace/Delete는 이웃 문단과 병합합니다.' });
-    const mode = this.modeSelector = editor.createEl('select', { attr: { 'aria-label': '편집 대상 종류' } });
-    for (const [value, label] of [['paragraphs', '본문 문단'], ['cells', '표 셀'], ['stories', '본문 밖 영역'], ['fields', '누름틀 / 필드']]) mode.createEl('option', { value, text: label });
+    editor.createEl('h3', { text: L({ ko: '내용 편집', en: "Edit content" }) });
+    editor.createEl('p', { cls: 'hwp-hint', text: L({ ko: '페이지에서 문단을 클릭하거나 드래그해 바로 편집하세요. 입력은 짧은 입력 묶음 뒤 문서에 자동 반영되고 Ctrl+Z로 되돌릴 수 있습니다. 한글 조합은 조합이 끝난 뒤 반영합니다. Enter는 문단을 나누고, 문단 앞뒤의 Backspace/Delete는 이웃 문단과 병합합니다.', en: "Click or drag over page paragraphs to edit directly. Input is automatically applied after short input batches and can be undone with Ctrl+Z. Korean IME input is applied after composition ends. Enter splits paragraphs; Backspace/Delete at paragraph boundaries merges neighboring paragraphs." }) });
+    const mode = this.modeSelector = editor.createEl('select', { attr: { 'aria-label': L({ ko: '편집 대상 종류', en: "Edit target type" }) } });
+    for (const [value, label] of [['paragraphs', L({ ko: '본문 문단', en: "Body paragraph" })], ['cells', L({ ko: '표 셀', en: "Table cell" })], ['stories', L({ ko: '본문 밖 영역', en: "Non-body area" })], ['fields', L({ ko: '누름틀 / 필드', en: "Input field / Field" })]]) mode.createEl('option', { value, text: label });
     mode.onchange = () => {
-      if (this.formMode) { mode.value = 'fields'; new Notice('양식 모드에서는 누름틀만 이동할 수 있습니다.'); return; }
-      if (this.draft || this.composing) { mode.value = this.mode; new Notice('편집 중인 내용을 적용하거나 취소하세요.'); return; }
+      if (this.formMode) { mode.value = 'fields'; new Notice(L({ ko: '양식 모드에서는 누름틀만 이동할 수 있습니다.', en: "Form mode permits navigating only among input fields." })); return; }
+      if (this.draft || this.composing) { mode.value = this.mode; new Notice(L({ ko: '편집 중인 내용을 적용하거나 취소하세요.', en: "Apply or cancel the content being edited." })); return; }
       this.mode = mode.value as typeof this.mode; void this.refresh();
     };
-    this.selector = editor.createEl('select', { cls: 'hwp-target-select', attr: { 'aria-label': '편집할 문단 또는 셀' } });
+    this.selector = editor.createEl('select', { cls: 'hwp-target-select', attr: { 'aria-label': L({ ko: '편집할 문단 또는 셀', en: "Paragraph or cell to edit" }) } });
     this.selector.onchange = () => {
-      if (this.draft || this.composing) { this.selector.value = String(this.items.indexOf(this.selected!)); new Notice('편집 중인 내용을 적용하거나 취소하세요.'); return; }
+      if (this.draft || this.composing) { this.selector.value = String(this.items.indexOf(this.selected!)); new Notice(L({ ko: '편집 중인 내용을 적용하거나 취소하세요.', en: "Apply or cancel the content being edited." })); return; }
       this.selectItem(Number(this.selector.value), false);
     };
     const itemPaging = editor.createDiv({ cls: 'hwp-edit-actions hwp-item-paging' });
-    this.itemPagePrevious = this.button(itemPaging, '이전 100개', () => { this.itemPage--; this.renderItemPage(); });
+    this.itemPagePrevious = this.button(itemPaging, L({ ko: '이전 100개', en: "Previous 100" }), () => { this.itemPage--; this.renderItemPage(); });
     this.itemPageStatus = itemPaging.createSpan({ attr: { role: 'status', 'aria-live': 'polite' } });
-    this.itemPageNext = this.button(itemPaging, '다음 100개', () => { this.itemPage++; this.renderItemPage(); });
+    this.itemPageNext = this.button(itemPaging, L({ ko: '다음 100개', en: "Next 100" }), () => { this.itemPage++; this.renderItemPage(); });
     this.infoEl = editor.createDiv({ cls: 'hwp-target-info', attr: { role: 'status', 'aria-live': 'polite', tabindex: '-1' } });
     this.textareaHome = editor.createDiv({ cls: 'hwp-text-input-home' });
-    this.textarea = this.textareaHome.createEl('textarea', { cls: 'hwp-text-input', attr: { 'aria-label': '문서 내용', spellcheck: 'false' } });
+    this.textarea = this.textareaHome.createEl('textarea', { cls: 'hwp-text-input', attr: { 'aria-label': L({ ko: '문서 내용', en: "Document content" }), spellcheck: 'false' } });
     this.textarea.addEventListener('focus', () => this.contentEl.addClass('hwp-selection-active'));
     this.textarea.addEventListener('blur', () => this.contentEl.removeClass('hwp-selection-active'));
     this.textarea.addEventListener('compositionstart', () => {
@@ -3998,87 +3999,87 @@ export class HwpView extends FileView {
       setTimeout(() => { if (path && path === this.path && generation === this.generation && !this.composing) this.syncPageSelectionFromTextarea(); }, 0);
     });
     const apply = editor.createDiv({ cls: 'hwp-edit-actions' });
-    this.button(apply, '변경 적용', () => this.applyDraft());
-    this.button(apply, '입력 취소', async () => {
-      if (this.composing) throw new Error('한글 조합을 마친 뒤 입력을 취소하세요.');
+    this.button(apply, L({ ko: '변경 적용', en: "Apply changes" }), () => this.applyDraft());
+    this.button(apply, L({ ko: '입력 취소', en: "Cancel input" }), async () => {
+      if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 입력을 취소하세요.', en: "Finish Korean IME composition before cancelling input." }));
       const unlock = this.lockInput();
       try { await this.discardAutosavedDraft(); this.draft = false; await this.refresh(); }
       finally { unlock(); }
     });
     this.toolReasonEl = editor.createDiv({ cls: 'hwp-tool-reason', attr: { role: 'status', 'aria-live': 'polite' } });
-    const format = this.toolDetails(editor, '글자 · 문단 · 목록 · 스타일');
+    const format = this.toolDetails(editor, L({ ko: '글자 · 문단 · 목록 · 스타일', en: "Characters · Paragraphs · Lists · Styles" }));
     this.formatStateEl = format.createDiv({ cls: 'hwp-format-state', attr: { 'aria-live': 'polite' } });
     const character = format.createDiv({ cls: 'hwp-edit-actions' });
-    for (const [key, label] of [['bold', '굵게'], ['italic', '기울임'], ['underline', '밑줄'], ['strikethrough', '취소선']] as const) {
+    for (const [key, label] of [['bold', L({ ko: '굵게', en: "Bold" })], ['italic', L({ ko: '기울임', en: "Italic" })], ['underline', L({ ko: '밑줄', en: "Underline" })], ['strikethrough', L({ ko: '취소선', en: "Strikethrough" })]] as const) {
       // Hancom's 가 glyphs: the face shows the effect and the accessible name says it.
-      const button = this.toolButton(character, '가', 'text', () => this.runEditorCommand(`format.${key}`));
+      const button = this.toolButton(character, L({ ko: '가', en: "A" }), 'text', () => this.runEditorCommand(`format.${key}`));
       const shortcut = this.commandRegistry.get(`format.${key}`)?.shortcut;
       button.classList.add('hwp-format-glyph', `hwp-format-glyph-${key}`);
       button.setAttribute('aria-label', label);
       button.title = shortcut ? `${label} (${shortcut})` : label;
       this.characterButtons.set(key, button);
     }
-    this.toolButton(character, '서식 해제', 'text', () => this.formatSelection({ bold: false, italic: false, underline: false, strikethrough: false }));
-    this.toolButton(character, '모양 복사', 'text', () => this.runEditorCommand('format.copy-style'));
-    this.applyCopiedStyleButton = this.toolButton(character, '모양 붙이기', 'text', () => this.runEditorCommand('format.apply-copied-style'));
+    this.toolButton(character, L({ ko: '서식 해제', en: "Clear formatting" }), 'text', () => this.formatSelection({ bold: false, italic: false, underline: false, strikethrough: false }));
+    this.toolButton(character, L({ ko: '모양 복사', en: "Copy formatting" }), 'text', () => this.runEditorCommand('format.copy-style'));
+    this.applyCopiedStyleButton = this.toolButton(character, L({ ko: '모양 붙이기', en: "Paste formatting" }), 'text', () => this.runEditorCommand('format.apply-copied-style'));
     const fontRow = format.createDiv({ cls: 'hwp-edit-actions' });
-    this.fontSizeInput = this.feature(fontRow.createEl('input', { type: 'number', value: '12', attr: { min: 1, max: 1000, step: '0.5', 'aria-label': '글자 크기 (pt)' } }), 'text');
+    this.fontSizeInput = this.feature(fontRow.createEl('input', { type: 'number', value: '12', attr: { min: 1, max: 1000, step: '0.5', 'aria-label': L({ ko: '글자 크기 (pt)', en: "Font size (pt)" }) } }), 'text');
     this.fontSizeInput.onchange = () => void this.guard(() => this.formatSelection({ fontSize: Number(this.fontSizeInput.value) }));
-    this.toolButton(fontRow, '크기 −', 'text', () => this.runEditorCommand('format.font-size-decrease'));
-    this.toolButton(fontRow, '크기 +', 'text', () => this.runEditorCommand('format.font-size-increase'));
-    this.fontFamilyInput = this.feature(fontRow.createEl('input', { type: 'text', attr: { placeholder: '글꼴 이름', 'aria-label': '글꼴 이름' } }), 'text');
+    this.toolButton(fontRow, L({ ko: '크기 −', en: "Size −" }), 'text', () => this.runEditorCommand('format.font-size-decrease'));
+    this.toolButton(fontRow, L({ ko: '크기 +', en: "Size +" }), 'text', () => this.runEditorCommand('format.font-size-increase'));
+    this.fontFamilyInput = this.feature(fontRow.createEl('input', { type: 'text', attr: { placeholder: L({ ko: '글꼴 이름', en: "Font name" }), 'aria-label': L({ ko: '글꼴 이름', en: "Font name" }) } }), 'text');
     this.fontFamilyInput.onchange = () => void this.guard(() => this.formatSelection({ fontFamily: this.fontFamilyInput.value.trim(), ...(this.fontLanguageSelect.value === 'all' ? {} : { fontLanguage: Number(this.fontLanguageSelect.value) }) }));
     const fontListId = `hwp-font-list-${randomUUID()}`;
     this.fontFamilyInput.setAttribute('list', fontListId);
     this.fontFamilySuggestions = fontRow.createEl('datalist', { attr: { id: fontListId } });
-    this.toolButton(fontRow, '설치 글꼴 목록', 'text', () => this.loadSystemFonts());
-    this.fontColorInput = this.feature(fontRow.createEl('input', { type: 'color', value: '#000000', attr: { 'aria-label': '글자 색상' } }), 'text');
+    this.toolButton(fontRow, L({ ko: '설치 글꼴 목록', en: "Installed fonts" }), 'text', () => this.loadSystemFonts());
+    this.fontColorInput = this.feature(fontRow.createEl('input', { type: 'color', value: '#000000', attr: { 'aria-label': L({ ko: '글자 색상', en: "Text color" }) } }), 'text');
     this.fontColorInput.onchange = () => void this.guard(() => this.formatSelection({ textColor: this.fontColorInput.value }));
-    this.highlightColorInput = this.feature(fontRow.createEl('input', { type: 'color', value: '#ffff00', attr: { 'aria-label': '형광펜 색상' } }), 'text');
+    this.highlightColorInput = this.feature(fontRow.createEl('input', { type: 'color', value: '#ffff00', attr: { 'aria-label': L({ ko: '형광펜 색상', en: "Highlight color" }) } }), 'text');
     this.highlightColorInput.onchange = () => void this.guard(() => this.formatSelection({ shadeColor: this.highlightColorInput.value }));
-    this.toolButton(fontRow, '형광펜 없음', 'text', () => this.formatSelection({ shadeColor: '#ffffff' }));
+    this.toolButton(fontRow, L({ ko: '형광펜 없음', en: "No highlight" }), 'text', () => this.formatSelection({ shadeColor: '#ffffff' }));
     const paragraphFormat = format.createDiv({ cls: 'hwp-tool-grid' });
-    this.alignmentSelect = this.feature(paragraphFormat.createEl('select', { attr: { 'aria-label': '문단 정렬' } }), 'paragraph');
+    this.alignmentSelect = this.feature(paragraphFormat.createEl('select', { attr: { 'aria-label': L({ ko: '문단 정렬', en: "Paragraph alignment" }) } }), 'paragraph');
     // Mixed or unread alignment selects this placeholder instead of leaving the box blank; it cannot be chosen.
-    this.alignmentSelect.createEl('option', { value: '', text: '정렬 혼합 / 미확인', attr: { disabled: true, hidden: true } });
-    for (const [value, label] of [['left', '왼쪽 정렬'], ['center', '가운데 정렬'], ['right', '오른쪽 정렬'], ['justify', '양쪽 정렬'], ['distribute', '배분 정렬'], ['split', '나눔 정렬']] as const) this.alignmentSelect.createEl('option', { value, text: label });
+    this.alignmentSelect.createEl('option', { value: '', text: L({ ko: '정렬 혼합 / 미확인', en: "Mixed / unverified alignment" }), attr: { disabled: true, hidden: true } });
+    for (const [value, label] of [['left', L({ ko: '왼쪽 정렬', en: "Align left" })], ['center', L({ ko: '가운데 정렬', en: "Align center" })], ['right', L({ ko: '오른쪽 정렬', en: "Align right" })], ['justify', L({ ko: '양쪽 정렬', en: "Justify" })], ['distribute', L({ ko: '배분 정렬', en: "Distribute" })], ['split', L({ ko: '나눔 정렬', en: "Split alignment" })]] as const) this.alignmentSelect.createEl('option', { value, text: label });
     this.alignmentSelect.onchange = () => { if (this.alignmentSelect.value) void this.guard(() => this.paragraphFormat(this.alignmentSelect.value as ParagraphAlignment)); };
-    this.paragraphIndentInput = this.feature(paragraphFormat.createEl('input', { type: 'number', value: '0', attr: { step: '0.1', 'aria-label': '들여쓰기 (mm)', title: '들여쓰기 (mm)' } }), 'paragraph');
-    this.paragraphSpacingBeforeInput = this.feature(paragraphFormat.createEl('input', { type: 'number', value: '0', attr: { min: '0', step: '0.1', 'aria-label': '앞 간격 (mm)', title: '문단 앞 간격 (mm)' } }), 'paragraph');
-    this.paragraphSpacingAfterInput = this.feature(paragraphFormat.createEl('input', { type: 'number', value: '0', attr: { min: '0', step: '0.1', 'aria-label': '뒤 간격 (mm)', title: '문단 뒤 간격 (mm)' } }), 'paragraph');
-    this.paragraphLineSpacingInput = this.feature(paragraphFormat.createEl('input', { type: 'number', value: '100', attr: { min: '0', step: '1', 'aria-label': '줄 간격 값 (%)', title: '줄 간격 값' } }), 'paragraph');
-    this.paragraphLineSpacingTypeSelect = this.feature(paragraphFormat.createEl('select', { attr: { 'aria-label': '줄 간격 기준' } }), 'paragraph');
-    for (const [value, label] of [['Percent', '퍼센트'], ['Fixed', '고정'], ['SpaceOnly', '여백만 지정'], ['Minimum', '최소']]) this.paragraphLineSpacingTypeSelect.createEl('option', { value, text: label });
+    this.paragraphIndentInput = this.feature(paragraphFormat.createEl('input', { type: 'number', value: '0', attr: { step: '0.1', 'aria-label': L({ ko: '들여쓰기 (mm)', en: "Indent (mm)" }), title: L({ ko: '들여쓰기 (mm)', en: "Indent (mm)" }) } }), 'paragraph');
+    this.paragraphSpacingBeforeInput = this.feature(paragraphFormat.createEl('input', { type: 'number', value: '0', attr: { min: '0', step: '0.1', 'aria-label': L({ ko: '앞 간격 (mm)', en: "Space before (mm)" }), title: L({ ko: '문단 앞 간격 (mm)', en: "Space before paragraph (mm)" }) } }), 'paragraph');
+    this.paragraphSpacingAfterInput = this.feature(paragraphFormat.createEl('input', { type: 'number', value: '0', attr: { min: '0', step: '0.1', 'aria-label': L({ ko: '뒤 간격 (mm)', en: "Space after (mm)" }), title: L({ ko: '문단 뒤 간격 (mm)', en: "Space after paragraph (mm)" }) } }), 'paragraph');
+    this.paragraphLineSpacingInput = this.feature(paragraphFormat.createEl('input', { type: 'number', value: '100', attr: { min: '0', step: '1', 'aria-label': L({ ko: '줄 간격 값 (%)', en: "Line spacing value (%)" }), title: L({ ko: '줄 간격 값', en: "Line spacing value" }) } }), 'paragraph');
+    this.paragraphLineSpacingTypeSelect = this.feature(paragraphFormat.createEl('select', { attr: { 'aria-label': L({ ko: '줄 간격 기준', en: "Line spacing mode" }) } }), 'paragraph');
+    for (const [value, label] of [['Percent', L({ ko: '퍼센트', en: "Percentage" })], ['Fixed', L({ ko: '고정', en: "Fixed" })], ['SpaceOnly', L({ ko: '여백만 지정', en: "Spacing only" })], ['Minimum', L({ ko: '최소', en: "Minimum" })]]) this.paragraphLineSpacingTypeSelect.createEl('option', { value, text: label });
     this.paragraphLineSpacingUnit = paragraphFormat.createEl('span', { cls: 'hwp-paragraph-unit-label', text: '%' });
     this.paragraphLineSpacingTypeSelect.onchange = () => {
       const percentMode = this.paragraphLineSpacingTypeSelect.value === 'Percent';
       const wasPercent = this.paragraphLineSpacingUnit.textContent === '%';
       this.paragraphLineSpacingUnit.setText(percentMode ? '%' : 'pt');
       this.paragraphLineSpacingInput.step = percentMode ? '1' : '0.1';
-      this.paragraphLineSpacingInput.setAttribute('aria-label', `줄 간격 값 (${percentMode ? '%' : 'pt'})`);
+      this.paragraphLineSpacingInput.setAttribute('aria-label', LT({ ko: () => `줄 간격 값 (${percentMode ? '%' : 'pt'})`, en: () => `Line spacing value (${percentMode ? '%' : 'pt'})` }));
       if (percentMode !== wasPercent) this.paragraphLineSpacingInput.value = percentMode ? '100' : '12';
     };
-    this.lineSpacingDecreaseButton = this.toolButton(paragraphFormat, '줄 간격 −', 'paragraph', () => this.runEditorCommand('format.line-spacing-decrease'));
-    this.lineSpacingIncreaseButton = this.toolButton(paragraphFormat, '줄 간격 +', 'paragraph', () => this.runEditorCommand('format.line-spacing-increase'));
-    this.toolButton(paragraphFormat, '문단 속성 적용', 'paragraph', () => this.applyParagraphProperties());
-    this.styleSelect = this.feature(format.createEl('select', { attr: { 'aria-label': '문단 스타일' } }), 'style');
-    this.styleSelect.createEl('option', { value: '', text: '문단 스타일 선택' });
+    this.lineSpacingDecreaseButton = this.toolButton(paragraphFormat, L({ ko: '줄 간격 −', en: "Line spacing −" }), 'paragraph', () => this.runEditorCommand('format.line-spacing-decrease'));
+    this.lineSpacingIncreaseButton = this.toolButton(paragraphFormat, L({ ko: '줄 간격 +', en: "Line spacing +" }), 'paragraph', () => this.runEditorCommand('format.line-spacing-increase'));
+    this.toolButton(paragraphFormat, L({ ko: '문단 속성 적용', en: "Apply paragraph properties" }), 'paragraph', () => this.applyParagraphProperties());
+    this.styleSelect = this.feature(format.createEl('select', { attr: { 'aria-label': L({ ko: '문단 스타일', en: "paragraph style" }) } }), 'style');
+    this.styleSelect.createEl('option', { value: '', text: L({ ko: '문단 스타일 선택', en: "Select paragraph style" }) });
     this.styleSelect.onchange = () => { if (this.styleSelect.value) void this.guard(() => this.applyStyle(Number(this.styleSelect.value))); };
-    this.listSelect = this.feature(format.createEl('select', { attr: { 'aria-label': '목록 서식' } }), 'list');
+    this.listSelect = this.feature(format.createEl('select', { attr: { 'aria-label': L({ ko: '목록 서식', en: "List formatting" }) } }), 'list');
     this.listSelect.onchange = () => void this.guard(() => this.applyList(this.listSelect.value));
-    this.numberingToggleButton = this.toolButton(format, '번호 목록', 'list', () => this.runEditorCommand('format.toggle-numbering'));
-    this.bulletToggleButton = this.toolButton(format, '글머리표', 'list', () => this.runEditorCommand('format.toggle-bullet'));
-    this.listLevelDownButton = this.toolButton(format, '수준 내리기', 'list', () => this.runEditorCommand('format.list-level-down'));
-    this.listLevelUpButton = this.toolButton(format, '수준 올리기', 'list', () => this.runEditorCommand('format.list-level-up'));
+    this.numberingToggleButton = this.toolButton(format, L({ ko: '번호 목록', en: "Numbered list" }), 'list', () => this.runEditorCommand('format.toggle-numbering'));
+    this.bulletToggleButton = this.toolButton(format, L({ ko: '글머리표', en: "Bullets" }), 'list', () => this.runEditorCommand('format.toggle-bullet'));
+    this.listLevelDownButton = this.toolButton(format, L({ ko: '수준 내리기', en: "Demote level" }), 'list', () => this.runEditorCommand('format.list-level-down'));
+    this.listLevelUpButton = this.toolButton(format, L({ ko: '수준 올리기', en: "Promote level" }), 'list', () => this.runEditorCommand('format.list-level-up'));
     const formatToolbar = this.contentEl.ownerDocument.createElement('div');
     formatToolbar.className = 'hwp-format-toolbar'; formatToolbar.setAttribute('role', 'toolbar');
-    formatToolbar.setAttribute('aria-label', '글자와 문단 서식'); formatToolbar.setAttribute('aria-orientation', 'horizontal');
+    formatToolbar.setAttribute('aria-label', L({ ko: '글자와 문단 서식', en: "Character and paragraph formatting" })); formatToolbar.setAttribute('aria-orientation', 'horizontal');
     const formatScroller = this.contentEl.ownerDocument.createElement('div');
     formatScroller.className = 'hwp-format-toolbar-scroll'; formatToolbar.append(formatScroller);
     const formatOverflow = this.contentEl.ownerDocument.createElement('details');
     formatOverflow.className = 'hwp-format-toolbar-overflow';
     const formatOverflowSummary = this.contentEl.ownerDocument.createElement('summary');
-    formatOverflowSummary.setAttribute('aria-label', '숨은 서식 도구'); formatOverflowSummary.textContent = '≡';
+    formatOverflowSummary.setAttribute('aria-label', L({ ko: '숨은 서식 도구', en: "Hidden formatting tools" })); formatOverflowSummary.textContent = '≡';
     const formatOverflowContent = this.contentEl.ownerDocument.createElement('div');
     formatOverflowContent.className = 'hwp-format-toolbar-overflow-content';
     formatOverflow.append(formatOverflowSummary, formatOverflowContent); formatToolbar.append(formatOverflow);
@@ -4091,11 +4092,11 @@ export class HwpView extends FileView {
     };
     const characterControls = Array.from(character.children) as HTMLElement[];
     const fontControls = Array.from(fontRow.children) as HTMLElement[];
-    const fontLanguage = this.fontLanguageSelect = format.createEl('select', { attr: { 'aria-label': '글꼴 적용 언어', title: '선택한 언어의 글꼴만 바꿉니다. 다른 언어의 글꼴은 유지합니다.' } });
-    fontLanguage.createEl('option', { value: 'all', text: '모든 언어' });
-    ['한글', '영문', '한자', '일본어', '기타', '기호', '사용자'].forEach((text, index) => fontLanguage.createEl('option', { value: String(index), text }));
+    const fontLanguage = this.fontLanguageSelect = format.createEl('select', { attr: { 'aria-label': L({ ko: '글꼴 적용 언어', en: "Font language" }), title: L({ ko: '선택한 언어의 글꼴만 바꿉니다. 다른 언어의 글꼴은 유지합니다.', en: "Changes fonts only for the selected language. Other language fonts remain unchanged." }) } });
+    fontLanguage.createEl('option', { value: 'all', text: L({ ko: '모든 언어', en: "All languages" }) });
+    [L({ ko: '한글', en: "Korean" }), L({ ko: '영문', en: "Latin" }), L({ ko: '한자', en: "Chinese characters" }), L({ ko: '일본어', en: "Japanese" }), L({ ko: '기타', en: "Other" }), L({ ko: '기호', en: "Symbols" }), L({ ko: '사용자', en: "User" })].forEach((text, index) => fontLanguage.createEl('option', { value: String(index), text }));
     fontLanguage.onchange = () => this.updateToolState();
-    this.toolbarLineSpacingSelect = this.feature(format.createEl('select', { attr: { 'aria-label': '문단 줄 간격 (%)' } }), 'paragraph');
+    this.toolbarLineSpacingSelect = this.feature(format.createEl('select', { attr: { 'aria-label': L({ ko: '문단 줄 간격 (%)', en: "Paragraph line spacing (%)" }) } }), 'paragraph');
     this.toolbarLineSpacingSelect.onchange = () => {
       if (!this.toolbarLineSpacingSelect.value) return;
       const lineSpacing = Number(this.toolbarLineSpacingSelect.value);
@@ -4108,37 +4109,37 @@ export class HwpView extends FileView {
       return button;
     });
     this.refreshHistoryButtons();
-    moveGroup('되돌리기', this.historyButtons);
-    moveGroup('스타일', [this.styleSelect]);
-    moveGroup('글꼴 적용 언어', [fontLanguage]);
-    moveGroup('글꼴', fontControls.slice(3, 6));
+    moveGroup(L({ ko: '되돌리기', en: "Undo" }), this.historyButtons);
+    moveGroup(L({ ko: '스타일', en: "Style" }), [this.styleSelect]);
+    moveGroup(L({ ko: '글꼴 적용 언어', en: "Font language" }), [fontLanguage]);
+    moveGroup(L({ ko: '글꼴', en: "Font" }), fontControls.slice(3, 6));
     const spinner = (decrease: HTMLButtonElement, increase: HTMLButtonElement, label: string): HTMLElement => {
       const controls = format.createDiv({ cls: 'hwp-format-spinner', attr: { role: 'group', 'aria-label': label } });
-      for (const [button, text, name] of [[increase, '▴', `${label} 늘리기`], [decrease, '▾', `${label} 줄이기`]] as const) {
+      for (const [button, text, name] of [[increase, '▴', LT({ ko: () => `${label} 늘리기`, en: () => `Increase ${label}` })], [decrease, '▾', LT({ ko: () => `${label} 줄이기`, en: () => `Decrease ${label}` })]] as const) {
         button.setAttribute('aria-label', name); button.title = name; button.setText(text); controls.append(button);
       }
       return controls;
     };
-    moveGroup('글자 크기', [fontControls[0], spinner(fontControls[1] as HTMLButtonElement, fontControls[2] as HTMLButtonElement, '글자 크기')]);
+    moveGroup(L({ ko: '글자 크기', en: "Font size" }), [fontControls[0], spinner(fontControls[1] as HTMLButtonElement, fontControls[2] as HTMLButtonElement, L({ ko: '글자 크기', en: "Font size" }))]);
     this.characterEffectsMenu = createCommandMenuButton(character, this.commandRegistry, {
-      label: '글자 효과', text: '효과', commands: CHARACTER_EFFECTS.map(([id]) => id),
+      label: L({ ko: '글자 효과', en: "Character effects" }), text: L({ ko: '효과', en: "Effects" }), commands: CHARACTER_EFFECTS.map(([id]) => id),
       checked: id => { const effect = CHARACTER_EFFECTS.find(([command]) => command === id)?.[1]; return effect ? this.characterEffectState(effect) : undefined; },
       run: id => this.runEditorCommand(id),
     });
     this.feature(this.characterEffectsMenu.element, 'text');
-    moveGroup('글자 모양', [...characterControls.slice(0, 4), this.characterEffectsMenu.element, this.characterEffectsMenu.menu]);
-    moveGroup('색과 형광펜', fontControls.slice(6));
+    moveGroup(L({ ko: '글자 모양', en: "Character format" }), [...characterControls.slice(0, 4), this.characterEffectsMenu.element, this.characterEffectsMenu.menu]);
+    moveGroup(L({ ko: '색과 형광펜', en: "Color and highlight" }), fontControls.slice(6));
     const alignmentControls = format.createDiv({ cls: 'hwp-alignment-buttons' });
-    for (const [value, label, icon] of [['left', '왼쪽 정렬', 'align-left'], ['center', '가운데 정렬', 'align-center'], ['right', '오른쪽 정렬', 'align-right'], ['justify', '양쪽 정렬', 'align-justify'], ['distribute', '배분 정렬', 'between-horizontal-start'], ['split', '나눔 정렬', 'between-horizontal-end']] as const) {
+    for (const [value, label, icon] of [['left', L({ ko: '왼쪽 정렬', en: "Align left" }), 'align-left'], ['center', L({ ko: '가운데 정렬', en: "Align center" }), 'align-center'], ['right', L({ ko: '오른쪽 정렬', en: "Align right" }), 'align-right'], ['justify', L({ ko: '양쪽 정렬', en: "Justify" }), 'align-justify'], ['distribute', L({ ko: '배분 정렬', en: "Distribute" }), 'between-horizontal-start'], ['split', L({ ko: '나눔 정렬', en: "Split alignment" }), 'between-horizontal-end']] as const) {
       const button = this.toolButton(alignmentControls, label, 'paragraph', () => this.runEditorCommand(`format.align-${value}`));
       button.setAttribute('aria-label', label); button.dataset.command = `format.align-${value}`;
       setIcon(button, icon); this.alignmentButtons.set(value, button);
     }
-    moveGroup('정렬', [alignmentControls]);
-    moveGroup('줄 간격', [this.toolbarLineSpacingSelect, spinner(this.lineSpacingDecreaseButton, this.lineSpacingIncreaseButton, '줄 간격')]);
-    moveGroup('목록', [this.listSelect, this.numberingToggleButton, this.bulletToggleButton, this.listLevelDownButton, this.listLevelUpButton]);
+    moveGroup(L({ ko: '정렬', en: "Sort" }), [alignmentControls]);
+    moveGroup(L({ ko: '줄 간격', en: "Line spacing" }), [this.toolbarLineSpacingSelect, spinner(this.lineSpacingDecreaseButton, this.lineSpacingIncreaseButton, L({ ko: '줄 간격', en: "Line spacing" }))]);
+    moveGroup(L({ ko: '목록', en: "Lists" }), [this.listSelect, this.numberingToggleButton, this.bulletToggleButton, this.listLevelDownButton, this.listLevelUpButton]);
     // Clearing and copying character shapes is not on Hancom's format row, so it goes last and is the first to move under ≡.
-    moveGroup('글자 기타', characterControls.slice(4));
+    moveGroup(L({ ko: '글자 기타', en: "Other character settings" }), characterControls.slice(4));
     this.statusEl.before(formatToolbar);
     const fitFormatGroups = (): void => {
       if (!formatToolbar.clientWidth) return;
@@ -4153,103 +4154,103 @@ export class HwpView extends FileView {
     this.formatToolbarResizeObserver?.observe(formatToolbar);
     fitFormatGroups();
     const structure = format.createDiv({ cls: 'hwp-edit-actions' });
-    this.toolButton(structure, '다음 문단 추가', 'createTable', () => this.runEditorCommand('insert.paragraph'));
-    this.toolButton(structure, '문단 삭제', 'createTable', () => this.deleteParagraph());
-    const tables = this.toolDetails(editor, '표와 셀');
+    this.toolButton(structure, L({ ko: '다음 문단 추가', en: "Add following paragraph" }), 'createTable', () => this.runEditorCommand('insert.paragraph'));
+    this.toolButton(structure, L({ ko: '문단 삭제', en: "Delete paragraph" }), 'createTable', () => this.deleteParagraph());
+    const tables = this.toolDetails(editor, L({ ko: '표와 셀', en: "Tables and cells" }));
     const createTableRow = tables.createDiv({ cls: 'hwp-edit-actions' });
-    createTableRow.createSpan({ text: '새 표' });
-    this.tableRowsInput = this.feature(createTableRow.createEl('input', { type: 'number', value: '2', attr: { min: 1, max: 100, 'aria-label': '표 행 수' } }), 'createTable');
-    this.tableColsInput = this.feature(createTableRow.createEl('input', { type: 'number', value: '2', attr: { min: 1, max: 100, 'aria-label': '표 열 수' } }), 'createTable');
-    this.toolButton(createTableRow, '표 추가', 'createTable', () => this.runEditorCommand('insert.table-custom'));
+    createTableRow.createSpan({ text: L({ ko: '새 표', en: "New table" }) });
+    this.tableRowsInput = this.feature(createTableRow.createEl('input', { type: 'number', value: '2', attr: { min: 1, max: 100, 'aria-label': L({ ko: '표 행 수', en: "Table row count" }) } }), 'createTable');
+    this.tableColsInput = this.feature(createTableRow.createEl('input', { type: 'number', value: '2', attr: { min: 1, max: 100, 'aria-label': L({ ko: '표 열 수', en: "Table column count" }) } }), 'createTable');
+    this.toolButton(createTableRow, L({ ko: '표 추가', en: "Add table" }), 'createTable', () => this.runEditorCommand('insert.table-custom'));
     const tableStructureActions = tables.createDiv({ cls: 'hwp-edit-actions' });
     for (const [id, label] of [
-      ['table.insert-row-above', '위에 행 삽입'], ['table.insert-row-below', '아래에 행 삽입'], ['table.delete-row', '행 삭제'],
-      ['table.insert-column-left', '왼쪽에 칸 삽입'], ['table.insert-column-right', '오른쪽에 칸 삽입'], ['table.delete-column', '칸 삭제'],
+      ['table.insert-row-above', L({ ko: '위에 행 삽입', en: "Insert row above" })], ['table.insert-row-below', L({ ko: '아래에 행 삽입', en: "Insert row below" })], ['table.delete-row', L({ ko: '행 삭제', en: "Delete row" })],
+      ['table.insert-column-left', L({ ko: '왼쪽에 칸 삽입', en: "Insert column left" })], ['table.insert-column-right', L({ ko: '오른쪽에 칸 삽입', en: "Insert column right" })], ['table.delete-column', L({ ko: '칸 삭제', en: "Delete column" })],
     ]) this.toolButton(tableStructureActions, label, 'table', () => this.runEditorCommand(id));
     const cellActions = tables.createDiv({ cls: 'hwp-edit-actions' });
-    this.mergeEndRowInput = this.feature(cellActions.createEl('input', { type: 'number', value: '1', attr: { min: 1, 'aria-label': '병합 끝 행' } }), 'table');
-    this.mergeEndColInput = this.feature(cellActions.createEl('input', { type: 'number', value: '1', attr: { min: 1, 'aria-label': '병합 끝 열' } }), 'table');
-    this.toolButton(cellActions, '선택 셀부터 범위 병합', 'table', () => this.runEditorCommand('table.merge-cells'));
-    this.toolButton(cellActions, '선택 셀 분할', 'table', () => this.runEditorCommand('table.split-cell'));
+    this.mergeEndRowInput = this.feature(cellActions.createEl('input', { type: 'number', value: '1', attr: { min: 1, 'aria-label': L({ ko: '병합 끝 행', en: "Last merge row" }) } }), 'table');
+    this.mergeEndColInput = this.feature(cellActions.createEl('input', { type: 'number', value: '1', attr: { min: 1, 'aria-label': L({ ko: '병합 끝 열', en: "Last merge column" }) } }), 'table');
+    this.toolButton(cellActions, L({ ko: '선택 셀부터 범위 병합', en: "Merge range from selected cell" }), 'table', () => this.runEditorCommand('table.merge-cells'));
+    this.toolButton(cellActions, L({ ko: '선택 셀 분할', en: "Split selected cell" }), 'table', () => this.runEditorCommand('table.split-cell'));
     const cellFormat = tables.createDiv({ cls: 'hwp-edit-actions' });
-    this.toolButton(cellFormat, '표 / 셀 속성…', 'table', () => this.runEditorCommand('table.cell-properties'));
-    const contentTools = this.toolDetails(editor, '필드 · 그림 · 수식 · 도형 · 주석');
-    contentTools.createEl('p', { cls: 'hwp-hint', text: '선택한 필드 값은 위 내용 입력란에서 수정합니다. 그림·수식·도형·각주·미주 삽입은 본문 문단에서 지원합니다.' });
+    this.toolButton(cellFormat, L({ ko: '표 / 셀 속성…', en: "Table / Cell properties…" }), 'table', () => this.runEditorCommand('table.cell-properties'));
+    const contentTools = this.toolDetails(editor, L({ ko: '필드 · 그림 · 수식 · 도형 · 주석', en: "Fields · Pictures · Equations · Shapes · Notes" }));
+    contentTools.createEl('p', { cls: 'hwp-hint', text: L({ ko: '선택한 필드 값은 위 내용 입력란에서 수정합니다. 그림·수식·도형·각주·미주 삽입은 본문 문단에서 지원합니다.', en: "Edit the selected field value in the content input above. Picture/equation/shape/footnote/endnote insertion is supported in body paragraphs." }) });
     const equationRow = contentTools.createDiv({ cls: 'hwp-edit-actions' });
-    this.equationScriptInput = this.feature(equationRow.createEl('textarea', { attr: { rows: '2', placeholder: '수식 스크립트', 'aria-label': '수식 스크립트' } }), 'objectInsert');
+    this.equationScriptInput = this.feature(equationRow.createEl('textarea', { attr: { rows: '2', placeholder: L({ ko: '수식 스크립트', en: "Equation script" }), 'aria-label': L({ ko: '수식 스크립트', en: "Equation script" }) } }), 'objectInsert');
     this.equationScriptInput.addEventListener('input', () => this.scheduleEquationPreview());
-    this.toolButton(equationRow, '수식 삽입', 'objectInsert', () => this.insertEquation());
-    this.equationApplyButton = this.toolButton(equationRow, '선택 수식 적용', 'objectEdit', () => this.applySelectedEquation());
-    this.equationPreviewEl = contentTools.createDiv({ cls: 'hwp-equation-preview', attr: { role: 'status', 'aria-label': '수식 미리보기' } });
+    this.toolButton(equationRow, L({ ko: '수식 삽입', en: "Insert equation" }), 'objectInsert', () => this.insertEquation());
+    this.equationApplyButton = this.toolButton(equationRow, L({ ko: '선택 수식 적용', en: "Apply selected equation" }), 'objectEdit', () => this.applySelectedEquation());
+    this.equationPreviewEl = contentTools.createDiv({ cls: 'hwp-equation-preview', attr: { role: 'status', 'aria-label': L({ ko: '수식 미리보기', en: "Equation preview" }) } });
     this.equationPreviewEl.hidden = true;
     const shapeRow = contentTools.createDiv({ cls: 'hwp-edit-actions' });
-    this.shapeTypeSelect = this.feature(shapeRow.createEl('select', { attr: { 'aria-label': '도형 종류' } }), 'objectInsert');
-    for (const [value, label] of [['rectangle', '사각형'], ['textBox', '글상자']]) this.shapeTypeSelect.createEl('option', { value, text: label });
-    this.shapeWidthInput = this.feature(shapeRow.createEl('input', { type: 'number', value: '40', attr: { min: 0.01, max: 10000, 'aria-label': '도형 너비 (mm)' } }), 'objectInsert');
-    this.shapeHeightInput = this.feature(shapeRow.createEl('input', { type: 'number', value: '20', attr: { min: 0.01, max: 10000, 'aria-label': '도형 높이 (mm)' } }), 'objectInsert');
-    this.shapeTextInput = this.feature(shapeRow.createEl('input', { type: 'text', attr: { placeholder: '도형 설명 또는 글상자 내용', 'aria-label': '도형 설명 또는 글상자 내용' } }), 'objectInsert');
-    this.toolButton(shapeRow, '도형 삽입', 'objectInsert', () => this.insertShape());
-    this.shapeDrawButton = this.toolButton(shapeRow, '도형 그리기', 'objectInsert', () => this.toggleShapeDrawMode());
+    this.shapeTypeSelect = this.feature(shapeRow.createEl('select', { attr: { 'aria-label': L({ ko: '도형 종류', en: "Shape type" }) } }), 'objectInsert');
+    for (const [value, label] of [['rectangle', L({ ko: '사각형', en: "Rectangle" })], ['textBox', L({ ko: '글상자', en: "Text box" })]]) this.shapeTypeSelect.createEl('option', { value, text: label });
+    this.shapeWidthInput = this.feature(shapeRow.createEl('input', { type: 'number', value: '40', attr: { min: 0.01, max: 10000, 'aria-label': L({ ko: '도형 너비 (mm)', en: "Shape width (mm)" }) } }), 'objectInsert');
+    this.shapeHeightInput = this.feature(shapeRow.createEl('input', { type: 'number', value: '20', attr: { min: 0.01, max: 10000, 'aria-label': L({ ko: '도형 높이 (mm)', en: "Shape height (mm)" }) } }), 'objectInsert');
+    this.shapeTextInput = this.feature(shapeRow.createEl('input', { type: 'text', attr: { placeholder: L({ ko: '도형 설명 또는 글상자 내용', en: "Shape description or text box content" }), 'aria-label': L({ ko: '도형 설명 또는 글상자 내용', en: "Shape description or text box content" }) } }), 'objectInsert');
+    this.toolButton(shapeRow, L({ ko: '도형 삽입', en: "Insert shape" }), 'objectInsert', () => this.insertShape());
+    this.shapeDrawButton = this.toolButton(shapeRow, L({ ko: '도형 그리기', en: "Draw shape" }), 'objectInsert', () => this.toggleShapeDrawMode());
     this.shapeDrawButton.setAttribute('aria-pressed', 'false');
     this.shapeDrawButton.addEventListener('keydown', event => {
       if (event.key !== 'Escape' || !this.shapeDrawMode) return;
-      event.preventDefault(); this.finishShapeDrawMode('도형 그리기를 취소했습니다.');
+      event.preventDefault(); this.finishShapeDrawMode(L({ ko: '도형 그리기를 취소했습니다.', en: "Shape drawing cancelled." }));
     });
     const pictureRow = contentTools.createDiv({ cls: 'hwp-edit-actions' });
-    const pictureFile = this.feature(pictureRow.createEl('input', { type: 'file', attr: { accept: '.png,.jpg,.jpeg,.gif,.bmp,image/png,image/jpeg,image/gif,image/bmp', 'aria-label': '삽입할 그림' } }), 'objectInsert');
+    const pictureFile = this.feature(pictureRow.createEl('input', { type: 'file', attr: { accept: '.png,.jpg,.jpeg,.gif,.bmp,image/png,image/jpeg,image/gif,image/bmp', 'aria-label': L({ ko: '삽입할 그림', en: "Picture to insert" }) } }), 'objectInsert');
     this.pictureFileInput = pictureFile;
     pictureFile.onchange = () => { const file = pictureFile.files?.[0]; if (file) void this.guard(() => this.insertPicture(file)); pictureFile.value = ''; };
     const noteRow = contentTools.createDiv({ cls: 'hwp-edit-actions' });
-    this.toolButton(noteRow, '각주 삽입', 'noteInsert', () => this.runEditorCommand('insert.footnote'));
-    this.toolButton(noteRow, '미주 삽입', 'noteInsert', () => this.runEditorCommand('insert.endnote'));
-    this.toolButton(noteRow, '미주 모양', 'page', () => this.runEditorCommand('insert.endnote-shape'));
+    this.toolButton(noteRow, L({ ko: '각주 삽입', en: "Insert footnote" }), 'noteInsert', () => this.runEditorCommand('insert.footnote'));
+    this.toolButton(noteRow, L({ ko: '미주 삽입', en: "Insert endnote" }), 'noteInsert', () => this.runEditorCommand('insert.endnote'));
+    this.toolButton(noteRow, L({ ko: '미주 모양', en: "Endnote format" }), 'page', () => this.runEditorCommand('insert.endnote-shape'));
     this.objectEditDetails = editor.createEl('details', { cls: 'hwp-tool-group' });
-    this.objectEditDetails.createEl('summary', { text: '선택 개체 속성' });
+    this.objectEditDetails.createEl('summary', { text: L({ ko: '선택 개체 속성', en: "Selected object properties" }) });
     const objectEdit = this.objectEditDetails.createDiv({ cls: 'hwp-tool-content' });
     const objectRow = objectEdit.createDiv({ cls: 'hwp-edit-actions' });
-    this.objectWidthInput = this.feature(objectRow.createEl('input', { type: 'number', value: '40', attr: { min: 0.01, step: '1', 'aria-label': '개체 너비 (mm)' } }), 'objectEdit');
-    this.objectHeightInput = this.feature(objectRow.createEl('input', { type: 'number', value: '20', attr: { min: 0.01, step: '1', 'aria-label': '개체 높이 (mm)' } }), 'objectEdit');
-    this.objectOffsetXInput = this.feature(objectRow.createEl('input', { type: 'number', value: '0', attr: { step: '1', 'aria-label': '개체 가로 위치 (mm)' } }), 'objectEdit');
-    this.objectOffsetYInput = this.feature(objectRow.createEl('input', { type: 'number', value: '0', attr: { step: '1', 'aria-label': '개체 세로 위치 (mm)' } }), 'objectEdit');
-    this.objectTreatAsCharInput = this.feature(objectRow.createEl('input', { type: 'checkbox', attr: { 'aria-label': '글자처럼 취급' } }), 'objectEdit');
-    this.objectTextWrapSelect = this.feature(objectRow.createEl('select', { attr: { 'aria-label': '개체 배치 방식' } }), 'objectEdit');
-    this.objectTextWrapSelect.createEl('option', { value: 'Square', text: '어울림' });
-    this.objectTextWrapSelect.createEl('option', { value: 'TopAndBottom', text: '자리 차지' });
-    this.objectDescriptionInput = this.feature(objectRow.createEl('input', { type: 'text', attr: { maxlength: 256, placeholder: '대체 설명', 'aria-label': '개체 설명' } }), 'objectEdit');
-    this.toolButton(objectRow, '속성 적용', 'objectEdit', () => this.applyObjectProperties());
-    this.toolButton(objectRow, '개체 삭제', 'objectEdit', () => this.deleteSelectedObject());
-    const pageTools = this.toolDetails(editor, '쪽 · 용지 설정');
-    this.pageSectionSelect = this.feature(pageTools.createEl('select', { attr: { 'aria-label': '설정할 구역' } }), 'page');
+    this.objectWidthInput = this.feature(objectRow.createEl('input', { type: 'number', value: '40', attr: { min: 0.01, step: '1', 'aria-label': L({ ko: '개체 너비 (mm)', en: "Object width (mm)" }) } }), 'objectEdit');
+    this.objectHeightInput = this.feature(objectRow.createEl('input', { type: 'number', value: '20', attr: { min: 0.01, step: '1', 'aria-label': L({ ko: '개체 높이 (mm)', en: "Object height (mm)" }) } }), 'objectEdit');
+    this.objectOffsetXInput = this.feature(objectRow.createEl('input', { type: 'number', value: '0', attr: { step: '1', 'aria-label': L({ ko: '개체 가로 위치 (mm)', en: "Object horizontal position (mm)" }) } }), 'objectEdit');
+    this.objectOffsetYInput = this.feature(objectRow.createEl('input', { type: 'number', value: '0', attr: { step: '1', 'aria-label': L({ ko: '개체 세로 위치 (mm)', en: "Object vertical position (mm)" }) } }), 'objectEdit');
+    this.objectTreatAsCharInput = this.feature(objectRow.createEl('input', { type: 'checkbox', attr: { 'aria-label': L({ ko: '글자처럼 취급', en: "Treat as character" }) } }), 'objectEdit');
+    this.objectTextWrapSelect = this.feature(objectRow.createEl('select', { attr: { 'aria-label': L({ ko: '개체 배치 방식', en: "Object wrapping mode" }) } }), 'objectEdit');
+    this.objectTextWrapSelect.createEl('option', { value: 'Square', text: L({ ko: '어울림', en: "Square" }) });
+    this.objectTextWrapSelect.createEl('option', { value: 'TopAndBottom', text: L({ ko: '자리 차지', en: "Top and bottom" }) });
+    this.objectDescriptionInput = this.feature(objectRow.createEl('input', { type: 'text', attr: { maxlength: 256, placeholder: L({ ko: '대체 설명', en: "Alternative description" }), 'aria-label': L({ ko: '개체 설명', en: "Object description" }) } }), 'objectEdit');
+    this.toolButton(objectRow, L({ ko: '속성 적용', en: "Apply properties" }), 'objectEdit', () => this.applyObjectProperties());
+    this.toolButton(objectRow, L({ ko: '개체 삭제', en: "Delete object" }), 'objectEdit', () => this.deleteSelectedObject());
+    const pageTools = this.toolDetails(editor, L({ ko: '쪽 · 용지 설정', en: "Page and paper setup" }));
+    this.pageSectionSelect = this.feature(pageTools.createEl('select', { attr: { 'aria-label': L({ ko: '설정할 구역', en: "Section to configure" }) } }), 'page');
     this.pageSectionSelect.onchange = () => this.updateToolState();
     const pageSettingsRow = pageTools.createDiv({ cls: 'hwp-tool-grid' });
-    for (const [key, label] of [['width', '너비'], ['height', '높이'], ['marginLeft', '왼쪽 여백'], ['marginRight', '오른쪽 여백'], ['marginTop', '위 여백'], ['marginBottom', '아래 여백'], ['marginHeader', '머리말 여백'], ['marginFooter', '꼬리말 여백'], ['marginGutter', '제본 여백']] as const) {
+    for (const [key, label] of [['width', L({ ko: '너비', en: "Width" })], ['height', L({ ko: '높이', en: "Height" })], ['marginLeft', L({ ko: '왼쪽 여백', en: "Left margin" })], ['marginRight', L({ ko: '오른쪽 여백', en: "Right margin" })], ['marginTop', L({ ko: '위 여백', en: "Top margin" })], ['marginBottom', L({ ko: '아래 여백', en: "Bottom margin" })], ['marginHeader', L({ ko: '머리말 여백', en: "Header margin" })], ['marginFooter', L({ ko: '꼬리말 여백', en: "Footer margin" })], ['marginGutter', L({ ko: '제본 여백', en: "Gutter margin" })]] as const) {
       const input = this.feature(pageSettingsRow.createEl('input', { type: 'number', value: '0', attr: { min: 0, step: '1', 'aria-label': `${label} (mm)` } }), 'page');
       input.dataset.pageProperty = key; this.pageNumberInputs.set(key, input);
     }
     const landscapeLabel = pageTools.createEl('label', { cls: 'hwp-check-label' });
-    this.pageLandscapeInput = this.feature(landscapeLabel.createEl('input', { type: 'checkbox', attr: { 'aria-label': '가로 방향' } }), 'page');
-    landscapeLabel.appendText(' 가로 방향');
-    this.toolButton(pageTools, '쪽 설정 적용', 'page', () => this.runEditorCommand('page.apply-settings'));
-    this.toolReasonEl.setText('페이지의 문단, 표 셀, 필드 또는 개체를 선택하세요.');
-    const documentNavigation = this.toolDetails(editor, '문서 탐색');
-    documentNavigation.createEl('p', { cls: 'hwp-hint', text: '목록은 검색어로 좁히고 20개씩 이동합니다. 개요 목록은 문단의 개요·제목 스타일을 사용합니다.' });
-    this.outlineBrowser = this.createTargetBrowser(this.toolDetails(documentNavigation, '개요'), '개요 필터', '개요 제목 찾기', target => this.jumpToNavigationTarget(target));
-    this.tableBrowser = this.createTargetBrowser(this.toolDetails(documentNavigation, '표 위치'), '표 필터', '표 내용 또는 위치 찾기', target => this.jumpToNavigationTarget(target));
-    this.objectBrowser = this.createTargetBrowser(this.toolDetails(documentNavigation, '개체 위치'), '개체 필터', '그림·수식·도형 찾기', target => this.jumpToNavigationTarget(target));
-    this.fieldBrowser = this.createTargetBrowser(this.toolDetails(documentNavigation, '필드'), '필드 필터', '필드 이름·값 찾기', target => this.jumpToNavigationTarget(target));
-    this.searchBrowser = this.createTargetBrowser(this.toolDetails(documentNavigation, '검색 결과'), '검색 결과 필터', '검색 결과 좁히기', target => {
+    this.pageLandscapeInput = this.feature(landscapeLabel.createEl('input', { type: 'checkbox', attr: { 'aria-label': L({ ko: '가로 방향', en: "Landscape" }) } }), 'page');
+    landscapeLabel.appendText(L({ ko: ' 가로 방향', en: " Landscape" }));
+    this.toolButton(pageTools, L({ ko: '쪽 설정 적용', en: "Apply page settings" }), 'page', () => this.runEditorCommand('page.apply-settings'));
+    this.toolReasonEl.setText(L({ ko: '페이지의 문단, 표 셀, 필드 또는 개체를 선택하세요.', en: "Select a paragraph, table cell, field, or object on the page." }));
+    const documentNavigation = this.toolDetails(editor, L({ ko: '문서 탐색', en: "Document navigation" }));
+    documentNavigation.createEl('p', { cls: 'hwp-hint', text: L({ ko: '목록은 검색어로 좁히고 20개씩 이동합니다. 개요 목록은 문단의 개요·제목 스타일을 사용합니다.', en: "Filter lists with search and navigate 20 items at a time. Outline uses paragraph outline/heading styles." }) });
+    this.outlineBrowser = this.createTargetBrowser(this.toolDetails(documentNavigation, L({ ko: '개요', en: "Outline" })), L({ ko: '개요 필터', en: "Outline filter" }), L({ ko: '개요 제목 찾기', en: "Find outline heading" }), target => this.jumpToNavigationTarget(target));
+    this.tableBrowser = this.createTargetBrowser(this.toolDetails(documentNavigation, L({ ko: '표 위치', en: "Table location" })), L({ ko: '표 필터', en: "Table filter" }), L({ ko: '표 내용 또는 위치 찾기', en: "Find table content or location" }), target => this.jumpToNavigationTarget(target));
+    this.objectBrowser = this.createTargetBrowser(this.toolDetails(documentNavigation, L({ ko: '개체 위치', en: "Object location" })), L({ ko: '개체 필터', en: "Object filter" }), L({ ko: '그림·수식·도형 찾기', en: "Find picture, equation, or shape" }), target => this.jumpToNavigationTarget(target));
+    this.fieldBrowser = this.createTargetBrowser(this.toolDetails(documentNavigation, L({ ko: '필드', en: "Fields" })), L({ ko: '필드 필터', en: "Field filter" }), L({ ko: '필드 이름·값 찾기', en: "Find field name/value" }), target => this.jumpToNavigationTarget(target));
+    this.searchBrowser = this.createTargetBrowser(this.toolDetails(documentNavigation, L({ ko: '검색 결과', en: "Search results" })), L({ ko: '검색 결과 필터', en: "Search result filter" }), L({ ko: '검색 결과 좁히기', en: "Narrow search results" }), target => {
       this.searchCurrentIndex = this.searchBrowser?.entries.findIndex(entry => entry.value === target) ?? -1;
       if (this.searchBrowser) this.renderTargetBrowser(this.searchBrowser);
       return this.jumpToNavigationTarget(target);
     });
     // The edit panel is hidden, so the search block is a floating find bar over the pages.
-    const findBar = preview.createDiv({ cls: 'hwp-find-bar', attr: { role: 'search', 'aria-label': '찾기와 바꾸기' } });
+    const findBar = preview.createDiv({ cls: 'hwp-find-bar', attr: { role: 'search', 'aria-label': L({ ko: '찾기와 바꾸기', en: "Find and replace" }) } });
     findBar.hidden = true;
     this.findBarEl = findBar;
     const searchHost = findBar;
-    searchHost.createEl('strong', { text: '검색 / 치환' });
-    const query = this.searchQueryInput = searchHost.createEl('input', { type: 'search', attr: { placeholder: '검색어', 'aria-label': '검색어' } });
-    const replacement = this.searchReplacementInput = searchHost.createEl('input', { type: 'text', attr: { placeholder: '바꿀 내용', 'aria-label': '바꿀 내용' } });
+    searchHost.createEl('strong', { text: L({ ko: '검색 / 치환', en: "Search / Replace" }) });
+    const query = this.searchQueryInput = searchHost.createEl('input', { type: 'search', attr: { placeholder: L({ ko: '검색어', en: "Search query" }), 'aria-label': L({ ko: '검색어', en: "Search query" }) } });
+    const replacement = this.searchReplacementInput = searchHost.createEl('input', { type: 'text', attr: { placeholder: L({ ko: '바꿀 내용', en: "Replacement text" }), 'aria-label': L({ ko: '바꿀 내용', en: "Replacement text" }) } });
     query.addEventListener('keydown', event => {
       if (event.key === 'Enter' && !event.isComposing && !this.composing) {
         event.preventDefault(); void this.guard(() => this.runSearch());
@@ -4258,48 +4259,48 @@ export class HwpView extends FileView {
     for (const input of [query, replacement]) input.addEventListener('keydown', event => { if (event.key === 'Escape' && findBar && !event.isComposing) { event.preventDefault(); this.closeFindBar(); } });
     const options = searchHost.createDiv({ cls: 'hwp-edit-search-options' });
     const caseSensitiveLabel = options.createEl('label', { cls: 'hwp-check-label' });
-    this.searchCaseSensitiveInput = caseSensitiveLabel.createEl('input', { type: 'checkbox', attr: { 'aria-label': '대소문자 구분' } });
-    caseSensitiveLabel.appendText(' 대소문자 구분');
+    this.searchCaseSensitiveInput = caseSensitiveLabel.createEl('input', { type: 'checkbox', attr: { 'aria-label': L({ ko: '대소문자 구분', en: "Case-sensitive" }) } });
+    caseSensitiveLabel.appendText(L({ ko: ' 대소문자 구분', en: " Case-sensitive" }));
     const includeStoriesLabel = options.createEl('label', { cls: 'hwp-check-label' });
-    this.searchIncludeStoriesInput = includeStoriesLabel.createEl('input', { type: 'checkbox', attr: { 'aria-label': '표·글상자·머리말·꼬리말·각주 포함' } });
+    this.searchIncludeStoriesInput = includeStoriesLabel.createEl('input', { type: 'checkbox', attr: { 'aria-label': L({ ko: '표·글상자·머리말·꼬리말·각주 포함', en: "Include tables, text boxes, headers, footers, and footnotes" }) } });
     this.searchIncludeStoriesInput.checked = true;
-    includeStoriesLabel.appendText(' 표·글상자·머리말·꼬리말·각주 포함');
+    includeStoriesLabel.appendText(L({ ko: ' 표·글상자·머리말·꼬리말·각주 포함', en: " Include tables, text boxes, headers, footers, and footnotes" }));
     const searchActions = searchHost.createDiv({ cls: 'hwp-edit-actions' });
-    this.button(searchActions, '이전 결과', () => this.showAdjacentSearchResult(-1));
-    this.button(searchActions, '다음 결과', () => this.showAdjacentSearchResult(1));
-    this.button(searchActions, '검색', () => this.runSearch());
-    this.button(searchActions, '현재 결과 바꾸기', () => this.runEditorCommand('tool.replace-current'));
-    this.button(searchActions, '모두 바꾸기', () => this.execute([{ type: 'replaceText', query: query.value, replacement: replacement.value }]));
-    this.button(searchActions, '닫기', () => this.closeFindBar());
+    this.button(searchActions, L({ ko: '이전 결과', en: "Previous result" }), () => this.showAdjacentSearchResult(-1));
+    this.button(searchActions, L({ ko: '다음 결과', en: "Next result" }), () => this.showAdjacentSearchResult(1));
+    this.button(searchActions, L({ ko: '검색', en: "Search" }), () => this.runSearch());
+    this.button(searchActions, L({ ko: '현재 결과 바꾸기', en: "Replace current result" }), () => this.runEditorCommand('tool.replace-current'));
+    this.button(searchActions, L({ ko: '모두 바꾸기', en: "Replace all" }), () => this.execute([{ type: 'replaceText', query: query.value, replacement: replacement.value }]));
+    this.button(searchActions, L({ ko: '닫기', en: "Close" }), () => this.closeFindBar());
   }
   private toggleToolbars(): void {
     const current = this.plugin.settings.editorChrome;
     void this.plugin.setEditorChrome({ ...current, basicToolbox: !current.basicToolbox });
   }
   private async toggleFormMode(): Promise<void> {
-    if (this.draft || this.composing) throw new Error('미적용 입력 또는 한글 조합을 먼저 처리하세요.');
+    if (this.draft || this.composing) throw new Error(L({ ko: '미적용 입력 또는 한글 조합을 먼저 처리하세요.', en: "Handle pending input or Korean IME composition first." }));
     const tree = this.documentTree;
-    if (!tree) throw new Error('문서가 아직 준비되지 않았습니다.');
+    if (!tree) throw new Error(L({ ko: '문서가 아직 준비되지 않았습니다.', en: "The document is not ready yet." }));
     if (!this.formMode) {
       this.modeBeforeForm = this.mode;
       this.selectedBeforeFormKey = this.selected ? isParagraph(this.selected) ? `paragraph:${this.selected.nodePath}` : `field:${this.selected.fieldId}` : undefined;
       this.formMode = true; this.mode = 'fields'; this.modeSelector.value = 'fields'; this.items = this.itemsForMode(tree);
       const fieldIndex = this.items.findIndex(item => !isParagraph(item));
       if (fieldIndex >= 0) await this.focusFormField(fieldIndex);
-      else { this.clearSelection('양식 모드 · 입력 가능한 누름틀이 없습니다.'); new Notice('문서에 입력 가능한 누름틀이 없습니다.'); }
+      else { this.clearSelection(L({ ko: '양식 모드 · 입력 가능한 누름틀이 없습니다.', en: "Form mode · No editable input fields." })); new Notice(L({ ko: '문서에 입력 가능한 누름틀이 없습니다.', en: "The document has no editable input fields." })); }
     } else {
       this.formMode = false; this.mode = this.modeBeforeForm ?? 'paragraphs'; this.modeBeforeForm = undefined;
       this.modeSelector.value = this.mode; this.items = this.itemsForMode(tree);
       const selectedKey = this.selectedBeforeFormKey; this.selectedBeforeFormKey = undefined;
       const index = this.items.findIndex(item => selectedKey === (isParagraph(item) ? `paragraph:${item.nodePath}` : `field:${item.fieldId}`));
       if (index >= 0) this.selectItem(index, false);
-      else this.clearSelection('양식 모드를 종료했습니다. 문서에서 편집 대상을 선택하세요.');
+      else this.clearSelection(L({ ko: '양식 모드를 종료했습니다. 문서에서 편집 대상을 선택하세요.', en: "Form mode ended. Select an edit target in the document." }));
     }
     this.syncInputDisabled(); this.updateToolState(); this.updateStatus();
   }
   private async focusFormField(index: number): Promise<void> {
     const field = this.items[index];
-    if (!field || isParagraph(field) || !this.state || !this.path) throw new Error('누름틀 항목을 찾지 못했습니다.');
+    if (!field || isParagraph(field) || !this.state || !this.path) throw new Error(L({ ko: '누름틀 항목을 찾지 못했습니다.', en: "Input field item not found." }));
     const context = this.captureContext(), revision = this.state.revision;
     if (field.address) {
       const offset = typeof field.startCharIdx === 'number' ? Math.max(0, field.startCharIdx) : 0;
@@ -4308,12 +4309,12 @@ export class HwpView extends FileView {
       });
       this.assertContext(context);
       const current = await this.plugin.api.documents.state(context.path); this.assertContext(context);
-      if (current.revision !== revision) throw new Error('문서가 이동 중 변경되어 누름틀을 선택하지 않았습니다.');
+      if (current.revision !== revision) throw new Error(L({ ko: '문서가 이동 중 변경되어 누름틀을 선택하지 않았습니다.', en: "The document changed during navigation; no input field was selected." }));
       this.state = current; this.page = Math.min(caret.rect.pageIndex, Math.max(0, current.pageCount - 1));
       await this.renderPage(true); this.assertContext(context);
     }
     const latestIndex = this.items.findIndex(item => !isParagraph(item) && item.fieldId === field.fieldId);
-    if (latestIndex < 0) throw new Error('누름틀 목록이 변경되었습니다. 다시 선택하세요.');
+    if (latestIndex < 0) throw new Error(L({ ko: '누름틀 목록이 변경되었습니다. 다시 선택하세요.', en: "The input field list changed. Select again." }));
     this.selectItem(latestIndex, true);
     if (field.address) this.showFieldBoundaryCaret(field, typeof field.startCharIdx === 'number' ? field.startCharIdx : 0);
     this.textarea.focus({ preventScroll: true });
@@ -4327,7 +4328,7 @@ export class HwpView extends FileView {
   }
   private async moveFormField(delta: -1 | 1): Promise<void> {
     const fields = this.items.filter((item): item is Field => !isParagraph(item));
-    if (!fields.length) throw new Error('이동할 수 있는 누름틀이 없습니다.');
+    if (!fields.length) throw new Error(L({ ko: '이동할 수 있는 누름틀이 없습니다.', en: "No input field to navigate to." }));
     const current = fields.findIndex(field => field.fieldId === (this.selected && !isParagraph(this.selected) ? this.selected.fieldId : -1));
     const index = (current + delta + fields.length) % fields.length;
     const itemIndex = this.items.findIndex(item => !isParagraph(item) && item.fieldId === fields[index].fieldId);
@@ -4335,18 +4336,18 @@ export class HwpView extends FileView {
   }
   private openClickHereFieldModal(): void {
     if (!this.selected || !isParagraph(this.selected) || this.selected.address.kind !== 'body' || this.selected.address.containerKinds?.includes('textBox')) {
-      throw new Error('본문 또는 표 셀의 문단을 선택한 뒤 누름틀을 삽입하세요.');
+      throw new Error(L({ ko: '본문 또는 표 셀의 문단을 선택한 뒤 누름틀을 삽입하세요.', en: "Select a body or table-cell paragraph before inserting an input field." }));
     }
-    if (!this.rangeIsCollapsed(this.selectionRange())) throw new Error('누름틀은 선택 범위가 아닌 캐럿 위치에 삽입합니다.');
+    if (!this.rangeIsCollapsed(this.selectionRange())) throw new Error(L({ ko: '누름틀은 선택 범위가 아닌 캐럿 위치에 삽입합니다.', en: "Input fields are inserted at the caret, not over a selection." }));
     const selected = structuredClone(this.selected), address = structuredClone(this.selected.address), context = this.captureContext(), revision = this.state?.revision;
-    if (address.kind !== 'body') throw new Error('누름틀은 본문 또는 표 셀에만 넣을 수 있습니다.');
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (address.kind !== 'body') throw new Error(L({ ko: '누름틀은 본문 또는 표 셀에만 넣을 수 있습니다.', en: "Input fields can only be inserted in body paragraphs or table cells." }));
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const position = this.pageSelection?.focus ?? positionAfterEditorText(address, this.textarea.value, this.textarea.selectionEnd);
     const offset = Math.max(0, Math.min(selected.length, position.offset));
     new ClickHereFieldModal(this.app, async options => {
       await this.tasks.run(async () => {
         this.assertContext(context);
-        if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 다시 선택한 뒤 누름틀을 삽입하세요.');
+        if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 다시 선택한 뒤 누름틀을 삽입하세요.', en: "The document changed. Select again before inserting an input field." }));
         await this.execute([{
           type: 'insertClickHereField',
           target: { section: address.section, paragraph: address.paragraph,
@@ -4355,42 +4356,42 @@ export class HwpView extends FileView {
           offset, ...options,
         }], { address, offset }, true);
       });
-      new Notice(`누름틀을 삽입했습니다: ${options.name}`);
+      new Notice(LT({ ko: () => `누름틀을 삽입했습니다: ${options.name}`, en: () => `Inserted input field: ${options.name}` }));
     }).open();
   }
   private selectedClickHereField(): Field {
     const field = this.selected;
-    if (!field || isParagraph(field) || field.fieldType !== 'clickhere') throw new Error('고치거나 지울 누름틀을 먼저 선택하세요.');
+    if (!field || isParagraph(field) || field.fieldType !== 'clickhere') throw new Error(L({ ko: '고치거나 지울 누름틀을 먼저 선택하세요.', en: "Select an input field to edit or delete first." }));
     return field;
   }
   private openFieldEditDialog(): void {
     const field = this.selectedClickHereField();
     this.openFormCommandDialog({
-      title: `필드 고치기 (${field.name})`, hint: '이름은 문서 안에서 유일해야 이름으로 값을 쓸 수 있습니다. 바꾼 항목만 적용됩니다.', fields: fieldEditFields(field),
+      title: LT({ ko: () => `필드 고치기 (${field.name})`, en: () => `Edit field (${field.name})` }), hint: L({ ko: '이름은 문서 안에서 유일해야 이름으로 값을 쓸 수 있습니다. 바꾼 항목만 적용됩니다.', en: "Names must be unique in the document to write values by name. Only changed fields are applied." }), fields: fieldEditFields(field),
       build: (values, initial) => [fieldEditCommand(field, values, initial)].filter((command): command is Command => !!command),
     });
   }
   private openFieldRemoveDialog(): void {
     const field = this.selectedClickHereField();
     this.openFormCommandDialog({
-      title: `필드 지우기 (${field.name})`, hint: '누름틀을 지우면 그 안에 입력한 내용도 함께 지워집니다. 내용을 남길 수 있고, 되돌리기로 복구할 수 있습니다.',
-      fields: fieldRemoveFields(typeof field.value === 'string' && field.value.length > 0), submitLabel: '필드 지우기',
-      build: values => [fieldRemoveCommand(field, values)], after: () => this.clearSelection('필드를 지웠습니다.'),
+      title: LT({ ko: () => `필드 지우기 (${field.name})`, en: () => `Delete field (${field.name})` }), hint: L({ ko: '누름틀을 지우면 그 안에 입력한 내용도 함께 지워집니다. 내용을 남길 수 있고, 되돌리기로 복구할 수 있습니다.', en: "Deleting an input field also deletes its entered content. You can preserve the content and recover with Undo." }),
+      fields: fieldRemoveFields(typeof field.value === 'string' && field.value.length > 0), submitLabel: L({ ko: '필드 지우기', en: "Delete field" }),
+      build: values => [fieldRemoveCommand(field, values)], after: () => this.clearSelection(L({ ko: '필드를 지웠습니다.', en: "Deleted field." })),
     });
   }
   private openCharacterTable(): void {
     new CharacterTableModal(this.app, character => this.tasks.run(() => this.insertCharacter(character))).open();
   }
   private async insertCharacter(character: string): Promise<void> {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 문자를 삽입하세요.');
-    if (Array.from(character).length !== 1) throw new Error('문자표에서는 한 번에 한 글자만 삽입할 수 있습니다.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 문자를 삽입하세요.', en: "Finish Korean IME composition before inserting a character." }));
+    if (Array.from(character).length !== 1) throw new Error(L({ ko: '문자표에서는 한 번에 한 글자만 삽입할 수 있습니다.', en: "The character map inserts one character at a time." }));
     const selected = this.selected;
-    if (!selected || !isParagraph(selected)) throw new Error('문자를 넣을 문단을 먼저 선택하세요.');
+    if (!selected || !isParagraph(selected)) throw new Error(L({ ko: '문자를 넣을 문단을 먼저 선택하세요.', en: "Select a paragraph for character insertion first." }));
     const range = this.selectionRange();
     let commands: Command[], after: TextPosition;
     if (range && !this.rangeIsCollapsed(range)) {
       if (!sameDocumentAddress(range.start.address, selected.address) || !sameDocumentAddress(range.end.address, selected.address)) {
-        throw new Error('문자표는 한 문단 안에서 선택한 범위에만 삽입할 수 있습니다.');
+        throw new Error(L({ ko: '문자표는 한 문단 안에서 선택한 범위에만 삽입할 수 있습니다.', en: "The character map can replace a selection only within one paragraph." }));
       }
       const deletion: Extract<Command, { type: 'deleteRange' }> = { type: 'deleteRange', start: range.start, end: range.end };
       const insertion: Extract<Command, { type: 'insertText' }> = {
@@ -4408,7 +4409,7 @@ export class HwpView extends FileView {
       after = { address: position.address, offset: position.offset + 1 };
     }
     const context = this.captureContext(), revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     try { await this.execute(commands, after, true); }
     catch (error) {
       const code = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
@@ -4417,14 +4418,14 @@ export class HwpView extends FileView {
       const confirmed = await new Promise<boolean>(resolve => new ConfirmAnchoredDelete(this.app, resolve).open());
       if (!confirmed) return;
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('확인 중 문서가 변경되었습니다. 다시 선택한 뒤 문자를 삽입하세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '확인 중 문서가 변경되었습니다. 다시 선택한 뒤 문자를 삽입하세요.', en: "The document changed during confirmation. Select again before inserting a character." }));
       await this.execute([{ ...deletion, deleteAnchoredContent: true }, commands.at(-1)!], after, true);
     }
   }
   private reflectZoomScale(percent?: number): void {
     if (percent === undefined) {
       this.zoomMode = 'fit-width';
-      this.zoomLabel?.setText('폭 맞춤');
+      this.zoomLabel?.setText(L({ ko: '폭 맞춤', en: "Fit width" }));
       if (this.zoomPreset) this.zoomPreset.value = 'fit-width';
       if (this.zoomInput) this.zoomInput.value = String(this.zoomPercent);
     } else {
@@ -4435,7 +4436,7 @@ export class HwpView extends FileView {
         const hasPreset = Array.from(this.zoomPreset.options).some(option => option.value === String(percent));
         this.zoomPreset.value = this.zoomMode === 'fit-page' ? 'fit-page' : hasPreset ? String(percent) : 'custom';
       }
-      this.zoomLabel?.setText(this.zoomMode === 'fit-page' ? `쪽 맞춤 · ${percent}%` : `${percent}%`);
+      this.zoomLabel?.setText(this.zoomMode === 'fit-page' ? LT({ ko: () => `쪽 맞춤 · ${percent}%`, en: () => `Fit page · ${percent}%` }) : `${percent}%`);
     }
     if (this.state && this.statusEl) this.updateStatus();
   }
@@ -4451,14 +4452,14 @@ export class HwpView extends FileView {
       setting?.open?.(); setting?.openTabById?.(this.plugin.manifest.id);
       if (setting?.open && setting.openTabById) return;
     } catch { /* fall through to the hint */ }
-    new Notice('Obsidian 설정 › HWP Hands 탭에서 환경 설정을 바꾸세요.');
+    new Notice(L({ ko: 'Obsidian 설정 › HWP Hands 탭에서 환경 설정을 바꾸세요.', en: "Change preferences in Obsidian Settings › HWP Hands." }));
   }
   private openProductInfo(): void {
     const dialog = new Modal(this.app);
-    dialog.titleEl.setText('HWP Hands 제품 정보');
-    dialog.contentEl.createEl('p', { text: `플러그인 ${this.plugin.manifest.version} · RHWP ${this.plugin.api.engineVersion} · 공개 API v${this.plugin.api.version}` });
-    dialog.contentEl.createEl('p', { text: 'HWP Hands와 RHWP 코어는 MIT 라이선스입니다. 서드파티 고지는 설치된 main.js 앞부분의 주석과 공개 저장소의 THIRD_PARTY_NOTICES.md에서 확인할 수 있습니다.' });
-    this.button(dialog.contentEl, '닫기', () => dialog.close());
+    dialog.titleEl.setText(L({ ko: 'HWP Hands 제품 정보', en: "About HWP Hands" }));
+    dialog.contentEl.createEl('p', { text: LT({ ko: () => `플러그인 ${this.plugin.manifest.version} · RHWP ${this.plugin.api.engineVersion} · 공개 API v${this.plugin.api.version}`, en: () => `Plugin ${this.plugin.manifest.version} · RHWP ${this.plugin.api.engineVersion} · public API v${this.plugin.api.version}` }) });
+    dialog.contentEl.createEl('p', { text: L({ ko: 'HWP Hands와 RHWP 코어는 MIT 라이선스입니다. 서드파티 고지는 설치된 main.js 앞부분의 주석과 공개 저장소의 THIRD_PARTY_NOTICES.md에서 확인할 수 있습니다.', en: "HWP Hands and RHWP core are MIT-licensed. See third-party notices in the comments at the start of installed main.js and THIRD_PARTY_NOTICES.md in the public repository." }) });
+    this.button(dialog.contentEl, L({ ko: '닫기', en: "Close" }), () => dialog.close());
     dialog.open();
   }
   private applyZoomPreset(value: string): void {
@@ -4543,20 +4544,20 @@ export class HwpView extends FileView {
   }
   private toggleDisplayOption(key: keyof PageRenderOptions): void {
     const input = this.displayOptionInputs.get(key);
-    if (!input) throw new Error('쪽 표시 옵션을 찾을 수 없습니다.');
+    if (!input) throw new Error(L({ ko: '쪽 표시 옵션을 찾을 수 없습니다.', en: "Page display options not found." }));
     input.checked = !input.checked;
     input.dispatchEvent(new Event('change'));
   }
   private openGridSettingsDialog(): void {
     const settings = this.gridSettings;
     new FormModal(this.app, {
-      title: '격자 설정', hint: '격자는 화면에만 표시하며 문서에 저장하지 않습니다. 기준 위치부터 간격마다 선(또는 점)을 그립니다.', submitLabel: '적용',
+      title: L({ ko: '격자 설정', en: "Grid settings" }), hint: L({ ko: '격자는 화면에만 표시하며 문서에 저장하지 않습니다. 기준 위치부터 간격마다 선(또는 점)을 그립니다.', en: "The grid is displayed onscreen only and is not saved in the document. Lines or dots repeat at the specified intervals from the reference position." }), submitLabel: L({ ko: '적용', en: "Apply" }),
       fields: [
-        { key: 'visible', label: '격자 보기', kind: 'checkbox', value: settings.visible },
-        { key: 'horizontalMm', label: '가로 간격', kind: 'number', value: settings.horizontalMm, min: GRID_MIN_MM, max: GRID_MAX_MM, unit: 'mm' },
-        { key: 'verticalMm', label: '세로 간격', kind: 'number', value: settings.verticalMm, min: GRID_MIN_MM, max: GRID_MAX_MM, unit: 'mm' },
-        { key: 'origin', label: '기준 위치', kind: 'select', value: settings.origin, options: [['body', '본문 영역 왼쪽 위'], ['paper', '용지 왼쪽 위']] },
-        { key: 'style', label: '표시 방식', kind: 'select', value: settings.style, options: [['lines', '선'], ['dots', '점']] },
+        { key: 'visible', label: L({ ko: '격자 보기', en: "Show grid" }), kind: 'checkbox', value: settings.visible },
+        { key: 'horizontalMm', label: L({ ko: '가로 간격', en: "Horizontal spacing" }), kind: 'number', value: settings.horizontalMm, min: GRID_MIN_MM, max: GRID_MAX_MM, unit: 'mm' },
+        { key: 'verticalMm', label: L({ ko: '세로 간격', en: "Vertical spacing" }), kind: 'number', value: settings.verticalMm, min: GRID_MIN_MM, max: GRID_MAX_MM, unit: 'mm' },
+        { key: 'origin', label: L({ ko: '기준 위치', en: "Reference position" }), kind: 'select', value: settings.origin, options: [['body', L({ ko: '본문 영역 왼쪽 위', en: "Body top-left" })], ['paper', L({ ko: '용지 왼쪽 위', en: "Paper top-left" })]] },
+        { key: 'style', label: L({ ko: '표시 방식', en: "Display mode" }), kind: 'select', value: settings.style, options: [['lines', L({ ko: '선', en: "Lines" })], ['dots', L({ ko: '점', en: "Dots" })]] },
       ],
     }, async values => {
       this.setGridSettings(normalizeGridSettings({ visible: values.visible, horizontalMm: values.horizontalMm, verticalMm: values.verticalMm, origin: values.origin, style: values.style }));
@@ -4570,31 +4571,31 @@ export class HwpView extends FileView {
     this.layoutWarningEl.hidden = !this.documentTree?.stories.some(story => story.kind === 'endnote');
     const readOnly = this.capabilitiesReadOnly();
     const reason = this.capabilityCheckError ?? (this.capabilities?.sessionId === this.state.sessionId ? this.capabilities.readOnlyReasons.join(' ') : '');
-    const activity = this.saving ? '저장 중'
-      : this.state.conflict ? '외부 파일 충돌'
-        : this.capabilityCheckPending ? '저장 안전성 검증 중'
-          : readOnly ? '읽기 전용'
-          : this.composing ? '한글 조합 중'
-            : this.draft ? '입력 중 · 자동 반영 대기'
-              : this.state.dirty ? '저장되지 않은 변경'
-                : '저장됨';
-    const draftFailure = this.draftSaveError ? ' · 입력 복구본 저장 실패' : '';
-    const operationFailure = this.operationError ? ` · 마지막 작업 실패: ${this.operationError.slice(0, 240)}` : '';
+    const activity = this.saving ? L({ ko: '저장 중', en: "Saving" })
+      : this.state.conflict ? L({ ko: '외부 파일 충돌', en: "External file conflict" })
+        : this.capabilityCheckPending ? L({ ko: '저장 안전성 검증 중', en: "Validating save safety" })
+          : readOnly ? L({ ko: '읽기 전용', en: "Read-only" })
+          : this.composing ? L({ ko: '한글 조합 중', en: "Korean IME composition" })
+            : this.draft ? L({ ko: '입력 중 · 자동 반영 대기', en: "Typing · automatic application pending" })
+              : this.state.dirty ? L({ ko: '저장되지 않은 변경', en: "Unsaved changes" })
+                : L({ ko: '저장됨', en: "Saved" });
+    const draftFailure = this.draftSaveError ? L({ ko: ' · 입력 복구본 저장 실패', en: " · input recovery save failed" }) : '';
+    const operationFailure = this.operationError ? L({ ko: ` · 마지막 작업 실패: ${this.operationError.slice(0, 240)}`, en: ` · last operation failed: ${this.operationError.slice(0, 240)}` }) : '';
     const address = this.selected && isParagraph(this.selected) ? this.selected.address : undefined;
     const section = this.pageLayout?.info.sectionIndex ?? address?.section;
-    const sectionLabel = Number.isSafeInteger(section) ? `구역: ${Number(section) + 1}/${this.sectionGotoSelect.options.length || 1}` : '';
+    const sectionLabel = Number.isSafeInteger(section) ? LT({ ko: () => `구역: ${Number(section) + 1}/${this.sectionGotoSelect.options.length || 1}`, en: () => `Section: ${Number(section) + 1}/${this.sectionGotoSelect.options.length || 1}` }) : '';
     const cellContext = this.selectedTableCell();
     const block = this.cellBlockSelection;
     const cellLabel = block
-      ? ` · 셀 블록 ${block.anchor.row + 1}행 ${block.anchor.col + 1}열–${block.focus.row + 1}행 ${block.focus.col + 1}열`
-      : cellContext ? ` · 셀 ${cellContext.cell.row + 1}행 ${cellContext.cell.col + 1}열` : '';
-    const fieldLabel = this.selected && !isParagraph(this.selected) ? ` · 필드 ${this.selected.name}` : '';
+      ? LT({ ko: () => ` · 셀 블록 ${block.anchor.row + 1}행 ${block.anchor.col + 1}열–${block.focus.row + 1}행 ${block.focus.col + 1}열`, en: () => ` · cell block row ${block.anchor.row + 1} col ${block.anchor.col + 1}–row ${block.focus.row + 1} col ${block.focus.col + 1}` })
+      : cellContext ? LT({ ko: () => ` · 셀 ${cellContext.cell.row + 1}행 ${cellContext.cell.col + 1}열`, en: () => ` · cell row ${cellContext.cell.row + 1} col ${cellContext.cell.col + 1}` }) : '';
+    const fieldLabel = this.selected && !isParagraph(this.selected) ? L({ ko: ` · 필드 ${this.selected.name}`, en: ` · field ${this.selected.name}` }) : '';
     const caretLabel = this.selected && isParagraph(this.selected)
-      ? ` · ${codePointOffsetFromUtf16(this.textarea.value, this.textarea.selectionEnd)}자 위치`
-      : this.selected && !isParagraph(this.selected) && this.pageSelection ? ` · 필드 경계 ${this.pageSelection.start + 1}자 위치` : '';
+      ? LT({ ko: () => ` · ${codePointOffsetFromUtf16(this.textarea.value, this.textarea.selectionEnd)}자 위치`, en: () => ` · character position ${codePointOffsetFromUtf16(this.textarea.value, this.textarea.selectionEnd)}` })
+      : this.selected && !isParagraph(this.selected) && this.pageSelection ? L({ ko: ` · 필드 경계 ${this.pageSelection.start + 1}자 위치`, en: ` · field boundary at character ${this.pageSelection.start + 1}` }) : '';
     const zoomLabel = this.zoomLabel?.textContent ? ` · ${this.zoomLabel.textContent}` : '';
-    if (this.statusPageButton) this.statusPageButton.setText(`${this.page + 1}/${this.state.pageCount}쪽`);
-    this.statusTextEl.setText(`${this.formMode ? '양식' : this.overwriteMode ? '수정' : '삽입'} · ${this.state.format.toUpperCase()}${this.statusPageButton ? '' : ` · ${this.page + 1}/${this.state.pageCount}쪽`}${sectionLabel ? ` · ${sectionLabel}` : ''}${cellLabel}${fieldLabel}${caretLabel}${zoomLabel}${operationFailure}`);
+    if (this.statusPageButton) this.statusPageButton.setText(L({ ko: `${this.page + 1}/${this.state.pageCount}쪽`, en: `Page ${this.page + 1}/${this.state.pageCount}` }));
+    this.statusTextEl.setText(L({ ko: `${this.formMode ? '양식' : this.overwriteMode ? '수정' : '삽입'} · ${this.state.format.toUpperCase()}${this.statusPageButton ? '' : ` · ${this.page + 1}/${this.state.pageCount}쪽`}${sectionLabel ? ` · ${sectionLabel}` : ''}${cellLabel}${fieldLabel}${caretLabel}${zoomLabel}${operationFailure}`, en: `${this.formMode ? 'Form' : this.overwriteMode ? 'Overwrite' : 'Insert'} · ${this.state.format.toUpperCase()}${this.statusPageButton ? '' : ` · page ${this.page + 1}/${this.state.pageCount}`}${sectionLabel ? ` · ${sectionLabel}` : ''}${cellLabel}${fieldLabel}${caretLabel}${zoomLabel}${operationFailure}` }));
     this.statusTextEl.title = this.statusTextEl.textContent ?? '';
     this.statusActivityEl.setText(`${activity}${draftFailure}`);
     this.statusEl.toggleClass('hwp-conflict', this.state.conflict);
@@ -4623,13 +4624,13 @@ export class HwpView extends FileView {
     this.reloadConflictButton.disabled = this.saving || this.composing;
     this.compareChangesButton.disabled = this.saving;
     this.recoverInputButton.disabled = this.saving;
-    const message = this.saving ? '문서를 검증하고 저장하고 있습니다.'
-      : this.state.conflict ? '디스크 파일이 이 편집 세션의 기준 이후 변경되었습니다. 변경본을 새 파일로 보관하거나 디스크 버전을 다시 불러오세요.'
-          : this.capabilityCheckPending ? '첫 쪽을 열었습니다. 원본 저장 안전성을 확인하는 동안 편집 도구를 잠시 사용할 수 없습니다.'
-          : readOnly ? `현재 형식 저장은 차단되었습니다. 새 파일 저장은 선택한 형식의 검증 결과에 따라 가능할 수 있습니다.${reason ? ` ${reason}` : ''}`
-            : this.operationError ? `작업을 완료하지 못했습니다. ${this.operationError}`
-              : this.draftSaveError ? '입력 복구본을 저장하지 못했습니다. 복구 목록을 확인하세요.'
-                : '문서에 저장되지 않은 변경이 있습니다.';
+    const message = this.saving ? L({ ko: '문서를 검증하고 저장하고 있습니다.', en: "Validating and saving the document." })
+      : this.state.conflict ? L({ ko: '디스크 파일이 이 편집 세션의 기준 이후 변경되었습니다. 변경본을 새 파일로 보관하거나 디스크 버전을 다시 불러오세요.', en: "The disk file changed since this editing session's baseline. Keep changes in a new file or reload the disk version." })
+          : this.capabilityCheckPending ? L({ ko: '첫 쪽을 열었습니다. 원본 저장 안전성을 확인하는 동안 편집 도구를 잠시 사용할 수 없습니다.', en: "The first page is open. Editing tools are temporarily unavailable while original save safety is checked." })
+          : readOnly ? LT({ ko: () => `현재 형식 저장은 차단되었습니다. 새 파일 저장은 선택한 형식의 검증 결과에 따라 가능할 수 있습니다.${reason ? ` ${reason}` : ''}`, en: () => `Saving in the current format is blocked. Saving a new file may be possible depending on validation for the selected format.${reason ? ` ${reason}` : ''}` })
+            : this.operationError ? LT({ ko: () => `작업을 완료하지 못했습니다. ${this.operationError}`, en: () => `Could not complete the operation. ${this.operationError}` })
+              : this.draftSaveError ? L({ ko: '입력 복구본을 저장하지 못했습니다. 복구 목록을 확인하세요.', en: "Could not save the input recovery copy. Check the recovery list." })
+                : L({ ko: '문서에 저장되지 않은 변경이 있습니다.', en: "The document has unsaved changes." });
     this.resolutionMessage.setText(message);
     this.syncInputDisabled();
   }
@@ -4686,7 +4687,7 @@ export class HwpView extends FileView {
       this.rebuildItemList(tree);
       const index = this.items.findIndex(item => (isParagraph(item) ? item.nodePath : String(item.fieldId)) === key);
       if (previousState && !unchanged) {
-        this.clearSelection('문서가 변경되어 선택을 해제했습니다. 편집할 위치를 다시 선택하세요.');
+        this.clearSelection(L({ ko: '문서가 변경되어 선택을 해제했습니다. 편집할 위치를 다시 선택하세요.', en: "The document changed; selection was cleared. Select the edit position again." }));
       } else {
         this.selectItem(key ? index : previousState ? -1 : 0);
         if (unchanged && index >= 0) {
@@ -4703,7 +4704,7 @@ export class HwpView extends FileView {
       const cached = this.pageLayouts.get(this.page);
       this.pageLayout = cached?.layout;
       this.pageLayoutRevision = cached?.revision ?? -1;
-      this.pageLabel.setText(`${this.page + 1} / ${this.state.pageCount}쪽`);
+      this.pageLabel.setText(L({ ko: `${this.page + 1} / ${this.state.pageCount}쪽`, en: `Page ${this.page + 1} / ${this.state.pageCount}` }));
       this.pageInput.value = String(this.page + 1); this.pageInput.max = String(this.state.pageCount);
       this.updatePageSelectionOverlay(true);
     }
@@ -4732,13 +4733,13 @@ export class HwpView extends FileView {
   private rebuildItemList(tree: DocumentTree): void {
     this.items = this.itemsForMode(tree);
     this.itemLabels.clear();
-    for (const p of tree.paragraphs) this.itemLabels.set(p.nodePath, `${p.section + 1}구역 · ${p.paragraph + 1}문단`);
-    for (const [tableIndex, table] of tree.tables.entries()) for (const cell of table.cells) for (const p of cell.paragraphs) this.itemLabels.set(p.nodePath, `표 ${tableIndex + 1} · ${cell.row + 1}행 ${cell.col + 1}열 · ${p.cellPath!.at(-1)!.cellParaIndex + 1}문단`);
+    for (const p of tree.paragraphs) this.itemLabels.set(p.nodePath, LT({ ko: () => `${p.section + 1}구역 · ${p.paragraph + 1}문단`, en: () => `Section ${p.section + 1} · paragraph ${p.paragraph + 1}` }));
+    for (const [tableIndex, table] of tree.tables.entries()) for (const cell of table.cells) for (const p of cell.paragraphs) this.itemLabels.set(p.nodePath, LT({ ko: () => `표 ${tableIndex + 1} · ${cell.row + 1}행 ${cell.col + 1}열 · ${p.cellPath!.at(-1)!.cellParaIndex + 1}문단`, en: () => `Table ${tableIndex + 1} · row ${cell.row + 1} col ${cell.col + 1} · paragraph ${p.cellPath!.at(-1)!.cellParaIndex + 1}` }));
     for (const story of tree.stories) for (const paragraph of story.paragraphs) {
       const address = paragraph.address;
-      const label = story.kind === 'headerFooter' ? `${story.label} · ${address.paragraph + 1}문단`
-        : story.kind === 'textBox' ? `글상자 · ${address.section + 1}구역 ${address.paragraph + 1}문단`
-          : `${story.kind === 'footnote' ? '각주' : '미주'} · ${address.section + 1}구역 ${address.paragraph + 1}문단`;
+      const label = story.kind === 'headerFooter' ? LT({ ko: () => `${story.label} · ${address.paragraph + 1}문단`, en: () => `${story.label} · paragraph ${address.paragraph + 1}` })
+        : story.kind === 'textBox' ? LT({ ko: () => `글상자 · ${address.section + 1}구역 ${address.paragraph + 1}문단`, en: () => `Text box · section ${address.section + 1}, paragraph ${address.paragraph + 1}` })
+          : LT({ ko: () => `${story.kind === 'footnote' ? '각주' : '미주'} · ${address.section + 1}구역 ${address.paragraph + 1}문단`, en: () => `${story.kind === 'footnote' ? 'Footnote' : 'Endnote'} · section ${address.section + 1}, paragraph ${address.paragraph + 1}` });
       this.itemLabels.set(paragraph.nodePath, label);
     }
   }
@@ -4750,11 +4751,11 @@ export class HwpView extends FileView {
     this.selector.empty();
     for (let index = start; index < end; index++) {
       const item = this.items[index];
-      this.selector.createEl('option', { value: String(index), text: `${isParagraph(item) ? this.itemLabels.get(String(item.nodePath)) : item.name}: ${(isParagraph(item) ? String(item.text) : item.value).slice(0, 70) || '(빈 내용)'}` });
+      this.selector.createEl('option', { value: String(index), text: LT({ ko: () => `${isParagraph(item) ? this.itemLabels.get(String(item.nodePath)) : item.name}: ${(isParagraph(item) ? String(item.text) : item.value).slice(0, 70) || '(빈 내용)'}`, en: () => `${isParagraph(item) ? this.itemLabels.get(String(item.nodePath)) : item.name}: ${(isParagraph(item) ? String(item.text) : item.value).slice(0, 70) || '(empty content)'}` }) });
     }
     this.itemPagePrevious.disabled = this.itemPage === 0;
     this.itemPageNext.disabled = this.itemPage + 1 >= pageCount;
-    this.itemPageStatus.setText(this.items.length ? `${start + 1}–${end} / ${this.items.length}` : '항목 없음');
+    this.itemPageStatus.setText(this.items.length ? `${start + 1}–${end} / ${this.items.length}` : L({ ko: '항목 없음', en: "No items" }));
   }
   private itemsForMode(tree: DocumentTree): Array<TextParagraph | Field> {
     const items = this.mode === 'paragraphs' ? tree.paragraphs
@@ -4774,7 +4775,7 @@ export class HwpView extends FileView {
     if (!this.selected || !isParagraph(this.selected) || this.inlineCellSelection?.paragraphPath !== this.selected.nodePath) this.inlineCellSelection = undefined;
     this.inlineEditorActive = !!this.selected && inline;
     this.pageSelection = this.selected && isParagraph(this.selected) ? { address: this.selected.address, start: 0, end: 0 } : undefined;
-    this.syncInputDisabled(); this.infoEl.setText(this.selected ? String(isParagraph(this.selected) ? this.itemLabels.get(String(this.selected.nodePath)) : this.selected.name) : '편집 대상이 없습니다.');
+    this.syncInputDisabled(); this.infoEl.setText(this.selected ? String(isParagraph(this.selected) ? this.itemLabels.get(String(this.selected.nodePath)) : this.selected.name) : L({ ko: '편집 대상이 없습니다.', en: "No edit target." }));
     this.updatePageSelectionOverlay(true);
     this.updateToolState(); this.updateStatus();
   }
@@ -4791,7 +4792,7 @@ export class HwpView extends FileView {
     const cached = this.pageLayouts.get(this.page);
     this.pageLayout = cached?.layout;
     this.pageLayoutRevision = cached?.revision ?? -1;
-    this.pageLabel.setText(`${this.page + 1} / ${this.state.pageCount}쪽`);
+    this.pageLabel.setText(L({ ko: `${this.page + 1} / ${this.state.pageCount}쪽`, en: `Page ${this.page + 1} / ${this.state.pageCount}` }));
     this.pageInput.value = String(this.page + 1); this.pageInput.max = String(this.state.pageCount);
     this.updatePageSelectionOverlay(true); this.updateToolState(); this.updateStatus();
   }
@@ -4853,7 +4854,7 @@ export class HwpView extends FileView {
         content.className = 'hwp-page-content';
         element.replaceChildren(content);
       }
-      const label = `${page + 1}쪽 시각 미리보기. 문서 내용 입력창에서 내용을 읽고 편집할 수 있습니다.`;
+      const label = LT({ ko: () => `${page + 1}쪽 시각 미리보기. 문서 내용 입력창에서 내용을 읽고 편집할 수 있습니다.`, en: () => `Page ${page + 1} visual preview. Read and edit content in the document content input.` });
       if (bitmap) {
         this.pageImages?.release(page);
         mountCanvasPage(content, { bitmap }, label);
@@ -4877,49 +4878,49 @@ export class HwpView extends FileView {
     const cached = this.pageLayouts.get(page);
     this.pageLayout = cached?.layout;
     this.pageLayoutRevision = cached?.revision ?? -1;
-    if (this.pageLabel) this.pageLabel.setText(`${page + 1} / ${this.state?.pageCount ?? 1}쪽`);
+    if (this.pageLabel) this.pageLabel.setText(LT({ ko: () => `${page + 1} / ${this.state?.pageCount ?? 1}쪽`, en: () => `Page ${page + 1} / ${this.state?.pageCount ?? 1}` }));
     if (this.pageInput) { this.pageInput.value = String(page + 1); this.pageInput.max = String(this.state?.pageCount ?? 1); }
     if (this.pageEl) { this.updatePageSelectionOverlay(true); }
     if (this.state) { this.updateToolState(); this.updateStatus(); }
     this.scheduleRulerDraw();
   }
   private async goToPage(): Promise<void> {
-    if (this.draft || this.composing) throw new Error('입력을 적용하거나 조합을 마친 뒤 쪽을 이동하세요.');
-    if (!this.state) throw new Error('문서가 아직 준비되지 않았습니다.');
+    if (this.draft || this.composing) throw new Error(L({ ko: '입력을 적용하거나 조합을 마친 뒤 쪽을 이동하세요.', en: "Apply input or finish composition before changing pages." }));
+    if (!this.state) throw new Error(L({ ko: '문서가 아직 준비되지 않았습니다.', en: "The document is not ready yet." }));
     const requested = Number(this.pageInput.value);
     if (!Number.isSafeInteger(requested) || requested < 1 || requested > this.state.pageCount) {
-      throw new Error(`쪽 번호는 1부터 ${this.state.pageCount} 사이여야 합니다.`);
+      throw new Error(L({ ko: `쪽 번호는 1부터 ${this.state.pageCount} 사이여야 합니다.`, en: `Page number must be from 1 to ${this.state.pageCount}.` }));
     }
     this.page = requested - 1;
     await this.renderPage(true);
-    this.navigationStatus.setText(`${requested}쪽으로 이동했습니다.`);
+    this.navigationStatus.setText(LT({ ko: () => `${requested}쪽으로 이동했습니다.`, en: () => `Moved to page ${requested}.` }));
   }
   private async goToSection(): Promise<void> {
-    if (this.draft || this.composing) throw new Error('입력을 적용하거나 조합을 마친 뒤 구역을 이동하세요.');
+    if (this.draft || this.composing) throw new Error(L({ ko: '입력을 적용하거나 조합을 마친 뒤 구역을 이동하세요.', en: "Apply input or finish composition before changing sections." }));
     const section = Number(this.sectionGotoSelect.value), tree = this.documentTree;
-    if (!Number.isSafeInteger(section) || section < 0 || !tree) throw new Error('이동할 구역을 읽지 못했습니다.');
+    if (!Number.isSafeInteger(section) || section < 0 || !tree) throw new Error(L({ ko: '이동할 구역을 읽지 못했습니다.', en: "Could not read the destination section." }));
     const paragraph = tree.paragraphs.find(item => item.address.kind === 'body' && item.address.section === section
       && !item.address.cellPath?.length && !item.address.containerKinds?.includes('textBox'));
-    if (!paragraph) throw new Error(`구역 ${section + 1}에 이동할 본문 문단이 없습니다.`);
-    await this.goToParagraphOffset(paragraph, 0, `구역 ${section + 1} 첫 문단`);
+    if (!paragraph) throw new Error(LT({ ko: () => `구역 ${section + 1}에 이동할 본문 문단이 없습니다.`, en: () => `Section ${section + 1} has no body paragraph to navigate to.` }));
+    await this.goToParagraphOffset(paragraph, 0, LT({ ko: () => `구역 ${section + 1} 첫 문단`, en: () => `Section ${section + 1} first paragraph` }));
   }
   /** Moves the page, selection and caret to a code point offset of a body paragraph, re-checking the revision. */
   private async goToParagraphOffset(paragraph: TextParagraph, offset: number, label: string): Promise<void> {
     const tree = this.documentTree, state = this.state;
-    if (!tree || !state || !this.path) throw new Error('이동할 문서 상태를 읽지 못했습니다.');
+    if (!tree || !state || !this.path) throw new Error(L({ ko: '이동할 문서 상태를 읽지 못했습니다.', en: "Could not read the document state for navigation." }));
     const context = this.captureContext(), revision = state.revision;
     const caret = await this.plugin.api.query.caret(context.path, { address: paragraph.address, offset }, {
       sessionId: state.sessionId, expectedRevision: revision,
     });
     this.assertContext(context);
     const latest = await this.plugin.api.documents.state(context.path); this.assertContext(context);
-    if (latest.revision !== revision || this.state?.revision !== revision) throw new Error('이동 중 문서가 변경되어 이동을 취소했습니다.');
+    if (latest.revision !== revision || this.state?.revision !== revision) throw new Error(L({ ko: '이동 중 문서가 변경되어 이동을 취소했습니다.', en: "Navigation cancelled because the document changed while moving." }));
     const page = Math.min(Math.max(0, caret.rect.pageIndex), Math.max(0, latest.pageCount - 1));
     this.page = page; this.selectedObject = undefined;
     await this.pageStack?.setActivePage(page, true, false); this.assertContext(context);
     this.mode = 'paragraphs'; this.modeSelector.value = this.mode; this.items = this.itemsForMode(tree);
     const index = this.items.findIndex(item => isParagraph(item) && item.nodePath === paragraph.nodePath);
-    if (index < 0) throw new Error('이동할 문단을 편집 목록에서 찾지 못했습니다.');
+    if (index < 0) throw new Error(L({ ko: '이동할 문단을 편집 목록에서 찾지 못했습니다.', en: "Destination paragraph not found in the editor list." }));
     this.selectItem(index, false);
     const native = utf16OffsetFromCodePoint(this.textarea.value, offset);
     this.textarea.setSelectionRange(native, native);
@@ -4927,7 +4928,7 @@ export class HwpView extends FileView {
     this.pageSelection = { address: paragraph.address, start: offset, end: offset, focus: position };
     this.selectionAnchor = position; this.updatePageSelectionOverlay();
     this.textarea.focus({ preventScroll: true });
-    this.navigationStatus.setText(`${label} · ${page + 1}쪽으로 이동했습니다.`);
+    this.navigationStatus.setText(LT({ ko: () => `${label} · ${page + 1}쪽으로 이동했습니다.`, en: () => `${label} · Moved to page ${page + 1}.` }));
   }
   private async listBookmarks(): Promise<Bookmark[]> {
     if (!this.path) return [];
@@ -4940,29 +4941,29 @@ export class HwpView extends FileView {
     }
   }
   private async goToBookmark(bookmark: Bookmark): Promise<void> {
-    if (this.draft || this.composing) throw new Error('입력을 적용하거나 조합을 마친 뒤 이동하세요.');
+    if (this.draft || this.composing) throw new Error(L({ ko: '입력을 적용하거나 조합을 마친 뒤 이동하세요.', en: "Apply input or finish composition before navigating." }));
     const tree = this.documentTree;
     const paragraph = tree?.paragraphs.find(item => item.address.kind === 'body' && item.address.section === bookmark.address.section
       && item.address.paragraph === bookmark.address.paragraph && !item.address.cellPath?.length && !item.address.containerKinds?.includes('textBox'));
-    if (!paragraph) throw new Error(`책갈피 "${bookmark.name}"의 문단을 찾지 못했습니다. 문서를 다시 불러온 뒤 시도하세요.`);
-    await this.goToParagraphOffset(paragraph, Math.min(bookmark.offset, paragraph.length), `책갈피 "${bookmark.name}"`);
+    if (!paragraph) throw new Error(LT({ ko: () => `책갈피 "${bookmark.name}"의 문단을 찾지 못했습니다. 문서를 다시 불러온 뒤 시도하세요.`, en: () => `Could not find the paragraph for bookmark "${bookmark.name}". Reload the document and try again.` }));
+    await this.goToParagraphOffset(paragraph, Math.min(bookmark.offset, paragraph.length), LT({ ko: () => `책갈피 "${bookmark.name}"`, en: () => `Bookmark "${bookmark.name}"` }));
   }
   private async pickBookmark(): Promise<void> {
     const bookmarks = await this.listBookmarks();
-    if (!bookmarks.length) { new Notice('이 문서에는 책갈피가 없습니다.'); return; }
+    if (!bookmarks.length) { new Notice(L({ ko: '이 문서에는 책갈피가 없습니다.', en: "This document has no bookmarks." })); return; }
     new BookmarkPickerModal(this.app, bookmarks, bookmark => { void this.goToBookmark(bookmark).catch(error => new Notice(String(error instanceof Error ? error.message : error), 8000)); }).open();
   }
   private openBookmarkModal(): void {
     const blocked = (): string | undefined => {
-      if (!this.state) return '문서를 먼저 여세요.';
-      if (this.composing) return '한글 조합을 마친 뒤 사용하세요.';
-      if (this.formMode) return '양식 모드에서는 책갈피를 편집할 수 없습니다.';
-      if (this.saving || this.inputLocks) return '현재 작업이 끝난 뒤 사용하세요.';
-      if (this.capabilityCheckPending) return '문서 저장 안전성을 확인하고 있습니다.';
-      return this.capabilitiesReadOnly() ? this.capabilities?.readOnlyReasons.join(' ') || '읽기 전용 문서입니다.' : undefined;
+      if (!this.state) return L({ ko: '문서를 먼저 여세요.', en: "Open a document first." });
+      if (this.composing) return L({ ko: '한글 조합을 마친 뒤 사용하세요.', en: "Finish Korean IME composition before use." });
+      if (this.formMode) return L({ ko: '양식 모드에서는 책갈피를 편집할 수 없습니다.', en: "Bookmarks cannot be edited in form mode." });
+      if (this.saving || this.inputLocks) return L({ ko: '현재 작업이 끝난 뒤 사용하세요.', en: "Wait for the current operation to finish." });
+      if (this.capabilityCheckPending) return L({ ko: '문서 저장 안전성을 확인하고 있습니다.', en: "Checking document save safety." });
+      return this.capabilitiesReadOnly() ? this.capabilities?.readOnlyReasons.join(' ') || L({ ko: '읽기 전용 문서입니다.', en: "Read-only document." }) : undefined;
     };
     const addBlocked = (): string | undefined => !(this.selected && isParagraph(this.selected) && this.selected.address.kind === 'body' && !this.selected.address.cellPath?.length && !this.selected.address.containerKinds?.includes('textBox'))
-      ? '책갈피를 추가할 글상자가 아닌 본문 문단을 선택하세요(표 셀 안은 지원하지 않습니다).'
+      ? L({ ko: '책갈피를 추가할 글상자가 아닌 본문 문단을 선택하세요(표 셀 안은 지원하지 않습니다).', en: "Select a body paragraph for the bookmark, not a text box (table cells are unsupported)." })
       : undefined;
     new BookmarkModal(this.app, {
       list: () => this.listBookmarks(),
@@ -4978,7 +4979,7 @@ export class HwpView extends FileView {
     const cached = this.pageLayouts.get(page), layout = cached?.layout, tree = this.documentTree, state = this.state;
     const pageElement = this.pageStack?.pageElement(page);
     if (!layout || !tree || !state || cached?.revision !== state.revision || !pageElement) return undefined;
-    if (this.draft || this.composing) { new Notice('페이지에서 다른 대상을 선택하기 전에 입력을 적용하거나 취소하세요.'); return undefined; }
+    if (this.draft || this.composing) { new Notice(L({ ko: '페이지에서 다른 대상을 선택하기 전에 입력을 적용하거나 취소하세요.', en: "Apply or cancel input before selecting another target on the page." })); return undefined; }
     const context = this.captureContext(), revision = state.revision;
     let hit = this.pageHitAt(event.clientX, event.clientY, page);
     const bounds = pageElement.getBoundingClientRect();
@@ -5007,11 +5008,11 @@ export class HwpView extends FileView {
     }
     if (!hit) return undefined;
     if (this.formMode && hit.kind !== 'field') {
-      new Notice('양식 모드에서는 누름틀만 선택하고 입력할 수 있습니다.');
+      new Notice(L({ ko: '양식 모드에서는 누름틀만 선택하고 입력할 수 있습니다.', en: "Form mode permits selecting and typing only in input fields." }));
       return undefined;
     }
     if (this.formMode && hit.kind === 'field' && hit.field.editableInForm === false) {
-      new Notice('이 누름틀은 양식 모드에서 입력할 수 없습니다.');
+      new Notice(L({ ko: '이 누름틀은 양식 모드에서 입력할 수 없습니다.', en: "This input field is not editable in form mode." }));
       return undefined;
     }
     if (hit.kind === 'object') {
@@ -5023,7 +5024,7 @@ export class HwpView extends FileView {
       const object = objects.find(item => item.nodePath === hit.object.nodePath);
       if (!object) return undefined;
       this.selectedObject = object;
-      this.clearSelection(`${objectKindLabel(object)} 선택 · ${this.itemLabels.get(object.nodePath) ?? object.nodePath}`);
+      this.clearSelection(LT({ ko: () => `${objectKindLabel(object)} 선택 · ${this.itemLabels.get(object.nodePath) ?? object.nodePath}`, en: () => `${objectKindLabel(object)} selected · ${this.itemLabels.get(object.nodePath) ?? object.nodePath}` }));
       this.pageScroll.focus({ preventScroll: true });
       if (object.kind === 'equation' && event.type === 'click' && event.detail >= 2) {
         this.openObjectPropertiesDialog();
@@ -5032,7 +5033,7 @@ export class HwpView extends FileView {
     }
     this.selectedObject = undefined;
     if (hit.kind === 'tableCell' && !hit.paragraph) {
-      this.clearSelection(`표 셀 선택 · ${hit.row + 1}행 ${hit.col + 1}열`);
+      this.clearSelection(LT({ ko: () => `표 셀 선택 · ${hit.row + 1}행 ${hit.col + 1}열`, en: () => `Table cell selected · row ${hit.row + 1} col ${hit.col + 1}` }));
       return undefined;
     }
     const paragraph = hit.kind === 'paragraph' ? hit.paragraph : hit.kind === 'tableCell' ? hit.paragraph : undefined;
@@ -5047,7 +5048,7 @@ export class HwpView extends FileView {
       && sameDocumentAddress(this.selected.address, paragraph.address);
     if (event.type === 'click' && paragraph
       && !shouldEnterStoryOnClick(paragraph.address.kind, event.detail, sameActiveStory)) {
-      this.infoEl.setText('머리말·꼬리말·각주·미주는 두 번 클릭해 편집하세요.');
+      this.infoEl.setText(L({ ko: '머리말·꼬리말·각주·미주는 두 번 클릭해 편집하세요.', en: "Double-click headers, footers, footnotes, or endnotes to edit." }));
       return undefined;
     }
     const desiredMode = hit.kind === 'field' ? 'fields'
@@ -5071,7 +5072,7 @@ export class HwpView extends FileView {
         : undefined;
       this.selectItem(index, !!paragraph || hit.kind === 'field');
       if (hit.kind === 'field') {
-        this.infoEl.setText(`${this.itemLabels.get(String(hit.field.nodePath)) ?? hit.field.name} · 필드`);
+        this.infoEl.setText(LT({ ko: () => `${this.itemLabels.get(String(hit.field.nodePath)) ?? hit.field.name} · 필드`, en: () => `${this.itemLabels.get(String(hit.field.nodePath)) ?? hit.field.name} · field` }));
         this.showFieldBoundaryCaret(hit.field, hit.offset ?? (typeof hit.field.startCharIdx === 'number' ? hit.field.startCharIdx : 0));
         this.textarea.focus({ preventScroll: true });
       }
@@ -5088,19 +5089,19 @@ export class HwpView extends FileView {
           this.updateToolState();
           if (focus) this.textarea.focus({ preventScroll: true });
         }
-        this.infoEl.setText(`${this.itemLabels.get(String(paragraph.nodePath)) ?? paragraph.nodePath} · ${start + 1}자 위치`);
+        this.infoEl.setText(LT({ ko: () => `${this.itemLabels.get(String(paragraph.nodePath)) ?? paragraph.nodePath} · ${start + 1}자 위치`, en: () => `${this.itemLabels.get(String(paragraph.nodePath)) ?? paragraph.nodePath} · character position ${start + 1}` }));
       }
     }
     return selectedPosition;
   }
   private target(): DocumentAddress {
-    if (!this.selected || !isParagraph(this.selected)) throw new Error('본문 문단, 셀 또는 본문 밖 영역을 선택하세요.');
+    if (!this.selected || !isParagraph(this.selected)) throw new Error(L({ ko: '본문 문단, 셀 또는 본문 밖 영역을 선택하세요.', en: "Select a body paragraph, cell, or non-body area." }));
     return this.selected.address;
   }
   private async applyDraft(focusAfter = false): Promise<number | undefined> {
     this.directInputCommit.cancel();
     if (!this.draft) return undefined;
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 내용을 적용하세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 내용을 적용하세요.', en: "Finish Korean IME composition before applying content." }));
     const snapshot = this.captureDraftApplySnapshot(), unlock = this.lockInput();
     try {
       await this.draftAutosave.flush(this.captureInputDraft(snapshot.selected, snapshot.value, snapshot.context.path, snapshot.revision));
@@ -5121,15 +5122,15 @@ export class HwpView extends FileView {
     this.assertContext(snapshot.context);
     const paragraph = this.paragraphForAddress(tree, selected.address);
     if (!paragraph || paragraph.nodePath !== selected.nodePath || paragraph.text !== selected.text) {
-      throw new Error('입력하는 동안 다른 작성자가 이 문단을 바꿨습니다. 입력한 내용은 편집창과 복구 목록에 남아 있습니다.');
+      throw new Error(L({ ko: '입력하는 동안 다른 작성자가 이 문단을 바꿨습니다. 입력한 내용은 편집창과 복구 목록에 남아 있습니다.', en: "Another author changed this paragraph while you were typing. Your input remains in the editor and recovery list." }));
     }
     this.resetInputGroup(); // the other writer's commit ends the typing group, so this change starts a new undo step
     return tree.state.revision;
   }
   private async applyDraftSnapshot(snapshot: DraftApplySnapshot, alreadyBackedUp: boolean, trailingCommands: Command[] = [], finalPosition?: TextPosition, focusAfter = false,
     keepTyping = false): Promise<number> {
-    if (!this.draft) throw new Error('적용할 편집 내용이 없습니다.');
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 내용을 적용하세요.');
+    if (!this.draft) throw new Error(L({ ko: '적용할 편집 내용이 없습니다.', en: "No edits to apply." }));
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 내용을 적용하세요.', en: "Finish Korean IME composition before applying content." }));
     this.assertContext(snapshot.context);
     const selected = snapshot.selected, wasInline = this.inlineEditorActive;
     let commands: Command[];
@@ -5138,11 +5139,11 @@ export class HwpView extends FileView {
       commands = paragraphEditCommands(selected.address, selected.text, snapshot.value, this.pendingCaretProperties);
       position ??= positionAfterEditorText(selected.address, snapshot.value, snapshot.selectionEnd);
     } else {
-      if (selected.sessionId === undefined || selected.revision === undefined) throw new Error('필드 주소가 오래되어 다시 선택해야 합니다.');
+      if (selected.sessionId === undefined || selected.revision === undefined) throw new Error(L({ ko: '필드 주소가 오래되어 다시 선택해야 합니다.', en: "The field address is stale. Select it again." }));
       commands = [{ type: 'setFieldById', fieldId: selected.fieldId, sessionId: selected.sessionId, revision: selected.revision, value: snapshot.value }];
     }
     commands.push(...trailingCommands);
-    if (commands.length > 500) throw new Error('한 번의 편집에 500개 넘는 문단 명령을 적용할 수 없습니다.');
+    if (commands.length > 500) throw new Error(L({ ko: '한 번의 편집에 500개 넘는 문단 명령을 적용할 수 없습니다.', en: "A single edit cannot apply more than 500 paragraph commands." }));
     if (!alreadyBackedUp) await this.draftAutosave.flush(this.captureInputDraft(snapshot.selected, snapshot.value, snapshot.context.path, snapshot.revision));
     // The path, selected item, text, and expected revision stay bound to the user's original Apply action.
     let revision = snapshot.revision, changedPages: readonly number[] | undefined;
@@ -5170,7 +5171,7 @@ export class HwpView extends FileView {
     try { await this.discardAutosavedDraft(); }
     catch (error) {
       await this.draftAutosave.detach();
-      new Notice('입력은 적용했지만 오래된 복구본을 정리하지 못했습니다. 복구 목록에서 확인한 뒤 폐기하세요.', 8000);
+      new Notice(L({ ko: '입력은 적용했지만 오래된 복구본을 정리하지 못했습니다. 복구 목록에서 확인한 뒤 폐기하세요.', en: "Input was applied, but the old recovery copy could not be cleaned up. Inspect and discard it in the recovery list." }), 8000);
       this.plugin.report(error);
     }
     this.pageSelection = undefined; this.selectionAnchor = undefined;
@@ -5192,17 +5193,17 @@ export class HwpView extends FileView {
     return revision;
   }
   private async execute(commands: Command[], afterPosition?: TextPosition, focusAfter = false): Promise<void> {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 명령을 실행하세요.');
-    if (this.formMode) throw new Error('양식 모드에서는 누름틀 값만 입력할 수 있습니다.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 명령을 실행하세요.', en: "Finish Korean IME composition before running commands." }));
+    if (this.formMode) throw new Error(L({ ko: '양식 모드에서는 누름틀 값만 입력할 수 있습니다.', en: "Form mode permits typing only input field values." }));
     const context = this.captureContext(), stableCommands = structuredClone(commands), wasInline = this.inlineEditorActive;
     const formattingSelection = isNonstructuralFormatting(stableCommands) ? this.captureFormattingSelection() : undefined;
     const initialRevision = this.draft ? this.draftRevision : this.state?.revision;
-    if (initialRevision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (initialRevision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const unlock = this.lockInput();
     try {
       const appliedRevision = this.draft ? await this.applyDraft() : undefined;
       this.assertContext(context);
-      if (this.draft) throw new Error('추가 입력을 적용한 뒤 명령을 실행하세요.');
+      if (this.draft) throw new Error(L({ ko: '추가 입력을 적용한 뒤 명령을 실행하세요.', en: "Apply additional input before running the command." }));
       const receipt = await this.plugin.manager.transactionFromView(context.path, stableCommands, { expectedRevision: appliedRevision ?? initialRevision, origin: 'command' });
       this.assertContext(context); await this.refresh();
       if (this.state?.revision === receipt.revision) {
@@ -5213,12 +5214,12 @@ export class HwpView extends FileView {
     } finally { unlock(); }
   }
   private async showDocumentChanges(): Promise<void> {
-    if (this.baselineText === undefined) throw new Error('비교할 기준 텍스트가 아직 준비되지 않았습니다.');
+    if (this.baselineText === undefined) throw new Error(L({ ko: '비교할 기준 텍스트가 아직 준비되지 않았습니다.', en: "Comparison baseline text is not ready yet." }));
     const context = this.captureContext(), revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const currentText = await this.plugin.api.query.text(context.path); this.assertContext(context);
     const current = await this.plugin.api.documents.state(context.path); this.assertContext(context);
-    if (current.revision !== revision) throw new Error('비교 중 문서가 변경되었습니다. 다시 열어 비교하세요.');
+    if (current.revision !== revision) throw new Error(L({ ko: '비교 중 문서가 변경되었습니다. 다시 열어 비교하세요.', en: "The document changed during comparison. Reopen the comparison." }));
     const draft = this.draft && this.selected ? {
       target: isParagraph(this.selected) ? this.itemLabels.get(this.selected.nodePath) ?? this.selected.nodePath : this.selected.name,
       text: this.textarea.value,
@@ -5230,7 +5231,7 @@ export class HwpView extends FileView {
     new InputDraftRecoveryModal(this.app, this.plugin).open();
   }
   private async reloadFromDisk(confirmed = false): Promise<void> {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 다시 불러오세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 다시 불러오세요.', en: "Finish Korean IME composition before reloading." }));
     const context = this.captureContext();
     const reload = async () => {
       this.assertContext(context);
@@ -5250,23 +5251,23 @@ export class HwpView extends FileView {
     else await reload();
   }
   async save(): Promise<void> {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 저장하세요.');
-    if (this.state?.conflict) throw new Error('디스크 파일이 변경되었습니다. 변경본을 새 파일로 저장하거나 디스크 버전을 다시 불러오세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 저장하세요.', en: "Finish Korean IME composition before saving." }));
+    if (this.state?.conflict) throw new Error(L({ ko: '디스크 파일이 변경되었습니다. 변경본을 새 파일로 저장하거나 디스크 버전을 다시 불러오세요.', en: "The disk file changed. Save changes to a new file or reload the disk version." }));
     if (this.capabilitiesReadOnly()) {
-      throw new Error(this.capabilityCheckError ?? this.capabilities?.readOnlyReasons.join(' ') ?? '문서 저장 안전성을 확인 중입니다. 확인이 끝나면 다시 시도하세요.');
+      throw new Error(this.capabilityCheckError ?? this.capabilities?.readOnlyReasons.join(' ') ?? L({ ko: '문서 저장 안전성을 확인 중입니다. 확인이 끝나면 다시 시도하세요.', en: "Checking document save safety. Try again when complete." }));
     }
     const context = this.captureContext(), initialRevision = this.draft ? this.draftRevision : this.state?.revision;
-    if (initialRevision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (initialRevision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     this.saving = true; this.updateStatus();
     try {
       const appliedRevision = this.draft ? await this.applyDraft() : undefined;
       this.assertContext(context);
-      if (this.draft) throw new Error('남은 입력을 적용한 뒤 문서를 저장하세요.');
+      if (this.draft) throw new Error(L({ ko: '남은 입력을 적용한 뒤 문서를 저장하세요.', en: "Apply remaining input before saving the document." }));
       const result = await this.plugin.api.documents.save(context.path, { expectedRevision: appliedRevision ?? initialRevision });
       this.assertContext(context);
       for (const warning of result.warnings) new Notice(warning, 8000);
       this.baselineText = undefined;
-      new Notice('한글 문서를 저장했습니다.'); await this.refresh();
+      new Notice(L({ ko: '한글 문서를 저장했습니다.', en: "Saved HWP document." })); await this.refresh();
     } catch (error) {
       try {
         const capabilities = await this.plugin.api.query.capabilities(context.path); this.assertContext(context);
@@ -5278,31 +5279,31 @@ export class HwpView extends FileView {
     }
   }
   private saveAs(requestedFormat?: 'hwp' | 'hwpx', afterCopy?: () => Promise<void>): void {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 새 파일로 저장하세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 새 파일로 저장하세요.', en: "Finish Korean IME composition before saving to a new file." }));
     const context = this.captureContext();
     const draftSnapshot = this.draft ? this.captureDraftApplySnapshot() : undefined;
     const initialRevision = draftSnapshot?.revision ?? this.state?.revision;
-    if (initialRevision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (initialRevision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const readOnly = this.capabilitiesReadOnly();
     const currentFormat = this.state?.format ?? 'hwpx';
     const alternateFormat = currentFormat === 'hwp' ? 'hwpx' : 'hwp';
     const copyFormat = requestedFormat ?? (readOnly && this.capabilities?.saveFormats[alternateFormat].available ? alternateFormat : currentFormat);
-    const suggestedPath = context.path.replace(/\.(hwp|hwpx)$/i, ` - 사본.${copyFormat}`);
+    const suggestedPath = context.path.replace(/\.(hwp|hwpx)$/i, LT({ ko: () => ` - 사본.${copyFormat}`, en: () => ` - Copy.${copyFormat}` }));
     const unlock = this.lockInput();
     try { new SaveAsModal(this.app, suggestedPath, copyFormat, async (destination, targetFormat) => {
       try { await this.tasks.run(async () => {
         this.saving = true; this.updateStatus();
         try {
           this.assertContext(context);
-          if (this.composing) throw new Error('한글 조합을 마친 뒤 새 파일로 저장하세요.');
-          if (draftSnapshot && !this.draft) throw new Error('저장 대화상자를 연 뒤 편집 상태가 바뀌었습니다. 다시 시도하세요.');
+          if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 새 파일로 저장하세요.', en: "Finish Korean IME composition before saving to a new file." }));
+          if (draftSnapshot && !this.draft) throw new Error(L({ ko: '저장 대화상자를 연 뒤 편집 상태가 바뀌었습니다. 다시 시도하세요.', en: "Editing state changed after the save dialog opened. Try again." }));
           const revision = draftSnapshot ? await this.applyDraftSnapshot(draftSnapshot, false) : initialRevision;
           this.assertContext(context);
-          if (this.draft) throw new Error('남은 입력을 적용한 뒤 새 파일로 저장하세요.');
+          if (this.draft) throw new Error(L({ ko: '남은 입력을 적용한 뒤 새 파일로 저장하세요.', en: "Apply remaining input before saving to a new file." }));
           const copy = await this.plugin.api.documents.saveAs(context.path, destination, { expectedRevision: revision });
           this.assertContext(context);
-          if (copy.format !== targetFormat) throw new Error('저장 결과 형식이 선택한 사본 형식과 다릅니다.');
-          new Notice(`재열기를 확인한 ${copy.format.toUpperCase()} ${copy.pageCount}쪽 사본을 저장했습니다: ${destination}`);
+          if (copy.format !== targetFormat) throw new Error(L({ ko: '저장 결과 형식이 선택한 사본 형식과 다릅니다.', en: "The saved format differs from the selected copy format." }));
+          new Notice(LT({ ko: () => `재열기를 확인한 ${copy.format.toUpperCase()} ${copy.pageCount}쪽 사본을 저장했습니다: ${destination}`, en: () => `Saved a ${copy.format.toUpperCase()} copy with ${copy.pageCount} pages and verified reopening: ${destination}` }));
           for (const warning of copy.warnings ?? []) new Notice(warning, 8000);
           const file = this.app.vault.getAbstractFileByPath(destination);
           if (file instanceof TFile) setTimeout(() => { void this.app.workspace.getLeaf('tab').openFile(file); }, 0);
@@ -5315,7 +5316,7 @@ export class HwpView extends FileView {
   }
   private openPrintDialog(): void {
     const state = this.state;
-    if (!state) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (!state) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const context = this.captureContext();
     new PrintPagesModal(this.app, state.pageCount, async (firstPage, lastPage, progress, isCancelled) => {
       await this.tasks.run(async () => {
@@ -5329,15 +5330,15 @@ export class HwpView extends FileView {
         }
         if (isCancelled()) return;
         const owner = this.contentEl.ownerDocument, win = owner.defaultView;
-        if (!win || typeof win.print !== 'function') throw new Error('현재 Obsidian/Electron 창이 인쇄를 지원하지 않습니다.');
+        if (!win || typeof win.print !== 'function') throw new Error(L({ ko: '현재 Obsidian/Electron 창이 인쇄를 지원하지 않습니다.', en: "The current Obsidian/Electron window does not support printing." }));
         const surface = owner.createElement('main');
-        surface.className = 'hwp-print-surface'; surface.setAttribute('aria-label', '인쇄할 문서 쪽');
+        surface.className = 'hwp-print-surface'; surface.setAttribute('aria-label', L({ ko: '인쇄할 문서 쪽', en: "Document pages to print" }));
         const pageImages = new SvgPageImages(owner), images: HTMLImageElement[] = [];
         for (const item of pages) {
           const page = owner.createElement('section'); page.className = 'hwp-print-page';
           page.style.width = `${item.width}px`; page.style.height = `${item.height}px`;
           const imageHost = owner.createElement('div'); imageHost.className = 'hwp-print-page-image'; page.append(imageHost);
-          pageImages.mount(item.page, imageHost, item.svg, `문서 ${item.page + 1}쪽`);
+          pageImages.mount(item.page, imageHost, item.svg, LT({ ko: () => `문서 ${item.page + 1}쪽`, en: () => `Document page ${item.page + 1}` }));
           const image = imageHost.querySelector('img'); if (image) images.push(image);
           surface.append(page);
         }
@@ -5366,10 +5367,10 @@ export class HwpView extends FileView {
     return redo ? !!this.state?.canRedo && !pendingLiveDraft : !!this.state?.canUndo || pendingLiveDraft;
   }
   private async history(redo: boolean): Promise<void> {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 undo/redo를 실행하세요.');
-    if (this.draft) throw new Error('편집 중인 내용을 적용하거나 취소하세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 undo/redo를 실행하세요.', en: "Finish Korean IME composition before undo/redo." }));
+    if (this.draft) throw new Error(L({ ko: '편집 중인 내용을 적용하거나 취소하세요.', en: "Apply or cancel the content being edited." }));
     const context = this.captureContext(), revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const savedPosition = this.selected && isParagraph(this.selected)
       ? this.pageSelection?.focus ?? positionAfterEditorText(this.selected.address, this.textarea.value, this.textarea.selectionEnd)
       : undefined;
@@ -5379,7 +5380,7 @@ export class HwpView extends FileView {
       this.assertContext(context); await this.refresh();
       if (savedPosition) {
         try { await this.restoreHistoryCaret(savedPosition); }
-        catch (error) { new Notice('변경은 되돌렸지만 캐럿 위치를 복원하지 못했습니다.'); this.plugin.report(error); }
+        catch (error) { new Notice(L({ ko: '변경은 되돌렸지만 캐럿 위치를 복원하지 못했습니다.', en: "Changes were undone, but the caret position could not be restored." })); this.plugin.report(error); }
       }
     } finally { unlock(); }
   }
@@ -5409,7 +5410,7 @@ export class HwpView extends FileView {
   async refreshIndex(): Promise<void> {
     const context = this.captureContext();
     const path = await this.plugin.api.index.refresh(context.path); this.assertContext(context);
-    new Notice(`검색 인덱스 생성: ${path}`);
+    new Notice(LT({ ko: () => `검색 인덱스 생성: ${path}`, en: () => `Search index created: ${path}` }));
   }
   canRunEditorCommand(id: string): boolean { return this.commandRegistry.isAvailable(id); }
   runEditorCommand(id: string): Promise<void> {
@@ -5429,11 +5430,11 @@ export class HwpView extends FileView {
     await this.applySelectionFormatting({ character: properties });
   }
   private async copySelectedFormat(): Promise<void> {
-    if (this.draft || this.composing) throw new Error('미적용 입력이나 한글 조합을 마친 뒤 모양을 복사하세요.');
-    if (this.hasMultiParagraphSelection()) throw new Error('모양 복사는 한 문단 선택에서만 지원합니다.');
-    if (!this.selected || !isParagraph(this.selected)) throw new Error('모양을 복사할 문단을 선택하세요.');
+    if (this.draft || this.composing) throw new Error(L({ ko: '미적용 입력이나 한글 조합을 마친 뒤 모양을 복사하세요.', en: "Handle pending input or Korean IME composition before copying formatting." }));
+    if (this.hasMultiParagraphSelection()) throw new Error(L({ ko: '모양 복사는 한 문단 선택에서만 지원합니다.', en: "Copy formatting supports a selection within one paragraph only." }));
+    if (!this.selected || !isParagraph(this.selected)) throw new Error(L({ ko: '모양을 복사할 문단을 선택하세요.', en: "Select a paragraph to copy formatting from." }));
     const formatting = this.selectedParagraphFormatting();
-    if (!formatting) throw new Error('선택 문단의 서식 정보를 읽지 못했습니다.');
+    if (!formatting) throw new Error(L({ ko: '선택 문단의 서식 정보를 읽지 못했습니다.', en: "Could not read selected paragraph formatting." }));
     const character = this.selectedCharacterFormat();
     const native = formatting.nativeShape;
     const lineSpacingType = formatting.properties?.lineSpacingType;
@@ -5449,18 +5450,18 @@ export class HwpView extends FileView {
       ...(typeof native?.LineSpacing === 'number' ? { lineSpacing: native.LineSpacing } : {}),
       ...(supportedLineSpacingType ? { lineSpacingType: supportedLineSpacingType } : {}),
     };
-    if (!Object.keys(character).length && !Object.keys(paragraph).length) throw new Error('선택 문단에서 복사할 수 있는 서식이 없습니다.');
+    if (!Object.keys(character).length && !Object.keys(paragraph).length) throw new Error(L({ ko: '선택 문단에서 복사할 수 있는 서식이 없습니다.', en: "The selected paragraph has no formatting that can be copied." }));
     this.copiedFormat = { character, paragraph };
     this.updateToolState(); this.updateStatus();
-    new Notice('선택한 글자·문단 모양을 복사했습니다.');
+    new Notice(L({ ko: '선택한 글자·문단 모양을 복사했습니다.', en: "Copied selected character/paragraph formatting." }));
   }
   private async applyCopiedFormat(): Promise<void> {
-    if (!this.copiedFormat) throw new Error('먼저 모양을 복사하세요.');
+    if (!this.copiedFormat) throw new Error(L({ ko: '먼저 모양을 복사하세요.', en: "Copy formatting first." }));
     const character = Object.keys(this.copiedFormat.character).length ? this.copiedFormat.character : undefined;
     const paragraph = Object.keys(this.copiedFormat.paragraph).length ? this.copiedFormat.paragraph : undefined;
-    if (!character && !paragraph) throw new Error('복사한 서식 값이 없습니다.');
+    if (!character && !paragraph) throw new Error(L({ ko: '복사한 서식 값이 없습니다.', en: "No copied formatting values." }));
     await this.applySelectionFormatting({ ...(character ? { character } : {}), ...(paragraph ? { paragraph } : {}) });
-    new Notice('복사한 모양을 적용했습니다.');
+    new Notice(L({ ko: '복사한 모양을 적용했습니다.', en: "Applied copied formatting." }));
   }
   private selectedFormattingParagraphs() {
     if (this.toolFormatting) return this.toolFormatting.paragraphs();
@@ -5516,7 +5517,7 @@ export class HwpView extends FileView {
   }
   private async adjustCharacterMetric(metric: 'ratio' | 'characterSpacing', direction: -1 | 1): Promise<void> {
     const current = this.selectedCharacterFormat()[metric];
-    if (current === undefined) throw new Error('선택한 글자의 장평·자간이 언어별로 달라 증감할 수 없습니다. 글자 모양 대화상자에서 새 값을 지정하세요.');
+    if (current === undefined) throw new Error(L({ ko: '선택한 글자의 장평·자간이 언어별로 달라 증감할 수 없습니다. 글자 모양 대화상자에서 새 값을 지정하세요.', en: "Selected character width/spacing differs by language and cannot be incremented/decremented. Specify new values in the Character format dialog." }));
     const next = metric === 'ratio' ? Math.max(50, Math.min(200, current + direction)) : Math.max(-50, Math.min(50, current + direction));
     await this.formatSelection({ [metric]: next });
   }
@@ -5534,13 +5535,13 @@ export class HwpView extends FileView {
   }
   private async loadSystemFonts(): Promise<void> {
     const navigator: LocalFontAccessNavigator | undefined = this.contentEl.ownerDocument.defaultView?.navigator;
-    if (!navigator?.queryLocalFonts) throw new Error('현재 Obsidian/Electron은 설치 글꼴 목록 API를 제공하지 않습니다. 글꼴 이름을 직접 입력할 수 있습니다.');
+    if (!navigator?.queryLocalFonts) throw new Error(L({ ko: '현재 Obsidian/Electron은 설치 글꼴 목록 API를 제공하지 않습니다. 글꼴 이름을 직접 입력할 수 있습니다.', en: "Current Obsidian/Electron does not provide an installed-font list API. Enter font names directly." }));
     const fonts = await navigator.queryLocalFonts();
     this.systemFontFamilies = [...new Set(fonts.map(font => font.family.trim()).filter(Boolean))];
     this.updateFontSuggestions();
     new Notice(this.systemFontFamilies.length
-      ? `설치 글꼴 ${this.systemFontFamilies.length}개를 목록에 불러왔습니다.`
-      : '브라우저에서 설치 글꼴을 반환하지 않았습니다. 글꼴 이름을 직접 입력할 수 있습니다.');
+      ? LT({ ko: () => `설치 글꼴 ${this.systemFontFamilies.length}개를 목록에 불러왔습니다.`, en: () => `Loaded ${this.systemFontFamilies.length} installed fonts.` })
+      : L({ ko: '브라우저에서 설치 글꼴을 반환하지 않았습니다. 글꼴 이름을 직접 입력할 수 있습니다.', en: "The browser returned no installed fonts. Enter font names directly." }));
   }
   private openCharacterFormatDialog(): void {
     new CharacterFormatModal(this.app, this.selectedCharacterFormat(), properties => this.formatSelection(properties)).open();
@@ -5562,9 +5563,9 @@ export class HwpView extends FileView {
   /** A color input cannot show "mixed", so mixed or unread values are marked and named instead of passing for black. */
   private markMixedControl(input: HTMLInputElement, mixed: boolean, label: string): void {
     input.classList.toggle('hwp-format-mixed', mixed);
-    if (mixed) { input.dataset.mixed = 'true'; input.setAttribute('aria-description', `${label}: 혼합 / 미확인`); input.title = `${label}: 혼합 / 미확인`; }
+    if (mixed) { input.dataset.mixed = 'true'; input.setAttribute('aria-description', LT({ ko: () => `${label}: 혼합 / 미확인`, en: () => `${label}: mixed / unverified` })); input.title = LT({ ko: () => `${label}: 혼합 / 미확인`, en: () => `${label}: mixed / unverified` }); }
     else { delete input.dataset.mixed; input.removeAttribute('aria-description'); input.title = label; }
-    if (input.type !== 'color') input.placeholder = mixed ? '혼합' : input === this.fontFamilyInput ? '글꼴 이름' : '';
+    if (input.type !== 'color') input.placeholder = mixed ? L({ ko: '혼합', en: "Mixed" }) : input === this.fontFamilyInput ? L({ ko: '글꼴 이름', en: "Font name" }) : '';
   }
   /** Turning on one of 양각/음각 or 위/아래 첨자 turns its partner off, as RHWP does; 외곽선 toggles the plain outline (type 1). */
   private async toggleCharacterEffect(effect: CharacterEffect): Promise<void> {
@@ -5597,15 +5598,15 @@ export class HwpView extends FileView {
       && (paragraphs.length === 1 || value !== undefined);
   }
   private lineSpacingReason(): string {
-    if (this.formMode) return '양식 모드를 끈 뒤 문단 서식을 바꾸세요.';
-    if (this.composing) return '미적용 입력을 적용하거나 한글 조합을 마친 뒤 사용하세요.';
-    if (this.capabilitiesReadOnly()) return this.capabilities?.readOnlyReasons.join(' ') || '읽기 전용 상태에서는 줄 간격을 바꿀 수 없습니다.';
-    if (!this.selected || !isParagraph(this.selected)) return '줄 간격을 바꿀 문단을 선택하세요.';
+    if (this.formMode) return L({ ko: '양식 모드를 끈 뒤 문단 서식을 바꾸세요.', en: "Disable form mode before changing paragraph formatting." });
+    if (this.composing) return L({ ko: '미적용 입력을 적용하거나 한글 조합을 마친 뒤 사용하세요.', en: "Apply pending input or finish Korean IME composition before use." });
+    if (this.capabilitiesReadOnly()) return this.capabilities?.readOnlyReasons.join(' ') || L({ ko: '읽기 전용 상태에서는 줄 간격을 바꿀 수 없습니다.', en: "Line spacing cannot be changed in read-only mode." });
+    if (!this.selected || !isParagraph(this.selected)) return L({ ko: '줄 간격을 바꿀 문단을 선택하세요.', en: "Select a paragraph to change line spacing." });
     const reason = this.formattingReason({ paragraph: {} }); if (reason) return reason;
     const mode = this.selectedParagraphFormatting()?.properties?.lineSpacingType;
-    if (mode && mode !== 'Percent') return '줄 간격 증감은 퍼센트 모드에서만 사용할 수 있습니다.';
-    if (this.selectedFormattingParagraphs().length > 1) return '서로 다른 줄 간격은 문단 모양에서 새 값을 지정하세요.';
-    return '현재 문서 작업 상태에서는 줄 간격을 바꿀 수 없습니다.';
+    if (mode && mode !== 'Percent') return L({ ko: '줄 간격 증감은 퍼센트 모드에서만 사용할 수 있습니다.', en: "Line spacing increments/decrements are available only in percentage mode." });
+    if (this.selectedFormattingParagraphs().length > 1) return L({ ko: '서로 다른 줄 간격은 문단 모양에서 새 값을 지정하세요.', en: "For mixed line spacing, specify a new value in Paragraph format." });
+    return L({ ko: '현재 문서 작업 상태에서는 줄 간격을 바꿀 수 없습니다.', en: "Line spacing cannot be changed during the current document operation." });
   }
   private async adjustLineSpacing(direction: -1 | 1): Promise<void> {
     if (!this.canAdjustLineSpacing()) throw new Error(this.lineSpacingReason());
@@ -5627,24 +5628,24 @@ export class HwpView extends FileView {
         lineSpacingType: this.paragraphLineSpacingTypeSelect.value as 'Percent' | 'Fixed' | 'SpaceOnly' | 'Minimum',
       } : {}),
     };
-    if (Object.values(properties).some(value => typeof value === 'number' && !Number.isFinite(value))) throw new Error('문단 서식 값은 유한한 숫자여야 합니다.');
+    if (Object.values(properties).some(value => typeof value === 'number' && !Number.isFinite(value))) throw new Error(L({ ko: '문단 서식 값은 유한한 숫자여야 합니다.', en: "Paragraph formatting values must be finite numbers." }));
     await this.applySelectionFormatting({ paragraph: properties });
   }
   private async insertPageBreak(kind: 'page' | 'column'): Promise<void> {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 쪽 나누기를 실행하세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 쪽 나누기를 실행하세요.', en: "Finish Korean IME composition before inserting a page break." }));
     if (this.draft) await this.applyDraft(true);
     const selected = this.selected;
     if (!selected || !isParagraph(selected) || selected.address.kind !== 'body' || selected.address.cellPath?.length || selected.address.containerKinds?.includes('textBox')) {
-      throw new Error('쪽 나누기는 본문 문단에서만 삽입할 수 있습니다.');
+      throw new Error(L({ ko: '쪽 나누기는 본문 문단에서만 삽입할 수 있습니다.', en: "Page breaks can only be inserted in body paragraphs." }));
     }
     const offset = codePointOffsetFromUtf16(this.textarea.value, this.textarea.selectionStart);
     const position = positionAfterEditorText(selected.address, this.textarea.value, this.textarea.selectionStart);
-    if (position.address.kind !== 'body' || position.address.cellPath?.length || position.address.containerKinds?.includes('textBox')) throw new Error('쪽 나누기 위치를 본문 문단으로 확인하지 못했습니다.');
+    if (position.address.kind !== 'body' || position.address.cellPath?.length || position.address.containerKinds?.includes('textBox')) throw new Error(L({ ko: '쪽 나누기 위치를 본문 문단으로 확인하지 못했습니다.', en: "Could not verify the page-break position as a body paragraph." }));
     const target = { section: position.address.section, paragraph: position.address.paragraph };
     await this.execute([{ type: 'insertPageBreak', target, offset, kind }], position, true);
   }
   private async applyStyle(styleId: number): Promise<void> {
-    if (!Number.isSafeInteger(styleId) || styleId < 0) throw new Error('문단 스타일을 선택하세요.');
+    if (!Number.isSafeInteger(styleId) || styleId < 0) throw new Error(L({ ko: '문단 스타일을 선택하세요.', en: "Select a paragraph style." }));
     await this.applySelectionFormatting({ styleId });
   }
   private async applyList(value: string): Promise<void> {
@@ -5656,16 +5657,16 @@ export class HwpView extends FileView {
       const bulletId = value.slice('bullet:'.length);
       const definition = this.formattingModel?.bullets.find(item => String(item.id) === bulletId);
       list = { kind: 'bullet', char: definition?.char ?? '•' };
-    } else throw new Error('목록 서식을 선택하세요.');
+    } else throw new Error(L({ ko: '목록 서식을 선택하세요.', en: "Select a list format." }));
     await this.applySelectionFormatting({ list });
   }
   private listToggleReason(): string | undefined {
-    if (!this.state) return '문서를 먼저 여세요.';
-    if (this.composing) return '미적용 입력을 적용하거나 한글 조합을 마친 뒤 사용하세요.';
+    if (!this.state) return L({ ko: '문서를 먼저 여세요.', en: "Open a document first." });
+    if (this.composing) return L({ ko: '미적용 입력을 적용하거나 한글 조합을 마친 뒤 사용하세요.', en: "Apply pending input or finish Korean IME composition before use." });
 
-    if (this.formMode) return '양식 모드에서는 목록 서식을 바꿀 수 없습니다.';
-    if (this.capabilityCheckPending || this.inputLocks || this.saving) return '문서 검증 또는 저장이 끝난 뒤 다시 시도하세요.';
-    if (this.capabilitiesReadOnly()) return this.capabilities?.readOnlyReasons.join(' ') || '읽기 전용 문서에서는 목록을 바꿀 수 없습니다.';
+    if (this.formMode) return L({ ko: '양식 모드에서는 목록 서식을 바꿀 수 없습니다.', en: "List formatting cannot be changed in form mode." });
+    if (this.capabilityCheckPending || this.inputLocks || this.saving) return L({ ko: '문서 검증 또는 저장이 끝난 뒤 다시 시도하세요.', en: "Try again after document validation or saving finishes." });
+    if (this.capabilitiesReadOnly()) return this.capabilities?.readOnlyReasons.join(' ') || L({ ko: '읽기 전용 문서에서는 목록을 바꿀 수 없습니다.', en: "Lists cannot be changed in read-only documents." });
     const reason = this.formattingReason({ list: { kind: 'none' } }); if (reason) return reason;
     return undefined;
   }
@@ -5709,14 +5710,14 @@ export class HwpView extends FileView {
     return delta < 0 ? level > 0 : level < this.maxListLevel(list);
   }
   private listLevelReason(delta: -1 | 1): string {
-    if (this.composing) return '미적용 입력을 적용하거나 한글 조합을 마친 뒤 사용하세요.';
-    if (this.capabilitiesReadOnly()) return this.capabilities?.readOnlyReasons.join(' ') || '읽기 전용 문서에서는 목록 수준을 바꿀 수 없습니다.';
+    if (this.composing) return L({ ko: '미적용 입력을 적용하거나 한글 조합을 마친 뒤 사용하세요.', en: "Apply pending input or finish Korean IME composition before use." });
+    if (this.capabilitiesReadOnly()) return this.capabilities?.readOnlyReasons.join(' ') || L({ ko: '읽기 전용 문서에서는 목록 수준을 바꿀 수 없습니다.', en: "List levels cannot be changed in read-only documents." });
     const list = this.currentParagraphList();
-    if (!list) return '본문 또는 직속 표 셀의 번호/글머리표 문단을 선택하세요.';
+    if (!list) return L({ ko: '본문 또는 직속 표 셀의 번호/글머리표 문단을 선택하세요.', en: "Select a numbered/bulleted paragraph in the body or a direct table cell." });
     const level = list.level ?? 0;
-    if (delta < 0 && level <= 0) return '가장 바깥 수준보다 더 내릴 수 없습니다.';
-    if (delta > 0 && level >= this.maxListLevel(list)) return '정의된 목록 수준의 끝입니다.';
-    return '문서 작업을 마친 뒤 다시 시도하세요.';
+    if (delta < 0 && level <= 0) return L({ ko: '가장 바깥 수준보다 더 내릴 수 없습니다.', en: "Cannot move beyond the outermost level." });
+    if (delta > 0 && level >= this.maxListLevel(list)) return L({ ko: '정의된 목록 수준의 끝입니다.', en: "End of defined list levels." });
+    return L({ ko: '문서 작업을 마친 뒤 다시 시도하세요.', en: "Try again after document operations finish." });
   }
   private async changeListLevel(delta: -1 | 1): Promise<void> {
     if (!this.canChangeListLevel(delta)) throw new Error(this.listLevelReason(delta));
@@ -5726,7 +5727,7 @@ export class HwpView extends FileView {
   }
   private async tableTarget(): Promise<{ table: Table; row: number; col: number }> {
     const context = this.selectedTableCell();
-    if (!context) throw new Error('본문의 표 셀 안 문단을 선택하세요. 중첩 표 구조 변경은 지원하지 않습니다.');
+    if (!context) throw new Error(L({ ko: '본문의 표 셀 안 문단을 선택하세요. 중첩 표 구조 변경은 지원하지 않습니다.', en: "Select a paragraph in a body table cell. Nested table structural changes are unsupported." }));
     return { table: context.table, row: context.cell.row, col: context.cell.col };
   }
   private async editTableStructure(action: TableStructureAction): Promise<void> {
@@ -5742,22 +5743,22 @@ export class HwpView extends FileView {
   }
   private openTableStructureDialog(kind: 'insert' | 'delete'): void {
     const options: ReadonlyArray<readonly [TableStructureAction, string]> = kind === 'insert'
-      ? [['insert-row-above', '위에 줄'], ['insert-row-below', '아래에 줄'], ['insert-column-left', '왼쪽에 칸'], ['insert-column-right', '오른쪽에 칸']]
-      : [['delete-row', '줄'], ['delete-column', '칸']];
+      ? [['insert-row-above', L({ ko: '위에 줄', en: "Row above" })], ['insert-row-below', L({ ko: '아래에 줄', en: "Row below" })], ['insert-column-left', L({ ko: '왼쪽에 칸', en: "Column left" })], ['insert-column-right', L({ ko: '오른쪽에 칸', en: "Column right" })]]
+      : [['delete-row', L({ ko: '줄', en: "Row" })], ['delete-column', L({ ko: '칸', en: "Column" })]];
     new FormModal(this.app, {
-      title: kind === 'insert' ? '줄/칸 추가하기' : '줄/칸 지우기',
+      title: kind === 'insert' ? L({ ko: '줄/칸 추가하기', en: "Add rows/columns" }) : L({ ko: '줄/칸 지우기', en: "Delete rows/columns" }),
       fields: [
-        { key: 'action', label: '대상', kind: 'select', value: options[0][0], options },
-        { key: 'count', label: '개수', kind: 'number', value: 1, min: 1, max: 100, integer: true },
+        { key: 'action', label: L({ ko: '대상', en: "Target" }), kind: 'select', value: options[0][0], options },
+        { key: 'count', label: L({ ko: '개수', en: "Count" }), kind: 'number', value: 1, min: 1, max: 100, integer: true },
       ],
     }, async values => {
       const action = values.action as TableStructureAction, count = Number(values.count);
       const { table, row, col } = await this.tableTarget();
       if (action === 'delete-row' && count >= table.rows || action === 'delete-column' && count >= table.cols) {
-        throw new Error('표의 마지막 줄이나 칸은 삭제할 수 없습니다.');
+        throw new Error(L({ ko: '표의 마지막 줄이나 칸은 삭제할 수 없습니다.', en: "The last table row or column cannot be deleted." }));
       }
       if (action === 'delete-row' && row + count > table.rows || action === 'delete-column' && col + count > table.cols) {
-        throw new Error('현재 셀부터 지울 줄이나 칸이 표 범위를 벗어납니다.');
+        throw new Error(L({ ko: '현재 셀부터 지울 줄이나 칸이 표 범위를 벗어납니다.', en: "Rows/columns to delete from the current cell exceed table bounds." }));
       }
       const target = { ...table.address, control: table.control };
       const command: Command = action === 'insert-row-above' ? { type: 'insertTableRow', table: target, row, below: false }
@@ -5782,15 +5783,15 @@ export class HwpView extends FileView {
   }
   private openFormulaDialog(): void {
     const current = this.selectedTableCell();
-    if (!current) throw new Error('본문의 표 셀 안 문단을 선택하세요.');
+    if (!current) throw new Error(L({ ko: '본문의 표 셀 안 문단을 선택하세요.', en: "Select a paragraph in a body table cell." }));
     const { table, cell } = current, label = cellReference(cell.row, cell.col);
     this.openFormCommandDialog({
-      title: `계산식 (${label} 칸에 결과 입력)`,
-      hint: '칸 주소는 A1 형식입니다(A가 첫 칸, 1이 첫 줄). 예: =SUM(A1:A3), =AVERAGE(B1:B4), =B2*C2. 표 밖 칸을 가리키거나 계산할 수 없는 식은 적용되지 않습니다.',
+      title: LT({ ko: () => `계산식 (${label} 칸에 결과 입력)`, en: () => `Formula (write result to cell ${label})` }),
+      hint: L({ ko: '칸 주소는 A1 형식입니다(A가 첫 칸, 1이 첫 줄). 예: =SUM(A1:A3), =AVERAGE(B1:B4), =B2*C2. 표 밖 칸을 가리키거나 계산할 수 없는 식은 적용되지 않습니다.', en: "Cell addresses use A1 notation (A is the first column, 1 the first row). Examples: =SUM(A1:A3), =AVERAGE(B1:B4), =B2*C2. Formulas referencing cells outside the table or failing evaluation are not applied." }),
       fields: [
-        { key: 'formula', label: '계산식', kind: 'text', value: '=', required: true, maxLength: MAX_FORMULA_LENGTH },
-        { key: 'format', label: '결과 형식', kind: 'select', value: 'raw', options: [['raw', '그대로'], ['integer', '정수(반올림)'], ['decimal1', '소수 1자리'], ['decimal2', '소수 2자리']] },
-        { key: 'thousandsSeparator', label: '세 자리마다 쉼표로 자리 구분', kind: 'checkbox', value: true },
+        { key: 'formula', label: L({ ko: '계산식', en: "Formula" }), kind: 'text', value: '=', required: true, maxLength: MAX_FORMULA_LENGTH },
+        { key: 'format', label: L({ ko: '결과 형식', en: "Result format" }), kind: 'select', value: 'raw', options: [['raw', L({ ko: '그대로', en: "As is" })], ['integer', L({ ko: '정수(반올림)', en: "Integer (rounded)" })], ['decimal1', L({ ko: '소수 1자리', en: "1 decimal place" })], ['decimal2', L({ ko: '소수 2자리', en: "2 decimal places" })]] },
+        { key: 'thousandsSeparator', label: L({ ko: '세 자리마다 쉼표로 자리 구분', en: "Separate thousands with commas" }), kind: 'checkbox', value: true },
       ],
       build: values => [{ type: 'setTableFormula', table: { ...table.address, control: table.control }, row: cell.row, col: cell.col, formula: String(values.formula),
         format: values.format as 'raw' | 'integer' | 'decimal1' | 'decimal2', thousandsSeparator: values.thousandsSeparator === true }],
@@ -5800,11 +5801,11 @@ export class HwpView extends FileView {
     const { table, row, col } = await this.tableTarget();
     const block = this.tableBlockBounds(table, row, col);
     const plan = blockFormulaPlan(block, { rows: table.rows, cols: table.cols }, fn);
-    if (!plan) throw new Error('결과를 쓸 수 있는 칸이 블록 오른쪽이나 아래에 없습니다. 블록 옆에 빈 칸을 만든 뒤 다시 시도하세요.');
+    if (!plan) throw new Error(L({ ko: '결과를 쓸 수 있는 칸이 블록 오른쪽이나 아래에 없습니다. 블록 옆에 빈 칸을 만든 뒤 다시 시도하세요.', en: "No result cell exists to the right of or below the block. Create an empty adjacent cell and try again." }));
     const target = table.cells.find(cell => plan.row >= cell.row && plan.row < cell.row + cell.rowSpan && plan.col >= cell.col && plan.col < cell.col + cell.colSpan);
-    if (target?.paragraphs.some(paragraph => paragraph.text.trim())) throw new Error(`결과를 쓸 ${cellReference(plan.row, plan.col)} 칸이 비어 있지 않아 덮어쓰지 않았습니다. 빈 칸을 옆에 두고 다시 시도하세요.`);
+    if (target?.paragraphs.some(paragraph => paragraph.text.trim())) throw new Error(LT({ ko: () => `결과를 쓸 ${cellReference(plan.row, plan.col)} 칸이 비어 있지 않아 덮어쓰지 않았습니다. 빈 칸을 옆에 두고 다시 시도하세요.`, en: () => `Result cell ${cellReference(plan.row, plan.col)} is not empty and was not overwritten. Provide an empty adjacent cell and try again.` }));
     await this.execute([{ type: 'setTableFormula', table: { ...table.address, control: table.control }, row: plan.row, col: plan.col, formula: plan.formula, thousandsSeparator: true }]);
-    new Notice(`${cellReference(plan.row, plan.col)} 칸에 ${plan.formula}을 적용했습니다.`);
+    new Notice(LT({ ko: () => `${cellReference(plan.row, plan.col)} 칸에 ${plan.formula}을 적용했습니다.`, en: () => `Applied ${plan.formula} to cell ${cellReference(plan.row, plan.col)}.` }));
   }
   private async equalizeSelectedTable(axis: 'width' | 'height'): Promise<void> {
     const { table, row, col } = await this.tableTarget();
@@ -5813,7 +5814,7 @@ export class HwpView extends FileView {
     const from = block.isBlock && (wide ? block.endCol > block.startCol : block.endRow > block.startRow) ? (wide ? block.startCol : block.startRow) : 0;
     const to = block.isBlock && (wide ? block.endCol > block.startCol : block.endRow > block.startRow) ? (wide ? block.endCol : block.endRow) : (wide ? table.cols : table.rows) - 1;
     const cells = equalizeTableCellSizes(table.cells, axis, from, to);
-    if (!cells.length) { new Notice(`선택한 ${wide ? '칸' : '줄'}의 ${wide ? '너비' : '높이'}가 이미 같습니다.`); return; }
+    if (!cells.length) { new Notice(LT({ ko: () => `선택한 ${wide ? '칸' : '줄'}의 ${wide ? '너비' : '높이'}가 이미 같습니다.`, en: () => `Selected ${wide ? 'column widths' : 'row heights'} are already equal.` })); return; }
     await this.execute([{ type: 'resizeTableCells', table: { ...table.address, control: table.control }, cells }]);
   }
   private async transposeSelectedTable(): Promise<void> {
@@ -5832,13 +5833,13 @@ export class HwpView extends FileView {
     const { table } = await this.tableTarget();
     const has = table.properties?.hasCaption === true;
     await this.execute([{ type: 'setTableProperties', table: { ...table.address, control: table.control }, properties: { hasCaption: !has } }]);
-    new Notice(has ? '표 캡션을 뺐습니다.' : '표 캡션을 넣었습니다. 캡션 글은 현재 편집할 수 없습니다.');
+    new Notice(has ? L({ ko: '표 캡션을 뺐습니다.', en: "Removed table caption." }) : L({ ko: '표 캡션을 넣었습니다. 캡션 글은 현재 편집할 수 없습니다.', en: "Added table caption. Caption text is currently not editable." }));
   }
   private async setCaptionDirection(direction: 'Top' | 'Bottom' | 'Left' | 'Right' | 'None'): Promise<void> {
     const object = this.selectedObject;
     if (object) {
       if (object.kind !== 'picture' || object.address.kind !== 'body' || object.address.cellPath?.length) {
-        throw new Error('본문 그림 또는 표를 선택하세요. 그림·표 캡션만 지원합니다.');
+        throw new Error(L({ ko: '본문 그림 또는 표를 선택하세요. 그림·표 캡션만 지원합니다.', en: "Select a body picture or table. Only picture/table captions are supported." }));
       }
       const target = this.objectTarget();
       await this.execute([{ type: 'setObjectProperties', object: target, properties: direction === 'None'
@@ -5857,11 +5858,11 @@ export class HwpView extends FileView {
     if (hasText) {
       const context = this.captureContext(), revision = this.state?.revision;
       const confirmed = await new Promise<boolean>(resolve => new ConfirmActionModal(this.app, {
-        title: '표를 지울까요?', message: `${table.rows}줄 × ${table.cols}칸 표와 그 안의 내용이 삭제됩니다. 되돌리기로 복구할 수 있습니다.`, confirmLabel: '표 지우기',
+        title: L({ ko: '표를 지울까요?', en: "Delete table?" }), message: LT({ ko: () => `${table.rows}줄 × ${table.cols}칸 표와 그 안의 내용이 삭제됩니다. 되돌리기로 복구할 수 있습니다.`, en: () => `Deletes the ${table.rows}-row × ${table.cols}-column table and its content. Recover with Undo.` }), confirmLabel: L({ ko: '표 지우기', en: "Delete table" }),
       }, resolve).open());
       if (!confirmed) return;
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('확인하는 동안 문서가 바뀌어 표 지우기를 취소했습니다. 다시 시도하세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '확인하는 동안 문서가 바뀌어 표 지우기를 취소했습니다. 다시 시도하세요.', en: "The document changed during confirmation; table deletion was cancelled. Try again." }));
     }
     await this.execute([{ type: 'deleteTable', table: { ...table.address, control: table.control } }]);
   }
@@ -5880,13 +5881,13 @@ export class HwpView extends FileView {
   private async splitSelectedCell(): Promise<void> {
     const { table, row, col } = await this.tableTarget();
     const cell = table.cells.find(item => row >= item.row && row < item.row + item.rowSpan && col >= item.col && col < item.col + item.colSpan);
-    if (!cell) throw new Error('선택한 셀을 표 구조에서 찾지 못했습니다. 다시 선택하세요.');
+    if (!cell) throw new Error(L({ ko: '선택한 셀을 표 구조에서 찾지 못했습니다. 다시 선택하세요.', en: "Selected cell not found in the table structure. Select again." }));
     const context = this.captureContext(), revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const rows = cell.rowSpan > 1 ? cell.rowSpan : 2, columns = cell.colSpan > 1 ? cell.colSpan : 2;
     new SplitCellModal(this.app, rows, columns, async (rowCount, columnCount, equalRowHeight) => {
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 최신 셀을 다시 선택하세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 최신 셀을 다시 선택하세요.', en: "The document changed. Select the current cell again." }));
       await this.execute([{ type: 'splitTableCell', table: { ...table.address, control: table.control }, row, col,
         rows: rowCount, cols: columnCount, equalRowHeight }]);
     }).open();
@@ -5901,18 +5902,18 @@ export class HwpView extends FileView {
     const protectedCells = new Set(cells.filter(cell => cell.paragraphs.some(paragraph => anchors.some(anchor => anchor.address && sameDocumentAddress(anchor.address, paragraph.address)))).map(cell => cell.index));
     const { commands, skipped } = cellNumberFormatCommands(table, cells, operation, protectedCells);
     if (commands.length) await this.execute(commands);
-    this.navigationStatus.setText(`숫자 변환: ${commands.length}개 셀 변경${skipped ? `, ${skipped}개 셀 건너뜀` : ''}`);
+    this.navigationStatus.setText(LT({ ko: () => `숫자 변환: ${commands.length}개 셀 변경${skipped ? `, ${skipped}개 셀 건너뜀` : ''}`, en: () => `Numeric conversion: changed ${commands.length} cells${skipped ? `, skipped ${skipped} cells` : ''}` }));
   }
   private async openCellFormatDialog(borderMode: 'each' | 'outside' = 'each'): Promise<void> {
-    if (this.draft || this.composing) throw new Error('미적용 입력을 처리하고 한글 조합을 마친 뒤 표 속성을 여세요.');
+    if (this.draft || this.composing) throw new Error(L({ ko: '미적용 입력을 처리하고 한글 조합을 마친 뒤 표 속성을 여세요.', en: "Handle pending input and finish Korean IME composition before opening table properties." }));
     const { table, row, col } = await this.tableTarget();
     const context = this.captureContext(), revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const block = this.cellBlockSelection?.tablePath === table.nodePath ? completeCellBlockRange(table, this.cellBlockSelection) : undefined;
     const cells = (block ? cellsInCellBlock(table, block) : table.cells.filter(cell => cell.row === row && cell.col === col))
       .map(cell => ({ row: cell.row, col: cell.col, rowSpan: cell.rowSpan, colSpan: cell.colSpan }));
-    if (!cells.length) throw new Error('서식을 적용할 표 셀을 찾지 못했습니다.');
-    if (cells.length > 500) throw new Error('한 번에 서식을 적용할 셀은 500개 이하여야 합니다. F5 범위를 줄이세요.');
+    if (!cells.length) throw new Error(L({ ko: '서식을 적용할 표 셀을 찾지 못했습니다.', en: "Could not find table cells to format." }));
+    if (cells.length > 500) throw new Error(L({ ko: '한 번에 서식을 적용할 셀은 500개 이하여야 합니다. F5 범위를 줄이세요.', en: "Format at most 500 cells per call. Narrow the F5 range." }));
     const selectedCell = table.cells.find(cell => cell.row === row && cell.col === col) ?? table.cells[0];
     const cellProperties = selectedCell?.properties;
     const colorOr = (value: string | undefined, fallback: string): string => value && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
@@ -5930,14 +5931,14 @@ export class HwpView extends FileView {
     };
     new TableCellFormatModal(this.app, initial, async value => {
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('표 또는 문서가 바뀌었습니다. 최신 셀을 다시 선택한 뒤 속성을 적용하세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '표 또는 문서가 바뀌었습니다. 최신 셀을 다시 선택한 뒤 속성을 적용하세요.', en: "The table/document changed. Select current cells again before applying properties." }));
       const tableAddress = { ...table.address, control: table.control };
       await this.execute(tableCellFormatCommands(tableAddress, cells, block, value, initial));
     }).open();
   }
   private rootBodyParagraph(): TextParagraph {
     if (!this.selected || !isParagraph(this.selected) || this.selected.address.kind !== 'body' || this.selected.address.cellPath?.length || this.selected.address.containerKinds?.includes('textBox')) {
-      throw new Error('그림·수식·도형은 본문 문단을 선택해야 삽입할 수 있습니다.');
+      throw new Error(L({ ko: '그림·수식·도형은 본문 문단을 선택해야 삽입할 수 있습니다.', en: "Select a body paragraph to insert pictures, equations, or shapes." }));
     }
     return this.selected;
   }
@@ -5946,10 +5947,10 @@ export class HwpView extends FileView {
     return Array.from(paragraph.text).length;
   }
   private async insertNote(kind: 'footnote' | 'endnote'): Promise<void> {
-    if (this.draft) throw new Error('미적용 입력을 먼저 적용하거나 취소하세요.');
+    if (this.draft) throw new Error(L({ ko: '미적용 입력을 먼저 적용하거나 취소하세요.', en: "Apply or cancel pending input first." }));
     const paragraph = this.rootBodyParagraph(), target = paragraph.address, offset = this.insertionOffset(paragraph);
     const context = this.captureContext(), initialRevision = this.state?.revision;
-    if (initialRevision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (initialRevision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const unlock = this.lockInput();
     let result: Awaited<ReturnType<typeof this.plugin.api.edit.transaction>> | undefined;
     try {
@@ -5959,7 +5960,7 @@ export class HwpView extends FileView {
       await this.refresh();
     } finally { unlock(); }
     const tree = this.documentTree;
-    if (!tree) throw new Error('노트를 삽입했지만 문서 구조를 다시 읽지 못했습니다.');
+    if (!tree) throw new Error(L({ ko: '노트를 삽입했지만 문서 구조를 다시 읽지 못했습니다.', en: "Inserted the note, but could not reread document structure." }));
     const notes = tree.stories.filter((story): story is Extract<DocumentTree['stories'][number], { kind: 'footnote' | 'endnote' }> =>
       story.kind === kind && (story.kind === 'footnote' || story.kind === 'endnote') && sameDocumentAddress(story.anchor, target));
     const insertResult = result?.results[0];
@@ -5968,19 +5969,19 @@ export class HwpView extends FileView {
       : undefined;
     const story = (resultControlIndex === undefined ? undefined : notes.find(item => item.controlIndex === resultControlIndex)) ?? notes.at(-1);
     const first = story?.availability === 'available' ? story.paragraphs[0] : undefined;
-    if (!first) { new Notice(`${kind === 'footnote' ? '각주' : '미주'}를 삽입했습니다. 본문 밖 영역 목록에서 노트를 선택해 편집하세요.`); return; }
+    if (!first) { new Notice(LT({ ko: () => `${kind === 'footnote' ? '각주' : '미주'}를 삽입했습니다. 본문 밖 영역 목록에서 노트를 선택해 편집하세요.`, en: () => `Inserted ${kind === 'footnote' ? 'footnote' : 'endnote'}. Select it in the Non-body areas list to edit.` })); return; }
     const current = await this.plugin.api.documents.state(context.path); this.assertContext(context);
-    if (current.revision !== this.state?.revision) throw new Error('노트를 삽입한 뒤 문서가 변경되어 편집 위치를 열지 않았습니다.');
+    if (current.revision !== this.state?.revision) throw new Error(L({ ko: '노트를 삽입한 뒤 문서가 변경되어 편집 위치를 열지 않았습니다.', en: "The document changed after note insertion; its editor was not opened." }));
     const caret = await this.plugin.api.query.caret(context.path, { address: first.address, offset: 0 }, { sessionId: current.sessionId, expectedRevision: current.revision });
     this.assertContext(context);
     const latest = await this.plugin.api.documents.state(context.path); this.assertContext(context);
-    if (latest.revision !== current.revision) throw new Error('노트 위치를 여는 중 문서가 변경되어 다시 시도해야 합니다.');
+    if (latest.revision !== current.revision) throw new Error(L({ ko: '노트 위치를 여는 중 문서가 변경되어 다시 시도해야 합니다.', en: "The document changed while opening the note position. Try again." }));
     this.mode = 'stories'; this.modeSelector.value = this.mode; this.items = this.itemsForMode(tree); this.renderItemPage();
     const index = this.items.findIndex(item => isParagraph(item) && item.nodePath === first.nodePath);
-    if (index < 0) throw new Error('삽입한 노트가 본문 밖 영역 편집 목록에 없습니다.');
+    if (index < 0) throw new Error(L({ ko: '삽입한 노트가 본문 밖 영역 편집 목록에 없습니다.', en: "The inserted note is not in the non-body area editor list." }));
     this.state = latest; this.page = Math.min(caret.rect.pageIndex, latest.pageCount - 1); await this.renderPage(true);
     this.selectItem(index, true); this.textarea.setSelectionRange(0, 0); this.textarea.focus({ preventScroll: true });
-    this.infoEl.setText(`${kind === 'footnote' ? '각주' : '미주'} 편집 · 본문 밖 영역`);
+    this.infoEl.setText(LT({ ko: () => `${kind === 'footnote' ? '각주' : '미주'} 편집 · 본문 밖 영역`, en: () => `Edit ${kind === 'footnote' ? 'footnote' : 'endnote'} · Non-body area` }));
   }
   /** The section shown by the page selector, falling back to the visible page's or the selected paragraph's section. */
   private activeSectionIndex(): number {
@@ -5991,71 +5992,71 @@ export class HwpView extends FileView {
   }
   private openFormCommandDialog(options: { title: string; hint?: string; fields: FormField[]; submitLabel?: string; validate?: (values: FormValues) => string | undefined; after?: () => void; build: (values: FormValues, initial: FormValues) => Command[] }): void {
     const context = this.captureContext(), revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     const initial = initialFormValues(options.fields);
     new FormModal(this.app, options, async values => {
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 최신 상태를 확인한 뒤 다시 시도하세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 최신 상태를 확인한 뒤 다시 시도하세요.', en: "The document changed. Check current state and try again." }));
       const commands = options.build(values, initial);
-      if (!commands.length) { new Notice('변경한 내용이 없습니다.'); return; }
+      if (!commands.length) { new Notice(L({ ko: '변경한 내용이 없습니다.', en: "No changes." })); return; }
       await this.execute(commands);
       options.after?.();
     }).open();
   }
   private currentSectionSettings(): { section: number; settings: NonNullable<HwpView['formattingModel']>['sections'][number] } {
     const section = this.activeSectionIndex(), settings = this.formattingModel?.sections.find(item => item.section === section);
-    if (!settings) throw new Error('구역 설정을 읽지 못했습니다.');
+    if (!settings) throw new Error(L({ ko: '구역 설정을 읽지 못했습니다.', en: "Could not read section settings." }));
     return { section, settings };
   }
   private openColumnsDialog(): void {
     const { section, settings } = this.currentSectionSettings();
-    this.openFormCommandDialog({ title: `다단 설정 (구역 ${section + 1})`, fields: columnFields(settings.columns), build: (values, initial) => [columnCommand(section, values, initial)].filter((command): command is Command => !!command) });
+    this.openFormCommandDialog({ title: LT({ ko: () => `다단 설정 (구역 ${section + 1})`, en: () => `Column settings (section ${section + 1})` }), fields: columnFields(settings.columns), build: (values, initial) => [columnCommand(section, values, initial)].filter((command): command is Command => !!command) });
   }
   private openPageBorderDialog(): void {
     const { section, settings } = this.currentSectionSettings();
-    this.openFormCommandDialog({ title: `쪽 테두리 / 배경 (구역 ${section + 1})`, hint: '선택한 선 모양은 네 변에 같게 적용됩니다. "첫 쪽 제외" 같은 쪽 범위 지정은 RHWP 코어가 저장하지 않아 지원하지 않습니다.', fields: pageBorderFields(settings.pageBorderFill),
+    this.openFormCommandDialog({ title: LT({ ko: () => `쪽 테두리 / 배경 (구역 ${section + 1})`, en: () => `Page border / Background (section ${section + 1})` }), hint: L({ ko: '선택한 선 모양은 네 변에 같게 적용됩니다. "첫 쪽 제외" 같은 쪽 범위 지정은 RHWP 코어가 저장하지 않아 지원하지 않습니다.', en: "The selected line style applies equally to all four sides. Page scopes such as “except first page” are unsupported because RHWP core does not save them." }), fields: pageBorderFields(settings.pageBorderFill),
       build: (values, initial) => [pageBorderCommand(section, values, initial)].filter((command): command is Command => !!command) });
   }
   private openSectionSettingsDialog(): void {
     const { section, settings } = this.currentSectionSettings(), count = this.formattingModel?.sections.length ?? 1;
-    this.openFormCommandDialog({ title: `구역 설정 (구역 ${section + 1})`, hint: '"모든 구역"을 고르면 바꾼 항목만 모든 구역에 적용합니다.', fields: sectionFields(settings.sectionDef), build: (values, initial) => sectionCommands(section, count, values, initial) });
+    this.openFormCommandDialog({ title: LT({ ko: () => `구역 설정 (구역 ${section + 1})`, en: () => `Section settings (section ${section + 1})` }), hint: L({ ko: '"모든 구역"을 고르면 바꾼 항목만 모든 구역에 적용합니다.', en: "“All sections” applies only changed fields to every section." }), fields: sectionFields(settings.sectionDef), build: (values, initial) => sectionCommands(section, count, values, initial) });
   }
   private openPageHideDialog(): void {
     const paragraph = this.rootBodyParagraph(), { settings } = this.currentSectionSettings();
     const entry = settings.pageHides.find(item => item.paragraph === paragraph.address.paragraph);
-    this.openFormCommandDialog({ title: '현재 쪽 감추기', hint: '선택한 문단이 있는 쪽에만 적용합니다. 모두 끄면 감추기를 해제합니다.', fields: pageHideFields(entry), build: values => [pageHideCommand(paragraph.address, values)] });
+    this.openFormCommandDialog({ title: L({ ko: '현재 쪽 감추기', en: "Hide on current page" }), hint: L({ ko: '선택한 문단이 있는 쪽에만 적용합니다. 모두 끄면 감추기를 해제합니다.', en: "Applies only to the selected paragraph's page. Disable all options to remove hiding." }), fields: pageHideFields(entry), build: values => [pageHideCommand(paragraph.address, values)] });
   }
   private openNewNumberDialog(): void {
     const paragraph = this.rootBodyParagraph(), offset = this.insertionOffset(paragraph);
-    this.openFormCommandDialog({ title: '새 번호로 시작', hint: '캐럿 위치부터 쪽 번호를 지정한 번호로 다시 시작합니다.', fields: newNumberFields(), build: values => [newNumberCommand(paragraph.address, offset, values)] });
+    this.openFormCommandDialog({ title: L({ ko: '새 번호로 시작', en: "Restart numbering" }), hint: L({ ko: '캐럿 위치부터 쪽 번호를 지정한 번호로 다시 시작합니다.', en: "Restarts page numbering at the caret with the specified number." }), fields: newNumberFields(), build: values => [newNumberCommand(paragraph.address, offset, values)] });
   }
   private openStyleEditor(mode: 'create' | 'edit'): void {
     const styles = this.formattingModel?.styles ?? [];
-    if (!styles.length) throw new Error('스타일 정보를 아직 읽지 못했습니다.');
+    if (!styles.length) throw new Error(L({ ko: '스타일 정보를 아직 읽지 못했습니다.', en: "Style information has not been read yet." }));
     const open = (style?: (typeof styles)[number]): void => {
       const fields = styleFields(mode, style, styles);
       this.openFormCommandDialog({
-        title: mode === 'create' ? '스타일 추가' : `스타일 편집 (${style!.name})`,
-        hint: mode === 'create' ? '기본 스타일의 모양에서 시작합니다. 바꾼 항목만 새 스타일에 적용됩니다.' : '바꾼 항목만 스타일에 적용되며, 이 스타일을 쓰는 문단에 바로 반영됩니다.',
-        fields, submitLabel: mode === 'create' ? '추가' : '적용',
+        title: mode === 'create' ? L({ ko: '스타일 추가', en: "add style" }) : LT({ ko: () => `스타일 편집 (${style!.name})`, en: () => `Edit style (${style!.name})` }),
+        hint: mode === 'create' ? L({ ko: '기본 스타일의 모양에서 시작합니다. 바꾼 항목만 새 스타일에 적용됩니다.', en: "Starts from the default style's appearance. Only changed fields apply to the new style." }) : L({ ko: '바꾼 항목만 스타일에 적용되며, 이 스타일을 쓰는 문단에 바로 반영됩니다.', en: "Only changed fields apply to the style and immediately affect paragraphs using it." }),
+        fields, submitLabel: mode === 'create' ? L({ ko: '추가', en: "add" }) : L({ ko: '적용', en: "Apply" }),
         build: (values, initial) => [styleCommand(mode, style?.id, values, initial, style)].filter((command): command is Command => !!command),
       });
     };
     if (mode === 'create') { open(); return; }
-    new StylePickerModal(this.app, styles, '편집할 스타일 이름', chosen => { try { open(chosen); } catch (error) { new Notice(String(error instanceof Error ? error.message : error), 8000); } }).open();
+    new StylePickerModal(this.app, styles, L({ ko: '편집할 스타일 이름', en: "Style name to edit" }), chosen => { try { open(chosen); } catch (error) { new Notice(String(error instanceof Error ? error.message : error), 8000); } }).open();
   }
   private deleteStyleInteractive(): void {
     const styles = (this.formattingModel?.styles ?? []).filter(style => style.id !== 0);
-    if (!styles.length) throw new Error('지울 수 있는 스타일이 없습니다. 기본 스타일(바탕글)은 지울 수 없습니다.');
-    new StylePickerModal(this.app, styles, '지울 스타일 이름', chosen => {
+    if (!styles.length) throw new Error(L({ ko: '지울 수 있는 스타일이 없습니다. 기본 스타일(바탕글)은 지울 수 없습니다.', en: "No deletable styles. The default style (바탕글) cannot be deleted." }));
+    new StylePickerModal(this.app, styles, L({ ko: '지울 스타일 이름', en: "Style name to delete" }), chosen => {
       const context = this.captureContext(), revision = this.state?.revision;
       void (async () => {
         const confirmed = await new Promise<boolean>(resolve => new ConfirmActionModal(this.app, {
-          title: `"${chosen.name}" 스타일을 지울까요?`, message: '이 스타일을 쓰는 문단은 기본 스타일(바탕글)로 바뀝니다. 되돌리기로 복구할 수 있습니다.', confirmLabel: '스타일 지우기',
+          title: LT({ ko: () => `"${chosen.name}" 스타일을 지울까요?`, en: () => `Delete style "${chosen.name}"?` }), message: L({ ko: '이 스타일을 쓰는 문단은 기본 스타일(바탕글)로 바뀝니다. 되돌리기로 복구할 수 있습니다.', en: "Paragraphs using this style switch to the default style (바탕글). Recover with Undo." }), confirmLabel: L({ ko: '스타일 지우기', en: "Clear style" }),
         }, resolve).open());
         if (!confirmed) return;
         this.assertContext(context);
-        if (this.state?.revision !== revision) throw new Error('확인하는 동안 문서가 바뀌어 스타일 지우기를 취소했습니다. 다시 시도하세요.');
+        if (this.state?.revision !== revision) throw new Error(L({ ko: '확인하는 동안 문서가 바뀌어 스타일 지우기를 취소했습니다. 다시 시도하세요.', en: "The document changed during confirmation; style deletion was cancelled. Try again." }));
         await this.execute([{ type: 'deleteStyle', styleId: chosen.id }]);
       })().catch(error => new Notice(String(error instanceof Error ? error.message : error), 8000));
     }).open();
@@ -6064,17 +6065,17 @@ export class HwpView extends FileView {
     this.rootBodyParagraph();
     const context = this.captureContext(), revision = this.state?.revision;
     new FormModal(this.app, {
-      title: '문단 번호 모양', hint: '고른 모양으로 번호 정의를 만들고 현재 문단에 적용합니다. 정의와 적용은 각각 되돌릴 수 있습니다.', submitLabel: '만들고 적용',
+      title: L({ ko: '문단 번호 모양', en: "Paragraph numbering format" }), hint: L({ ko: '고른 모양으로 번호 정의를 만들고 현재 문단에 적용합니다. 정의와 적용은 각각 되돌릴 수 있습니다.', en: "Creates a numbering definition with the chosen format and applies it to the current paragraph. Definition and application can each be undone." }), submitLabel: L({ ko: '만들고 적용', en: "Create and apply" }),
       fields: [
-        { key: 'preset', label: '번호 모양', kind: 'select', value: NUMBERING_PRESETS[0].id, options: NUMBERING_PRESETS.map(item => [item.id, item.label] as const) },
-        { key: 'startNumber', label: '시작 번호', kind: 'number', value: 1, min: 1, max: 65535, integer: true },
+        { key: 'preset', label: L({ ko: '번호 모양', en: "Numbering format" }), kind: 'select', value: NUMBERING_PRESETS[0].id, options: NUMBERING_PRESETS.map(item => [item.id, item.label] as const) },
+        { key: 'startNumber', label: L({ ko: '시작 번호', en: "Start number" }), kind: 'number', value: 1, min: 1, max: 65535, integer: true },
       ],
     }, async values => {
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 최신 상태를 확인한 뒤 다시 시도하세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 최신 상태를 확인한 뒤 다시 시도하세요.', en: "The document changed. Check current state and try again." }));
       await this.execute([numberingCommand(String(values.preset), values.startNumber as number)]);
       const ids = (this.formattingModel?.numbering ?? []).map(item => item.id);
-      if (!ids.length) throw new Error('만든 번호 정의를 읽지 못했습니다.');
+      if (!ids.length) throw new Error(L({ ko: '만든 번호 정의를 읽지 못했습니다.', en: "Could not read the created numbering definition." }));
       const paragraph = this.rootBodyParagraph();
       await this.execute([{ type: 'setParagraphList', target: paragraph.address, list: { kind: 'numbering', numberingId: Math.max(...ids), level: 0 } }]);
     }).open();
@@ -6082,12 +6083,12 @@ export class HwpView extends FileView {
   private openEndnoteShapeModal(): void {
     const sectionIndex = this.activeSectionIndex();
     const settings = this.formattingModel?.sections.find(section => section.section === sectionIndex)?.endnoteShape;
-    if (!settings) { new Notice('미주 모양 설정을 읽지 못했습니다.'); return; }
+    if (!settings) { new Notice(L({ ko: '미주 모양 설정을 읽지 못했습니다.', en: "Could not read endnote format settings." })); return; }
     new EndnoteShapeModal(this.app, settings, (properties: EndnoteShapeProperties) => this.execute([{ type: 'setEndnoteShape', section: sectionIndex, properties }])).open();
   }
   private async insertEquation(): Promise<void> {
     const paragraph = this.rootBodyParagraph(), script = this.equationScriptInput.value.trim();
-    if (!script) throw new Error('삽입할 수식 스크립트를 입력하세요.');
+    if (!script) throw new Error(L({ ko: '삽입할 수식 스크립트를 입력하세요.', en: "Enter an equation script to insert." }));
     await this.execute([{ type: 'insertEquation', target: paragraph.address, offset: this.insertionOffset(paragraph), script }]);
     this.equationScriptInput.value = '';
     this.clearEquationPreview();
@@ -6096,12 +6097,12 @@ export class HwpView extends FileView {
     const paragraph = this.rootBodyParagraph(), context = this.captureContext(), revision = this.state?.revision;
     const offset = this.insertionOffset(paragraph);
     new FormModal(this.app, {
-      title: '수식 넣기', fields: [equationScriptField()], submitLabel: '삽입',
+      title: L({ ko: '수식 넣기', en: "Insert equation" }), fields: [equationScriptField()], submitLabel: L({ ko: '삽입', en: "insert" }),
       validate: values => equationScriptError(String(values.script ?? '')),
       preview: this.equationDialogPreview(),
     }, async values => {
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 다시 수식을 넣으세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 다시 수식을 넣으세요.', en: "The document changed. Insert the equation again." }));
       await this.execute([{ type: 'insertEquation', target: paragraph.address, offset, script: String(values.script).trim() }]);
     }).open();
   }
@@ -6113,21 +6114,21 @@ export class HwpView extends FileView {
       const error = equationScriptError(script);
       if (error) throw new Error(error);
       this.assertContext(context);
-      if (!context || !state || this.state?.revision !== state.revision) throw new Error('문서가 바뀌었습니다. 수식 대화상자를 다시 여세요.');
+      if (!context || !state || this.state?.revision !== state.revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 수식 대화상자를 다시 여세요.', en: "The document changed. Reopen the equation dialog." }));
       const svg = await this.plugin.api.query.equationPreview(context.path, script, { sessionId: state.sessionId, expectedRevision: state.revision }, {
         ...(typeof properties.fontSize === 'number' ? { fontSize: properties.fontSize } : {}),
         ...(typeof properties.color === 'string' ? { color: properties.color } : {}),
       });
       this.assertContext(context);
-      if (this.state?.revision !== state.revision) throw new Error('문서가 바뀌었습니다. 수식 대화상자를 다시 여세요.');
+      if (this.state?.revision !== state.revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 수식 대화상자를 다시 여세요.', en: "The document changed. Reopen the equation dialog." }));
       return svg;
     };
   }
   private async applySelectedEquation(): Promise<void> {
     const object = this.objectTarget(), script = this.equationScriptInput.value.trim();
-    if (object.kind !== 'equation') throw new Error('수식 개체를 선택한 뒤 스크립트를 적용하세요.');
-    if (!script) throw new Error('적용할 수식 스크립트를 입력하세요.');
-    if (script.length > 4096) throw new Error('수식 스크립트는 4096자 이하여야 합니다.');
+    if (object.kind !== 'equation') throw new Error(L({ ko: '수식 개체를 선택한 뒤 스크립트를 적용하세요.', en: "Select an equation object before applying its script." }));
+    if (!script) throw new Error(L({ ko: '적용할 수식 스크립트를 입력하세요.', en: "Enter an equation script to apply." }));
+    if (script.length > 4096) throw new Error(L({ ko: '수식 스크립트는 4096자 이하여야 합니다.', en: "Equation script must be at most 4096 characters." }));
     await this.execute([{ type: 'setObjectProperties', object, properties: { script } }]);
   }
   private scheduleEquationPreview(): void {
@@ -6153,11 +6154,11 @@ export class HwpView extends FileView {
     if (!script || !state) { this.equationPreviewEl.hidden = true; return; }
     if (script.length > 4096) {
       this.equationPreviewEl.hidden = false;
-      this.equationPreviewEl.setText('수식 스크립트 미리보기는 4096자까지 지원합니다.');
+      this.equationPreviewEl.setText(L({ ko: '수식 스크립트 미리보기는 4096자까지 지원합니다.', en: "Equation script preview supports up to 4096 characters." }));
       return;
     }
     this.equationPreviewEl.hidden = false;
-    this.equationPreviewEl.setText('수식 미리보기를 만드는 중…');
+    this.equationPreviewEl.setText(L({ ko: '수식 미리보기를 만드는 중…', en: "Creating equation preview…" }));
     const context = this.captureContext();
     if (!context) return;
     const equationProperties = this.selectedObject?.kind === 'equation' && this.selectedObject.properties && typeof this.selectedObject.properties === 'object'
@@ -6170,39 +6171,39 @@ export class HwpView extends FileView {
       const svg = await this.plugin.api.query.equationPreview(context.path, script, { sessionId: state.sessionId, expectedRevision: state.revision }, previewOptions);
       this.assertContext(context);
       if (sequence !== this.equationPreviewSequence || script !== this.equationScriptInput.value.trim() || this.state?.revision !== state.revision) return;
-      const mounted = this.pageImages?.mount(-1, this.equationPreviewEl, svg, '수식 미리보기', 'hwp-equation-preview-image') ?? false;
-      if (!mounted) this.equationPreviewEl.setAttribute('aria-label', '수식 미리보기');
+      const mounted = this.pageImages?.mount(-1, this.equationPreviewEl, svg, L({ ko: '수식 미리보기', en: "Equation preview" }), 'hwp-equation-preview-image') ?? false;
+      if (!mounted) this.equationPreviewEl.setAttribute('aria-label', L({ ko: '수식 미리보기', en: "Equation preview" }));
     } catch (error) {
       if (sequence !== this.equationPreviewSequence) return;
-      this.equationPreviewEl.setText(`수식 미리보기를 만들 수 없습니다. ${error instanceof Error ? error.message : String(error)}`);
+      this.equationPreviewEl.setText(LT({ ko: () => `수식 미리보기를 만들 수 없습니다. ${error instanceof Error ? error.message : String(error)}`, en: () => `Cannot create equation preview. ${error instanceof Error ? error.message : String(error)}` }));
     }
   }
   private toggleShapeDrawMode(): void {
     if (this.shapeDrawMode) {
       this.shapeDrawMode = false;
-      if (this.shapeDrawButton) { this.shapeDrawButton.textContent = '도형 그리기'; this.shapeDrawButton.setAttribute('aria-pressed', 'false'); }
-      this.navigationStatus.setText('도형 그리기를 취소했습니다.');
+      if (this.shapeDrawButton) { this.shapeDrawButton.textContent = L({ ko: '도형 그리기', en: "Draw shape" }); this.shapeDrawButton.setAttribute('aria-pressed', 'false'); }
+      this.navigationStatus.setText(L({ ko: '도형 그리기를 취소했습니다.', en: "Shape drawing cancelled." }));
       return;
     }
     if (this.draft || this.composing || this.formMode || this.capabilityCheckPending || this.capabilitiesReadOnly()) {
-      throw new Error('현재 문서 상태에서는 도형을 그릴 수 없습니다.');
+      throw new Error(L({ ko: '현재 문서 상태에서는 도형을 그릴 수 없습니다.', en: "Cannot draw shapes in the current document state." }));
     }
     this.shapeDrawMode = true;
-    if (this.shapeDrawButton) { this.shapeDrawButton.textContent = '그리기 취소'; this.shapeDrawButton.setAttribute('aria-pressed', 'true'); }
-    this.navigationStatus.setText('본문 쪽에서 끌어 도형 크기를 정하세요. 표 셀과 글상자 안에서는 그릴 수 없습니다.');
+    if (this.shapeDrawButton) { this.shapeDrawButton.textContent = L({ ko: '그리기 취소', en: "Cancel drawing" }); this.shapeDrawButton.setAttribute('aria-pressed', 'true'); }
+    this.navigationStatus.setText(L({ ko: '본문 쪽에서 끌어 도형 크기를 정하세요. 표 셀과 글상자 안에서는 그릴 수 없습니다.', en: "Drag over a body page to size the shape. Drawing in table cells or text boxes is unsupported." }));
   }
   private openGoToDialog(): void {
-    if (!this.state) throw new Error('문서가 아직 준비되지 않았습니다.');
+    if (!this.state) throw new Error(L({ ko: '문서가 아직 준비되지 않았습니다.', en: "The document is not ready yet." }));
     const sectionCount = this.sectionGotoSelect.options.length;
     new FormModal(this.app, {
-      title: '찾아가기', hint: '쪽, 구역 또는 책갈피 위치로 이동합니다.', submitLabel: '이동',
+      title: L({ ko: '찾아가기', en: "Go to" }), hint: L({ ko: '쪽, 구역 또는 책갈피 위치로 이동합니다.', en: "Navigate to a page, section, or bookmark." }), submitLabel: L({ ko: '이동', en: "Go" }),
       fields: [
-        { key: 'kind', label: '이동 대상', kind: 'select', value: 'page', options: [['page', '쪽'], ['section', '구역'], ['bookmark', '책갈피']] },
-        { key: 'number', label: '번호', kind: 'number', value: this.page + 1, min: 1, integer: true,
+        { key: 'kind', label: L({ ko: '이동 대상', en: "Destination" }), kind: 'select', value: 'page', options: [['page', L({ ko: '쪽', en: "Page" })], ['section', L({ ko: '구역', en: "section" })], ['bookmark', L({ ko: '책갈피', en: "Bookmark" })]] },
+        { key: 'number', label: L({ ko: '번호', en: "Number" }), kind: 'number', value: this.page + 1, min: 1, integer: true,
           enabledWhen: values => values.kind !== 'bookmark' },
       ],
-      validate: values => values.kind === 'page' && Number(values.number) > (this.state?.pageCount ?? 0) ? `쪽 번호는 1부터 ${this.state?.pageCount ?? 0} 사이여야 합니다.`
-        : values.kind === 'section' && Number(values.number) > sectionCount ? `구역 번호는 1부터 ${sectionCount} 사이여야 합니다.` : undefined,
+      validate: values => values.kind === 'page' && Number(values.number) > (this.state?.pageCount ?? 0) ? LT({ ko: () => `쪽 번호는 1부터 ${this.state?.pageCount ?? 0} 사이여야 합니다.`, en: () => `Page number must be from 1 to ${this.state?.pageCount ?? 0}.` })
+        : values.kind === 'section' && Number(values.number) > sectionCount ? LT({ ko: () => `구역 번호는 1부터 ${sectionCount} 사이여야 합니다.`, en: () => `Section number must be from 1 to ${sectionCount}.` }) : undefined,
     }, async values => {
       if (values.kind === 'bookmark') { setTimeout(() => { void this.pickBookmark(); }, 0); return; }
       if (values.kind === 'section') { this.sectionGotoSelect.value = String(Number(values.number) - 1); await this.goToSection(); }
@@ -6217,14 +6218,14 @@ export class HwpView extends FileView {
   private finishShapeDrawMode(message?: string): void {
     this.shapeDrawMode = false;
     this.shapeDrawStart = undefined;
-    if (this.shapeDrawButton) { this.shapeDrawButton.textContent = '도형 그리기'; this.shapeDrawButton.setAttribute('aria-pressed', 'false'); }
+    if (this.shapeDrawButton) { this.shapeDrawButton.textContent = L({ ko: '도형 그리기', en: "Draw shape" }); this.shapeDrawButton.setAttribute('aria-pressed', 'false'); }
     this.pageStack?.mountedPages().forEach(item => item.element.querySelector('.hwp-shape-draw-preview')?.remove());
     if (message) this.navigationStatus.setText(message);
   }
   private async insertShapeAt(target: Extract<DocumentAddress, { kind: 'body' }>, offset: number, width: number, height: number,
     shape: 'rectangle' | 'textBox', value: string): Promise<void> {
-    for (const [name, size] of [['너비', width], ['높이', height]] as const) {
-      if (!Number.isSafeInteger(size) || size < 1 || size > 1_000_000) throw new Error(`도형 ${name}는 0.01~10000mm 범위여야 합니다.`);
+    for (const [name, size] of [[L({ ko: '너비', en: "Width" }), width], [L({ ko: '높이', en: "Height" }), height]] as const) {
+      if (!Number.isSafeInteger(size) || size < 1 || size > 1_000_000) throw new Error(LT({ ko: () => `도형 ${name}는 0.01~10000mm 범위여야 합니다.`, en: () => `Shape ${name} must be from 0.01 to 10000 mm.` }));
     }
     await this.execute([{ type: 'insertShape', target, offset, shape, width, height, treatAsChar: true, textWrap: 'Square',
       description: value.slice(0, 256), ...(shape === 'textBox' && value ? { text: value } : {}) }]);
@@ -6233,18 +6234,18 @@ export class HwpView extends FileView {
   private async insertShape(): Promise<void> {
     const paragraph = this.rootBodyParagraph(), shape = this.shapeTypeSelect.value as 'rectangle' | 'textBox', value = this.shapeTextInput.value.trim();
     const target = paragraph.address;
-    if (target.kind !== 'body') throw new Error('도형을 넣을 본문 문단을 찾지 못했습니다.');
+    if (target.kind !== 'body') throw new Error(L({ ko: '도형을 넣을 본문 문단을 찾지 못했습니다.', en: "Could not find a body paragraph for shape insertion." }));
     const width = Number(this.shapeWidthInput.value), height = Number(this.shapeHeightInput.value);
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || width > 10000 || height > 10000) throw new Error('도형 너비와 높이는 0.01~10000mm 범위로 입력하세요.');
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || width > 10000 || height > 10000) throw new Error(L({ ko: '도형 너비와 높이는 0.01~10000mm 범위로 입력하세요.', en: "Enter shape width/height from 0.01 to 10000 mm." }));
     await this.insertShapeAt(target, this.insertionOffset(paragraph), Math.round(width * 100), Math.round(height * 100), shape, value);
   }
   private async insertPicture(file: File): Promise<void> {
     const paragraph = this.rootBodyParagraph(), extension = file.name.split('.').at(-1)?.toLowerCase();
-    if (!extension || !['png', 'jpg', 'jpeg', 'gif', 'bmp'].includes(extension)) throw new Error('PNG, JPG, GIF, BMP 그림만 삽입할 수 있습니다.');
-    if (!file.size || file.size > 10 * 1024 * 1024) throw new Error('그림 파일은 1바이트~10MiB 범위여야 합니다.');
+    if (!extension || !['png', 'jpg', 'jpeg', 'gif', 'bmp'].includes(extension)) throw new Error(L({ ko: 'PNG, JPG, GIF, BMP 그림만 삽입할 수 있습니다.', en: "Only PNG, JPG, GIF, or BMP pictures can be inserted." }));
+    if (!file.size || file.size > 10 * 1024 * 1024) throw new Error(L({ ko: '그림 파일은 1바이트~10MiB 범위여야 합니다.', en: "Picture file size must be from 1 byte to 10 MiB." }));
     const bitmap = await createImageBitmap(file);
     const naturalWidthPx = bitmap.width, naturalHeightPx = bitmap.height; bitmap.close();
-    if (!naturalWidthPx || !naturalHeightPx || naturalWidthPx > 100_000 || naturalHeightPx > 100_000) throw new Error('그림의 가로·세로 픽셀은 각각 100000 이하여야 합니다.');
+    if (!naturalWidthPx || !naturalHeightPx || naturalWidthPx > 100_000 || naturalHeightPx > 100_000) throw new Error(L({ ko: '그림의 가로·세로 픽셀은 각각 100000 이하여야 합니다.', en: "Picture width/height must each be at most 100000 pixels." }));
     const naturalWidthUnits = naturalWidthPx * 26.4583, naturalHeightUnits = naturalHeightPx * 26.4583;
     const scale = Math.min(1, 15000 / naturalWidthUnits, 1_000_000 / Math.max(naturalWidthUnits, naturalHeightUnits));
     const width = Math.max(1, Math.round(naturalWidthUnits * scale)), height = Math.max(1, Math.round(naturalHeightUnits * scale));
@@ -6256,7 +6257,7 @@ export class HwpView extends FileView {
   }
   private objectTarget(): Extract<Command, { type: 'setObjectProperties' }>['object'] {
     const object = this.selectedObject;
-    if (!object || object.address.kind !== 'body' || object.address.cellPath?.length || !['picture', 'shape', 'equation'].includes(object.kind)) throw new Error('본문의 그림·수식·도형을 선택하세요. 중첩 셀 개체 편집은 지원하지 않습니다.');
+    if (!object || object.address.kind !== 'body' || object.address.cellPath?.length || !['picture', 'shape', 'equation'].includes(object.kind)) throw new Error(L({ ko: '본문의 그림·수식·도형을 선택하세요. 중첩 셀 개체 편집은 지원하지 않습니다.', en: "Select a body picture, equation, or shape. Nested cell object editing is unsupported." }));
     return { address: object.address, controlIndex: object.controlIndex, kind: object.kind as 'picture' | 'shape' | 'equation' };
   }
   private async applyObjectProperties(): Promise<void> {
@@ -6264,14 +6265,14 @@ export class HwpView extends FileView {
     for (const [key, input] of [['width', this.objectWidthInput], ['height', this.objectHeightInput]] as const) {
       if (!input.value.trim()) continue;
       const value = Number(input.value);
-      if (!Number.isFinite(value) || value <= 0 || value > 10000) throw new Error('개체 너비와 높이는 0.01~10000mm 범위로 입력하세요.');
+      if (!Number.isFinite(value) || value <= 0 || value > 10000) throw new Error(L({ ko: '개체 너비와 높이는 0.01~10000mm 범위로 입력하세요.', en: "Enter object width/height from 0.01 to 10000 mm." }));
       properties[key] = Math.round(value * 100);
     }
     if (object.kind !== 'equation') {
       for (const [key, input] of [['horzOffset', this.objectOffsetXInput], ['vertOffset', this.objectOffsetYInput]] as const) {
         if (!input.value.trim()) continue;
         const value = Number(input.value);
-        if (!Number.isFinite(value) || Math.abs(value) > 10000) throw new Error('개체 위치는 -10000~10000mm 범위로 입력하세요.');
+        if (!Number.isFinite(value) || Math.abs(value) > 10000) throw new Error(L({ ko: '개체 위치는 -10000~10000mm 범위로 입력하세요.', en: "Enter object positions from -10000 to 10000 mm." }));
         properties[key] = Math.round(value * 100);
       }
       properties.treatAsChar = this.objectTreatAsCharInput.checked;
@@ -6286,11 +6287,11 @@ export class HwpView extends FileView {
     const context = this.captureContext(), revision = this.state?.revision;
     const fields = objectFields(object.kind, properties), initial = initialFormValues(fields);
     new FormModal(this.app, {
-      title: object.kind === 'equation' ? '수식 고치기' : '개체 속성', submitLabel: '적용', fields,
+      title: object.kind === 'equation' ? L({ ko: '수식 고치기', en: "Edit equation" }) : L({ ko: '개체 속성', en: "Object properties" }), submitLabel: L({ ko: '적용', en: "Apply" }), fields,
       ...(object.kind === 'equation' ? { validate: (values: FormValues) => equationScriptError(String(values.script ?? '')), preview: this.equationDialogPreview(properties) } : {}),
     }, async values => {
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 개체를 다시 선택하세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 개체를 다시 선택하세요.', en: "The document changed. Select the object again." }));
       const command = objectCommand(object, values, initial);
       if (command) await this.execute([command]);
     }).open();
@@ -6303,9 +6304,9 @@ export class HwpView extends FileView {
     const object = this.objectTarget();
     const current = Number(this.selectedObjectProperties().rotationAngle);
     this.openFormCommandDialog({
-      title: '개체 회전',
-      hint: '한컴 한글과 같은 저장 값(도)으로 회전합니다. 0은 회전 없음입니다.',
-      fields: [{ key: 'angle', label: '회전 각도', kind: 'number', value: Number.isFinite(current) ? current % 360 : 0, min: 0, max: 359, integer: true, unit: '도' }],
+      title: L({ ko: '개체 회전', en: "Rotate object" }),
+      hint: L({ ko: '한컴 한글과 같은 저장 값(도)으로 회전합니다. 0은 회전 없음입니다.', en: "Rotates using the same stored values (degrees) as Hancom Hangul. 0 means no rotation." }),
+      fields: [{ key: 'angle', label: L({ ko: '회전 각도', en: "Rotation angle" }), kind: 'number', value: Number.isFinite(current) ? current % 360 : 0, min: 0, max: 359, integer: true, unit: L({ ko: '도', en: "degrees" }) }],
       build: (values, initial) => values.angle === initial.angle ? [] : [{ type: 'setObjectProperties', object, properties: { rotationAngle: values.angle as number } }],
     });
   }
@@ -6322,31 +6323,31 @@ export class HwpView extends FileView {
   }
   private async toggleSelectedPictureCaption(): Promise<void> {
     const object = this.objectTarget();
-    if (object.kind !== 'picture') throw new Error('캡션은 그림에서만 지원합니다.');
+    if (object.kind !== 'picture') throw new Error(L({ ko: '캡션은 그림에서만 지원합니다.', en: "Captions are supported only for pictures." }));
     const current = this.selectedObjectProperties().hasCaption === true;
     await this.execute([{ type: 'setObjectProperties', object, properties: { hasCaption: !current } }]);
   }
   private async reorderSelectedObject(operation: 'front' | 'back' | 'forward' | 'backward' | 'inFrontOfText' | 'behindText'): Promise<void> {
     const object = this.objectTarget();
-    if (object.kind === 'equation') throw new Error('수식은 순서를 바꿀 수 없습니다.');
+    if (object.kind === 'equation') throw new Error(L({ ko: '수식은 순서를 바꿀 수 없습니다.', en: "Equations cannot be reordered." }));
     await this.execute([{ type: 'setObjectZOrder', object, operation }]);
   }
   private openObjectGroupDialog(): void {
     const tree = this.documentTree;
-    if (!tree) throw new Error('문서 구조를 아직 읽지 못했습니다.');
+    if (!tree) throw new Error(L({ ko: '문서 구조를 아직 읽지 못했습니다.', en: "Document structure has not been read yet." }));
     const candidates = tree.objects.filter(object => object.address.kind === 'body' && !object.address.cellPath?.length && (object.kind === 'picture' || object.kind === 'shape')).slice(0, 60);
-    if (candidates.length < 2) throw new Error('묶을 수 있는 본문 그림·도형이 둘 이상 필요합니다.');
+    if (candidates.length < 2) throw new Error(L({ ko: '묶을 수 있는 본문 그림·도형이 둘 이상 필요합니다.', en: "At least two groupable body pictures/shapes are required." }));
     const selectedPath = this.selectedObject?.nodePath;
     const label = (object: DocumentObject): string => {
       const properties = object.properties && typeof object.properties === 'object' ? object.properties as Record<string, unknown> : {};
       const size = typeof properties.width === 'number' && typeof properties.height === 'number' ? ` · ${Math.round(hwpUnitsToMillimeters(properties.width))}×${Math.round(hwpUnitsToMillimeters(properties.height))}mm` : '';
       const description = typeof properties.description === 'string' && properties.description ? ` · ${properties.description.slice(0, 20)}` : '';
-      return `${objectKindLabel(object)} · 문단 ${object.address.paragraph + 1}${size}${description}`;
+      return LT({ ko: () => `${objectKindLabel(object)} · 문단 ${object.address.paragraph + 1}${size}${description}`, en: () => `${objectKindLabel(object)} · paragraph ${object.address.paragraph + 1}${size}${description}` });
     };
     const fields: FormField[] = candidates.map((object, index) => ({ key: `o${index}`, label: label(object), kind: 'checkbox', value: object.nodePath === selectedPath }));
     this.openFormCommandDialog({
-      title: '개체 묶기', hint: '묶을 그림·도형을 둘 이상 고르세요. 묶으면 개체 번호가 바뀌므로 선택이 해제됩니다.', submitLabel: '묶기', fields,
-      validate: values => candidates.filter((_, index) => values[`o${index}`] === true).length < 2 ? '묶을 개체를 둘 이상 고르세요.' : undefined,
+      title: L({ ko: '개체 묶기', en: "Group objects" }), hint: L({ ko: '묶을 그림·도형을 둘 이상 고르세요. 묶으면 개체 번호가 바뀌므로 선택이 해제됩니다.', en: "Choose at least two pictures/shapes to group. Grouping changes object numbers and clears selection." }), submitLabel: L({ ko: '묶기', en: "Group" }), fields,
+      validate: values => candidates.filter((_, index) => values[`o${index}`] === true).length < 2 ? L({ ko: '묶을 개체를 둘 이상 고르세요.', en: "Choose at least two objects to group." }) : undefined,
       build: values => [{ type: 'groupObjects', objects: candidates.filter((_, index) => values[`o${index}`] === true).map(object => ({ address: object.address, controlIndex: object.controlIndex, kind: object.kind as 'picture' | 'shape' })) }],
       after: () => { this.selectedObject = undefined; },
     });
@@ -6364,10 +6365,10 @@ export class HwpView extends FileView {
   private openPageSetupDialog(): void {
     const section = Number(this.pageSectionSelect.value), current = this.formattingModel?.sections.find(item => item.section === Number(this.pageSectionSelect.value));
     const context = this.captureContext(), revision = this.state?.revision;
-    if (!Number.isSafeInteger(section) || section < 0 || !current || revision === undefined) throw new Error('편집할 구역의 용지 정보를 읽지 못했습니다.');
+    if (!Number.isSafeInteger(section) || section < 0 || !current || revision === undefined) throw new Error(L({ ko: '편집할 구역의 용지 정보를 읽지 못했습니다.', en: "Could not read paper information for the section to edit." }));
     new PageSetupModal(this.app, current.pageDef, async properties => {
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 최신 상태를 확인한 뒤 용지 설정을 적용하세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 최신 상태를 확인한 뒤 용지 설정을 적용하세요.', en: "The document changed. Check current state before applying paper settings." }));
       await this.execute([{ type: 'setPageSettings', section, properties }]);
     }).open();
   }
@@ -6382,16 +6383,16 @@ export class HwpView extends FileView {
       this.storyReturnPosition = { address: this.selected.address, offset: positionAfterEditorText(this.selected.address, this.textarea.value, this.textarea.selectionEnd).offset };
     }
     const paragraph = this.findHeaderFooter(isHeader)?.paragraphs[0];
-    if (!paragraph) throw new Error('현재 쪽에 해당 머리말·꼬리말이 없습니다.');
+    if (!paragraph) throw new Error(L({ ko: '현재 쪽에 해당 머리말·꼬리말이 없습니다.', en: "This header/footer does not exist on the current page." }));
     this.mode = 'stories'; this.modeSelector.value = this.mode;
     this.items = this.itemsForMode(this.documentTree!);
     const index = this.items.findIndex(item => isParagraph(item) && sameDocumentAddress(item.address, paragraph.address));
-    if (index < 0) throw new Error('머리말·꼬리말 문단을 찾지 못했습니다.');
+    if (index < 0) throw new Error(L({ ko: '머리말·꼬리말 문단을 찾지 못했습니다.', en: "Header/footer paragraph not found." }));
     this.selectItem(index, true); this.textarea.focus({ preventScroll: true });
   }
   private async applyHeaderFooterTemplate(isHeader: boolean, applyTo: 0 | 1 | 2, templateId: number): Promise<void> {
     const section = this.pageLayout?.info.sectionIndex ?? Number(this.pageSectionSelect.value);
-    if (!this.formattingModel?.sections.some(item => item.section === section)) throw new Error('현재 구역을 확인하지 못했습니다.');
+    if (!this.formattingModel?.sections.some(item => item.section === section)) throw new Error(L({ ko: '현재 구역을 확인하지 못했습니다.', en: "Could not determine the current section." }));
     await this.execute([{ type: 'applyHeaderFooterTemplate', section, isHeader, applyTo, templateId }]);
 
   }
@@ -6401,7 +6402,7 @@ export class HwpView extends FileView {
     const section = this.pageLayout?.info.sectionIndex ?? selectedAddress?.section ?? Number(this.pageSectionSelect.value);
     if (!tree || revision === undefined || !Number.isSafeInteger(section) || section < 0
       || !this.formattingModel?.sections.some(item => item.section === section)) {
-      throw new Error('머리말·꼬리말을 편집할 구역을 확인하지 못했습니다.');
+      throw new Error(L({ ko: '머리말·꼬리말을 편집할 구역을 확인하지 못했습니다.', en: "Could not determine the section for header/footer editing." }));
     }
     const context = this.captureContext();
     const selectedStoryAddress = selectedAddress?.kind === 'headerFooter' ? selectedAddress : undefined;
@@ -6409,51 +6410,51 @@ export class HwpView extends FileView {
     new HeaderFooterTemplateModal(this.app, section, stories, initialIsHeader ?? selectedStoryAddress?.isHeader ?? true,
       (selectedStoryAddress?.applyTo ?? 0) as 0 | 1 | 2, async command => {
         this.assertContext(context);
-        if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 최신 상태를 확인한 뒤 머리말·꼬리말을 변경하세요.');
+        if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 최신 상태를 확인한 뒤 머리말·꼬리말을 변경하세요.', en: "The document changed. Check current state before changing headers/footers." }));
         await this.execute(command.type === 'apply'
           ? [{ type: 'applyHeaderFooterTemplate', section, isHeader: command.isHeader, applyTo: command.applyTo, templateId: command.templateId }]
           : [{ type: 'deleteHeaderFooter', section, isHeader: command.isHeader, applyTo: command.applyTo }]);
       }).open();
   }
   private async navigateStory(direction: -1 | 1): Promise<void> {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 영역을 이동하세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 영역을 이동하세요.', en: "Finish Korean IME composition before changing areas." }));
     if (this.draft) await this.applyDraft(true);
     const address = this.selected && isParagraph(this.selected) ? this.selected.address : undefined;
     if (address?.kind === 'headerFooter') return this.navigateHeaderFooterPage(direction);
-    if (!address || (address.kind !== 'footnote' && address.kind !== 'endnote') || !this.documentTree || !this.state) throw new Error('각주·미주를 먼저 선택하세요.');
+    if (!address || (address.kind !== 'footnote' && address.kind !== 'endnote') || !this.documentTree || !this.state) throw new Error(L({ ko: '각주·미주를 먼저 선택하세요.', en: "Select a footnote/endnote first." }));
     const stories = this.documentTree.stories.filter(story => story.kind === address.kind && 'availability' in story && story.availability === 'available');
     const index = stories.findIndex(story => 'controlIndex' in story && story.section === address.section && story.controlIndex === address.controlIndex && 'anchor' in story && sameDocumentAddress(story.anchor, address.anchor));
     const paragraph = stories[index + direction]?.paragraphs[0];
-    if (!paragraph) { this.navigationStatus.setText('그 방향에 같은 종류의 영역이 없습니다.'); return; }
+    if (!paragraph) { this.navigationStatus.setText(L({ ko: '그 방향에 같은 종류의 영역이 없습니다.', en: "No area of the same kind in that direction." })); return; }
     const context = this.captureContext(), revision = this.state.revision;
     const caret = await this.plugin.api.query.caret(context.path, { address: paragraph.address, offset: 0 }, { sessionId: this.state.sessionId, expectedRevision: revision });
     this.assertContext(context);
-    if (this.state?.revision !== revision) throw new Error('영역 이동 중 문서가 바뀌었습니다.');
+    if (this.state?.revision !== revision) throw new Error(L({ ko: '영역 이동 중 문서가 바뀌었습니다.', en: "The document changed during area navigation." }));
     this.page = caret.rect.pageIndex; await this.renderPage(true); this.assertContext(context);
     const itemIndex = this.items.findIndex(item => isParagraph(item) && sameDocumentAddress(item.address, paragraph.address));
-    if (itemIndex < 0) throw new Error('영역 문단을 찾지 못했습니다.');
+    if (itemIndex < 0) throw new Error(L({ ko: '영역 문단을 찾지 못했습니다.', en: "Area paragraph not found." }));
     this.selectItem(itemIndex, true); this.restoreTextPosition(caret.position, true);
   }
   private async deleteStory(): Promise<void> {
     if (this.draft) await this.applyDraft(true);
     const address = this.selected && isParagraph(this.selected) ? this.selected.address : undefined;
-    if (!address || address.kind === 'body' || !this.state) throw new Error('지울 영역을 먼저 선택하세요.');
+    if (!address || address.kind === 'body' || !this.state) throw new Error(L({ ko: '지울 영역을 먼저 선택하세요.', en: "Select an area to delete first." }));
     const context = this.captureContext(), revision = this.state.revision;
-    const confirmed = await new Promise<boolean>(resolve => new ConfirmActionModal(this.app, { title: '본문 밖 영역 지우기', message: '현재 영역의 모든 문단과 내용을 지웁니다. 되돌리기로 복원할 수 있습니다.', confirmLabel: '영역 지우기' }, resolve).open());
+    const confirmed = await new Promise<boolean>(resolve => new ConfirmActionModal(this.app, { title: L({ ko: '본문 밖 영역 지우기', en: "Delete non-body area" }), message: L({ ko: '현재 영역의 모든 문단과 내용을 지웁니다. 되돌리기로 복원할 수 있습니다.', en: "Deletes all paragraphs/content in this area. Recover with Undo." }), confirmLabel: L({ ko: '영역 지우기', en: "Delete area" }) }, resolve).open());
     if (!confirmed) return;
     this.assertContext(context);
-    if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 영역을 다시 확인하세요.');
+    if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 영역을 다시 확인하세요.', en: "The document changed. Inspect the area again." }));
     await this.closeHeaderFooterEditor();
-    if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 영역을 다시 확인하세요.');
+    if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 영역을 다시 확인하세요.', en: "The document changed. Inspect the area again." }));
     await this.execute(address.kind === 'headerFooter'
       ? [{ type: 'deleteHeaderFooter', section: address.section, isHeader: address.isHeader, applyTo: address.applyTo as 0 | 1 | 2 }]
       : [{ type: 'deleteNote', target: address }]);
   }
   private async navigateHeaderFooterPage(direction: -1 | 1): Promise<void> {
-    if (this.draft || this.composing) throw new Error('머리말·꼬리말 쪽을 이동하기 전에 입력을 적용하고 한글 조합을 마치세요.');
+    if (this.draft || this.composing) throw new Error(L({ ko: '머리말·꼬리말 쪽을 이동하기 전에 입력을 적용하고 한글 조합을 마치세요.', en: "Apply input and finish Korean IME composition before changing header/footer pages." }));
     const selected = this.selected, state = this.state;
     if (!selected || !isParagraph(selected) || selected.address.kind !== 'headerFooter' || !state || !this.path) {
-      throw new Error('머리말이나 꼬리말을 먼저 편집하세요.');
+      throw new Error(L({ ko: '머리말이나 꼬리말을 먼저 편집하세요.', en: "Edit a header/footer first." }));
     }
     const address: HeaderFooterAddress = selected.address, context = this.captureContext(), revision = state.revision;
     const caretPosition = this.pageSelection?.focus ?? positionAfterEditorText(address, this.textarea.value, this.textarea.selectionEnd);
@@ -6461,29 +6462,29 @@ export class HwpView extends FileView {
       { sessionId: state.sessionId, expectedRevision: revision });
     this.assertContext(context);
     const latest = await this.plugin.api.documents.state(context.path); this.assertContext(context);
-    if (latest.revision !== revision || this.state?.revision !== revision) throw new Error('이동 중 문서가 바뀌어 쪽 이동을 취소했습니다.');
+    if (latest.revision !== revision || this.state?.revision !== revision) throw new Error(L({ ko: '이동 중 문서가 바뀌어 쪽 이동을 취소했습니다.', en: "Page navigation cancelled because the document changed while moving." }));
     if (!target.ok || target.pageIndex === undefined || target.section === undefined || target.isHeader === undefined || target.applyTo === undefined) {
-      this.navigationStatus.setText(direction < 0 ? '앞쪽에 같은 머리말·꼬리말 영역이 없습니다.' : '뒤쪽에 같은 머리말·꼬리말 영역이 없습니다.');
+      this.navigationStatus.setText(direction < 0 ? L({ ko: '앞쪽에 같은 머리말·꼬리말 영역이 없습니다.', en: "No matching header/footer area on earlier pages." }) : L({ ko: '뒤쪽에 같은 머리말·꼬리말 영역이 없습니다.', en: "No matching header/footer area on later pages." }));
       return;
     }
     const destinationStory = this.documentTree?.stories.find((story): story is HeaderFooterStory => story.kind === 'headerFooter'
       && story.section === target.section && story.isHeader === target.isHeader && story.applyTo === target.applyTo);
     const destinationParagraph = destinationStory?.paragraphs[Math.min(address.paragraph, Math.max(0, (destinationStory?.paragraphs.length ?? 1) - 1))];
-    if (!destinationParagraph) throw new Error('이동한 쪽의 머리말·꼬리말 문단을 찾지 못했습니다.');
+    if (!destinationParagraph) throw new Error(L({ ko: '이동한 쪽의 머리말·꼬리말 문단을 찾지 못했습니다.', en: "Could not find the destination page's header/footer paragraph." }));
     this.state = latest; this.page = Math.min(target.pageIndex, latest.pageCount - 1);
     await this.renderPage(true); this.assertContext(context);
     const index = this.items.findIndex(item => isParagraph(item) && sameDocumentAddress(item.address, destinationParagraph.address));
-    if (index < 0) throw new Error('현재 머리말·꼬리말 문단을 찾지 못했습니다. 문서 구조를 새로 읽으세요.');
+    if (index < 0) throw new Error(L({ ko: '현재 머리말·꼬리말 문단을 찾지 못했습니다. 문서 구조를 새로 읽으세요.', en: "Could not find the current header/footer paragraph. Reread document structure." }));
     this.selectItem(index, true);
     this.restoreTextPosition({ address: destinationParagraph.address, offset: Math.min(destinationParagraph.length, caretPosition.offset) }, true);
-    this.navigationStatus.setText(`${this.page + 1}쪽 ${target.isHeader ? '머리말' : '꼬리말'} 편집 중`);
+    this.navigationStatus.setText(LT({ ko: () => `${this.page + 1}쪽 ${target.isHeader ? '머리말' : '꼬리말'} 편집 중`, en: () => `Editing page ${this.page + 1} ${target.isHeader ? 'header' : 'footer'}` }));
   }
   private async closeHeaderFooterEditor(): Promise<void> {
-    if (this.composing) throw new Error('한글 조합을 마친 뒤 본문 밖 영역 편집을 닫으세요.');
+    if (this.composing) throw new Error(L({ ko: '한글 조합을 마친 뒤 본문 밖 영역 편집을 닫으세요.', en: "Finish Korean IME composition before closing non-body area editing." }));
     if (this.draft) await this.applyDraft(true);
     const selected = this.selected, tree = this.documentTree, state = this.state;
     if (!selected || !isParagraph(selected) || !['headerFooter', 'footnote', 'endnote'].includes(selected.address.kind) || !tree || !state || !this.path) {
-      throw new Error('현재 본문 밖 영역 편집 모드가 아닙니다.');
+      throw new Error(L({ ko: '현재 본문 밖 영역 편집 모드가 아닙니다.', en: "Not currently editing a non-body area." }));
     }
     const context = this.captureContext(), revision = state.revision;
     const returned = this.storyReturnPosition && this.paragraphForAddress(tree, this.storyReturnPosition.address)?.address.kind === 'body'
@@ -6495,7 +6496,7 @@ export class HwpView extends FileView {
       && !item.address.cellPath?.length && !item.address.containerKinds?.includes('textBox'));
     if (!paragraph) {
       this.storyReturnPosition = undefined;
-      this.clearSelection('본문 밖 영역 편집을 닫았습니다.');
+      this.clearSelection(L({ ko: '본문 밖 영역 편집을 닫았습니다.', en: "Closed non-body area editing." }));
       this.pageScroll.focus({ preventScroll: true });
       return;
     }
@@ -6504,25 +6505,25 @@ export class HwpView extends FileView {
     const caret = await this.plugin.api.query.caret(context.path, position, { sessionId: state.sessionId, expectedRevision: revision });
     this.assertContext(context);
     const latest = await this.plugin.api.documents.state(context.path); this.assertContext(context);
-    if (latest.revision !== revision || this.state?.revision !== revision) throw new Error('이동 중 문서가 바뀌어 편집 닫기를 취소했습니다.');
+    if (latest.revision !== revision || this.state?.revision !== revision) throw new Error(L({ ko: '이동 중 문서가 바뀌어 편집 닫기를 취소했습니다.', en: "The document changed during navigation; closing the editor was cancelled." }));
     this.mode = 'paragraphs'; this.modeSelector.value = this.mode; this.items = this.itemsForMode(tree);
     const index = this.items.findIndex(item => isParagraph(item) && sameDocumentAddress(item.address, paragraph.address));
-    if (index < 0) throw new Error('돌아갈 본문 문단을 찾지 못했습니다.');
+    if (index < 0) throw new Error(L({ ko: '돌아갈 본문 문단을 찾지 못했습니다.', en: "Could not find a body paragraph to return to." }));
     this.state = latest; this.page = Math.min(caret.rect.pageIndex, latest.pageCount - 1);
     await this.renderPage(true); this.assertContext(context);
     this.selectItem(index, true); this.restoreTextPosition(caret.position, true);
     this.storyReturnPosition = undefined;
-    this.navigationStatus.setText(`${this.page + 1}쪽 본문으로 돌아왔습니다.`);
+    this.navigationStatus.setText(LT({ ko: () => `${this.page + 1}쪽 본문으로 돌아왔습니다.`, en: () => `Returned to body on page ${this.page + 1}.` }));
   }
   private async applyPageSettings(): Promise<void> {
     const section = Number(this.pageSectionSelect.value);
-    if (!Number.isSafeInteger(section) || section < 0) throw new Error('쪽 설정 구역을 선택하세요.');
+    if (!Number.isSafeInteger(section) || section < 0) throw new Error(L({ ko: '쪽 설정 구역을 선택하세요.', en: "Select a section for page settings." }));
     const properties: PageSettingsProperties = { landscape: this.pageLandscapeInput.checked };
     const dimensions: { width?: number; height?: number } = {};
     for (const [key, input] of this.pageNumberInputs) {
       if (!input.value.trim()) continue;
       const value = Number(input.value);
-      if (!Number.isFinite(value) || value < 0 || value > 10000) throw new Error('쪽 크기와 여백은 0~10000mm 범위로 입력하세요.');
+      if (!Number.isFinite(value) || value < 0 || value > 10000) throw new Error(L({ ko: '쪽 크기와 여백은 0~10000mm 범위로 입력하세요.', en: "Enter page size/margins from 0 to 10000 mm." }));
       const units = millimetersToHwpUnits(value);
       (properties as Record<string, unknown>)[key] = units;
       if (key === 'width') dimensions.width = units;
@@ -6532,25 +6533,25 @@ export class HwpView extends FileView {
       (properties as Record<string, unknown>).width = dimensions.height;
       (properties as Record<string, unknown>).height = dimensions.width;
     }
-    if (dimensions.width !== undefined && dimensions.width < 1000 || dimensions.height !== undefined && dimensions.height < 1000) throw new Error('쪽 너비와 높이는 10mm 이상이어야 합니다.');
+    if (dimensions.width !== undefined && dimensions.width < 1000 || dimensions.height !== undefined && dimensions.height < 1000) throw new Error(L({ ko: '쪽 너비와 높이는 10mm 이상이어야 합니다.', en: "Page width/height must be at least 10 mm." }));
     await this.execute([{ type: 'setPageSettings', section, properties }]);
   }
   private async insertParagraph(): Promise<void> {
     const target = this.target();
-    if (!('kind' in target) || target.kind !== 'body' || target.cellPath?.length || target.containerKinds?.includes('textBox')) throw new Error('본문 문단을 선택하세요.');
+    if (!('kind' in target) || target.kind !== 'body' || target.cellPath?.length || target.containerKinds?.includes('textBox')) throw new Error(L({ ko: '본문 문단을 선택하세요.', en: "Select a body paragraph." }));
     await this.execute([{ type: 'insertParagraph', section: target.section, index: target.paragraph + 1, text: '' }]);
   }
   private async deleteParagraph(): Promise<void> {
     const target = this.target();
-    if (!('kind' in target) || target.kind !== 'body' || target.cellPath?.length) throw new Error('본문 문단을 선택하세요.');
+    if (!('kind' in target) || target.kind !== 'body' || target.cellPath?.length) throw new Error(L({ ko: '본문 문단을 선택하세요.', en: "Select a body paragraph." }));
     await this.execute([{ type: 'deleteParagraph', section: target.section, index: target.paragraph }]);
   }
   private openTableGridDialog(): void {
     const context = this.captureContext(), revision = this.state?.revision;
-    if (revision === undefined) throw new Error('문서 상태가 아직 준비되지 않았습니다.');
+    if (revision === undefined) throw new Error(L({ ko: '문서 상태가 아직 준비되지 않았습니다.', en: "Document state is not ready yet." }));
     new TableGridModal(this.app, async (rows, columns) => {
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 최신 상태를 확인한 뒤 표를 만드세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 최신 상태를 확인한 뒤 표를 만드세요.', en: "The document changed. Check current state before creating a table." }));
       await this.createTable(rows, columns);
     }).open();
   }
@@ -6558,22 +6559,22 @@ export class HwpView extends FileView {
     const paragraph = this.rootBodyParagraph(), offset = this.insertionOffset(paragraph);
     const context = this.captureContext(), revision = this.state?.revision;
     new FormModal(this.app, {
-      title: '사용자 지정 표 삽입', submitLabel: '삽입', fields: [
-        { key: 'rows', label: '줄 수', kind: 'number', value: Number(this.tableRowsInput.value) || 2, min: 1, max: 100, integer: true },
-        { key: 'cols', label: '칸 수', kind: 'number', value: Number(this.tableColsInput.value) || 2, min: 1, max: 100, integer: true },
+      title: L({ ko: '사용자 지정 표 삽입', en: "Insert custom table" }), submitLabel: L({ ko: '삽입', en: "insert" }), fields: [
+        { key: 'rows', label: L({ ko: '줄 수', en: "Row count" }), kind: 'number', value: Number(this.tableRowsInput.value) || 2, min: 1, max: 100, integer: true },
+        { key: 'cols', label: L({ ko: '칸 수', en: "Column count" }), kind: 'number', value: Number(this.tableColsInput.value) || 2, min: 1, max: 100, integer: true },
       ],
-      validate: values => Number(values.rows) * Number(values.cols) > 1000 ? '표는 최대 1000셀까지 삽입할 수 있습니다.' : undefined,
+      validate: values => Number(values.rows) * Number(values.cols) > 1000 ? L({ ko: '표는 최대 1000셀까지 삽입할 수 있습니다.', en: "Tables can contain at most 1000 cells." }) : undefined,
     }, async values => {
       this.assertContext(context);
-      if (this.state?.revision !== revision) throw new Error('문서가 바뀌었습니다. 표 삽입 대화상자를 다시 여세요.');
+      if (this.state?.revision !== revision) throw new Error(L({ ko: '문서가 바뀌었습니다. 표 삽입 대화상자를 다시 여세요.', en: "The document changed. Reopen the table insertion dialog." }));
       await this.execute([{ type: 'createTable', target: paragraph.address, offset, rows: Number(values.rows), cols: Number(values.cols) }]);
     }).open();
   }
   private async createTable(rowsOverride?: number, columnsOverride?: number): Promise<void> {
     const target = this.target();
-    if (!('kind' in target) || target.kind !== 'body' || target.cellPath?.length || target.containerKinds?.includes('textBox')) throw new Error('표는 글상자가 아닌 본문 문단에서 만들 수 있습니다.');
+    if (!('kind' in target) || target.kind !== 'body' || target.cellPath?.length || target.containerKinds?.includes('textBox')) throw new Error(L({ ko: '표는 글상자가 아닌 본문 문단에서 만들 수 있습니다.', en: "Tables can be created in body paragraphs, not text boxes." }));
     const rows = rowsOverride ?? Number(this.tableRowsInput.value), cols = columnsOverride ?? Number(this.tableColsInput.value);
-    if (!Number.isInteger(rows) || rows < 1 || rows > 100 || !Number.isInteger(cols) || cols < 1 || cols > 100 || rows * cols > 1000) throw new Error('표 크기는 1~100행·열, 최대 1000셀로 입력하세요.');
+    if (!Number.isInteger(rows) || rows < 1 || rows > 100 || !Number.isInteger(cols) || cols < 1 || cols > 100 || rows * cols > 1000) throw new Error(L({ ko: '표 크기는 1~100행·열, 최대 1000셀로 입력하세요.', en: "Enter 1–100 rows/columns and at most 1000 cells." }));
     const offset = this.pageSelection && sameDocumentAddress(this.pageSelection.address, target) ? Math.min(this.pageSelection.start, this.pageSelection.end) : 0;
     await this.execute([{ type: 'createTable', target: { section: target.section, paragraph: target.paragraph }, offset, rows, cols }]);
   }

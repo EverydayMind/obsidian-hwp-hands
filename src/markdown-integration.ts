@@ -1,3 +1,4 @@
+import { LT, L } from './i18n/locale';
 import { MarkdownRenderChild, type App, type MarkdownPostProcessorContext, type TFile } from 'obsidian';
 import type { HwpHandsApiV1 } from './api';
 import type { DocumentManager } from './manager';
@@ -71,13 +72,13 @@ class HwpEmbedPreview extends MarkdownRenderChild {
       const document = this.containerEl.ownerDocument;
       const card = document.createElement('div'); card.className = 'hwp-embed-preview';
       const title = document.createElement('div'); title.className = 'hwp-embed-title';
-      title.textContent = `${this.file.basename} · ${this.page + 1}쪽 미리보기`;
+      title.textContent = LT({ ko: () => `${this.file.basename} · ${this.page + 1}쪽 미리보기`, en: () => `${this.file.basename} · page ${this.page + 1} preview` });
       const page = document.createElement('div'); page.className = 'hwp-embed-page';
       const projection = safeSvg(rendered.svg, document);
       const svg = projection.querySelector('svg');
-      if (svg) { svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${this.file.name} ${this.page + 1}쪽 읽기 전용 미리보기`); }
+      if (svg) { svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', LT({ ko: () => `${this.file.name} ${this.page + 1}쪽 읽기 전용 미리보기`, en: () => `${this.file.name} page ${this.page + 1} read-only preview` })); }
       page.append(projection);
-      const open = document.createElement('button'); open.type = 'button'; open.textContent = '편집기로 열기';
+      const open = document.createElement('button'); open.type = 'button'; open.textContent = L({ ko: '편집기로 열기', en: "Open in editor" });
       this.openHandler = () => { void this.host.openInEditor(this.file, { page: this.page + 1 }).catch(error => this.host.report(error)); };
       open.addEventListener('click', this.openHandler);
       card.append(title, page, open);
@@ -86,7 +87,7 @@ class HwpEmbedPreview extends MarkdownRenderChild {
       if (this.disposed) return;
       await this.release();
       const message = this.containerEl.ownerDocument.createElement('div');
-      message.className = 'hwp-embed-error'; message.textContent = `HWP 미리보기를 만들지 못했습니다: ${error instanceof Error ? error.message : String(error)}`;
+      message.className = 'hwp-embed-error'; message.textContent = LT({ ko: () => `HWP 미리보기를 만들지 못했습니다: ${error instanceof Error ? error.message : String(error)}`, en: () => `Could not create HWP preview: ${error instanceof Error ? error.message : String(error)}` });
       this.containerEl.replaceChildren(message);
     }
   }

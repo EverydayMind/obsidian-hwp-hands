@@ -1,3 +1,4 @@
+import { L } from './i18n/locale';
 import type { CaretMotion, Command, DocumentAddress, Target, TextPosition } from './api';
 
 export function shouldEnterStoryOnClick(kind: DocumentAddress['kind'], clickCount: number, alreadyEditing: boolean): boolean {
@@ -130,12 +131,12 @@ export function paragraphEditCommands(
   if (removed) commands.push({ type: 'replaceParagraph', target: address, text: modelTextFromEditor(before.slice(0, prefix).concat(before.slice(before.length - suffix)).join('')), expectedText: original });
   for (let index = 0; index < lines.length; index++) {
     const target = siblingAddress(address, index);
-    if (!target) throw new Error('문단 위치를 계산하지 못했습니다.');
+    if (!target) throw new Error(L({ ko: '문단 위치를 계산하지 못했습니다.', en: "Could not calculate paragraph position." }));
     const text = lines[index];
     commands.push(...inlineCommands(target, index === 0 ? prefix : 0, text));
     if (index < lines.length - 1) commands.push({ type: 'splitParagraph', target, offset: (index === 0 ? prefix : 0) + Array.from(text).length });
   }
-  if (commands.length > 500) throw new Error('한 번에 붙여 넣을 문단이 너무 많습니다 (최대 250개).');
+  if (commands.length > 500) throw new Error(L({ ko: '한 번에 붙여 넣을 문단이 너무 많습니다 (최대 250개).', en: "Too many paragraphs to paste at once (maximum 250)." }));
   return commands;
 }
 
@@ -145,7 +146,7 @@ export function positionAfterEditorText(address: DocumentAddress, value: string,
   if (address.kind === 'body' && address.containerKinds?.includes('textBox')) return { address, offset: beforeCaret.length };
   const paragraphDelta = beforeCaret.filter(character => character === '\n').length;
   const target = siblingAddress(address, paragraphDelta);
-  if (!target) throw new Error('편집 후 문단 위치를 계산하지 못했습니다.');
+  if (!target) throw new Error(L({ ko: '편집 후 문단 위치를 계산하지 못했습니다.', en: "Could not calculate paragraph position after editing." }));
   const offset = beforeCaret.length - splitAt - 1;
   return { address: target, offset };
 }

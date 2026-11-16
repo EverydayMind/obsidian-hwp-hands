@@ -1,3 +1,4 @@
+import { LT, L } from './i18n/locale';
 import { randomUUID } from 'node:crypto';
 
 export interface InputDraftInput {
@@ -33,20 +34,20 @@ const SAFE_ID = /^[A-Za-z0-9._-]{1,128}$/;
 const sizeOf = (value: string): number => new TextEncoder().encode(value).byteLength;
 
 function parseDraft(value: unknown, fallbackId: string, fallbackCreatedAt: string): InputDraftRecord {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('초안 JSON이 객체가 아닙니다.');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(L({ ko: '초안 JSON이 객체가 아닙니다.', en: "Draft JSON is not an object." }));
   const item = value as Record<string, unknown>;
-  if (item.version !== undefined && item.version !== 1) throw new Error('지원하지 않는 초안 버전입니다.');
-  if (typeof item.path !== 'string' || !item.path || item.path.length > 2048) throw new Error('원본 문서 경로가 올바르지 않습니다.');
-  if (typeof item.value !== 'string' || !Number.isSafeInteger(item.revision) || Number(item.revision) < 0) throw new Error('초안 내용 또는 revision이 올바르지 않습니다.');
-  if (item.target !== undefined && (!item.target || typeof item.target !== 'object' || Array.isArray(item.target))) throw new Error('편집 대상 정보가 올바르지 않습니다.');
+  if (item.version !== undefined && item.version !== 1) throw new Error(L({ ko: '지원하지 않는 초안 버전입니다.', en: "Unsupported draft version." }));
+  if (typeof item.path !== 'string' || !item.path || item.path.length > 2048) throw new Error(L({ ko: '원본 문서 경로가 올바르지 않습니다.', en: "Invalid original document path." }));
+  if (typeof item.value !== 'string' || !Number.isSafeInteger(item.revision) || Number(item.revision) < 0) throw new Error(L({ ko: '초안 내용 또는 revision이 올바르지 않습니다.', en: "Invalid draft content or revision." }));
+  if (item.target !== undefined && (!item.target || typeof item.target !== 'object' || Array.isArray(item.target))) throw new Error(L({ ko: '편집 대상 정보가 올바르지 않습니다.', en: "Invalid edit target information." }));
   const id = typeof item.id === 'string' ? item.id : fallbackId;
-  if (!SAFE_ID.test(id)) throw new Error('초안 식별자가 올바르지 않습니다.');
+  if (!SAFE_ID.test(id)) throw new Error(L({ ko: '초안 식별자가 올바르지 않습니다.', en: "Invalid draft identifier." }));
   const createdAt = typeof item.createdAt === 'string' && !Number.isNaN(Date.parse(item.createdAt)) ? item.createdAt : fallbackCreatedAt;
   const record: InputDraftRecord = {
     version: 1, id, createdAt, path: item.path,
     ...(item.target === undefined ? {} : { target: item.target }), value: item.value, revision: Number(item.revision)
   };
-  if (sizeOf(JSON.stringify(record)) > MAX_DRAFT_BYTES) throw new Error('초안이 허용된 크기를 초과합니다.');
+  if (sizeOf(JSON.stringify(record)) > MAX_DRAFT_BYTES) throw new Error(L({ ko: '초안이 허용된 크기를 초과합니다.', en: "Draft exceeds the allowed size." }));
   return record;
 }
 
@@ -57,29 +58,33 @@ function fallbackTime(id: string): string {
 }
 
 export function inputDraftTargetLabel(target: unknown): string {
-  if (!target || typeof target !== 'object' || Array.isArray(target)) return '대상 정보 없음';
-  const item = target as Record<string, unknown>;
-  if (typeof item.name === 'string' && item.name) return `필드: ${item.name}`;
+  if (!target || typeof target !== 'object' || Array.isArray(target)) return L({ ko: '대상 정보 없음', en: "No target information" });
+  const fields = target as Record<string, unknown>;
+  if (typeof fields.name === 'string' && fields.name) {
+    const item = { name: fields.name };
+    return LT({ ko: () => `필드: ${item.name}`, en: () => `Field: ${item.name}` });
+  }
+  const item = fields;
   const address = item.address && typeof item.address === 'object' ? item.address as Record<string, unknown> : undefined;
-  if (address?.kind === 'headerFooter') return `${address.isHeader ? '머리말' : '꼬리말'}: ${Number(address.section) + 1}구역`;
-  if (address?.kind === 'footnote' || address?.kind === 'endnote') return `${address.kind === 'footnote' ? '각주' : '미주'}: ${Number(address.section) + 1}구역`;
+  if (address?.kind === 'headerFooter') return LT({ ko: () => `${address.isHeader ? L({ ko: '머리말', en: "header" }) : L({ ko: '꼬리말', en: "footer" })}: ${Number(address.section) + 1}구역`, en: () => `${address.isHeader ? 'Header' : 'Footer'}: section ${Number(address.section) + 1}` });
+  if (address?.kind === 'footnote' || address?.kind === 'endnote') return LT({ ko: () => `${address.kind === 'footnote' ? L({ ko: '각주', en: "footnote" }) : L({ ko: '미주', en: "endnote" })}: ${Number(address.section) + 1}구역`, en: () => `${address.kind === 'footnote' ? 'Footnote' : 'Endnote'}: section ${Number(address.section) + 1}` });
   if (address?.kind === 'body' && Number.isInteger(address.section) && Number.isInteger(address.paragraph)) {
-    const prefix = Array.isArray(address.cellPath) ? '표/글상자 안 문단' : '본문 문단';
-    return `${prefix}: ${Number(address.section) + 1}구역 ${Number(address.paragraph) + 1}번째`;
+    const prefix = Array.isArray(address.cellPath) ? L({ ko: '표/글상자 안 문단', en: "Paragraph in table/text box" }) : L({ ko: '본문 문단', en: "Body paragraph" });
+    return LT({ ko: () => `${prefix}: ${Number(address.section) + 1}구역 ${Number(address.paragraph) + 1}번째`, en: () => `${prefix}: section ${Number(address.section) + 1}, paragraph ${Number(address.paragraph) + 1}` });
   }
   if (Number.isInteger(item.section) && Number.isInteger(item.paragraph)) {
-    const prefix = Array.isArray(item.cellPath) ? '표 안 문단' : '본문 문단';
-    return `${prefix}: ${Number(item.section) + 1}구역 ${Number(item.paragraph) + 1}번째`;
+    const prefix = Array.isArray(item.cellPath) ? L({ ko: '표 안 문단', en: "Paragraph in table" }) : L({ ko: '본문 문단', en: "Body paragraph" });
+    return LT({ ko: () => `${prefix}: ${Number(item.section) + 1}구역 ${Number(item.paragraph) + 1}번째`, en: () => `${prefix}: section ${Number(item.section) + 1}, paragraph ${Number(item.paragraph) + 1}` });
   }
-  return '대상 정보 없음';
+  return L({ ko: '대상 정보 없음', en: "No target information" });
 }
 
 export function validateInputDraftCopyPath(input: string): string {
-  if (typeof input !== 'string') throw new Error('Vault 상대 경로를 사용하세요.');
+  if (typeof input !== 'string') throw new Error(L({ ko: 'Vault 상대 경로를 사용하세요.', en: "Use a Vault-relative path." }));
   const path = input.trim().replaceAll('\\', '/');
   const parts = path.split('/');
   if (!path || path.startsWith('/') || /[:\0\r\n]/.test(path) || parts.some(part => !part || part === '.' || part === '..' || part.toLowerCase() === '.obsidian' || part.toLowerCase() === '.trash') || !/\.txt$/i.test(path)) {
-    throw new Error('Vault 안의 안전한 .txt 상대 경로를 입력하세요.');
+    throw new Error(L({ ko: 'Vault 안의 안전한 .txt 상대 경로를 입력하세요.', en: "Enter a safe relative .txt path within the Vault." }));
   }
   return path;
 }
@@ -92,13 +97,13 @@ export class InputDraftStore {
   ) {}
 
   private file(id: string): string {
-    if (!SAFE_ID.test(id)) throw new Error('초안 식별자가 올바르지 않습니다.');
+    if (!SAFE_ID.test(id)) throw new Error(L({ ko: '초안 식별자가 올바르지 않습니다.', en: "Invalid draft identifier." }));
     return `${this.directory}/${id}.json`;
   }
 
   async save(input: InputDraftInput, existingId?: string): Promise<string> {
     const id = existingId ?? `${Date.now()}-${randomUUID()}`;
-    if (!SAFE_ID.test(id)) throw new Error('초안 식별자가 올바르지 않습니다.');
+    if (!SAFE_ID.test(id)) throw new Error(L({ ko: '초안 식별자가 올바르지 않습니다.', en: "Invalid draft identifier." }));
     if (!await this.adapter.exists(this.directory)) await this.adapter.mkdir(this.directory);
     const filename = this.file(id), temporary = `${filename}.tmp-${randomUUID()}`;
     let createdAt = new Date().toISOString();
@@ -108,7 +113,7 @@ export class InputDraftStore {
     }
     const record = parseDraft({ ...input, version: 1, id, createdAt }, id, createdAt);
     const json = JSON.stringify(record);
-    if (sizeOf(json) > MAX_DRAFT_BYTES) throw new Error('초안이 허용된 크기를 초과합니다.');
+    if (sizeOf(json) > MAX_DRAFT_BYTES) throw new Error(L({ ko: '초안이 허용된 크기를 초과합니다.', en: "Draft exceeds the allowed size." }));
     try {
       await this.adapter.write(temporary, json);
       await this.atomicRename(temporary, filename);
@@ -130,7 +135,7 @@ export class InputDraftStore {
       if (!SAFE_ID.test(id)) continue;
       try {
         const json = await this.adapter.read(file);
-        if (sizeOf(json) > MAX_DRAFT_BYTES) throw new Error('초안 파일이 허용된 크기를 초과합니다.');
+        if (sizeOf(json) > MAX_DRAFT_BYTES) throw new Error(L({ ko: '초안 파일이 허용된 크기를 초과합니다.', en: "Draft file exceeds the allowed size." }));
         entries.push({ id, record: parseDraft(JSON.parse(json), id, fallbackTime(id)) });
       } catch (error) {
         entries.push({ id, error: error instanceof Error ? error.message : String(error) });
@@ -142,7 +147,7 @@ export class InputDraftStore {
   async read(id: string): Promise<InputDraftRecord> {
     const filename = this.file(id);
     const json = await this.adapter.read(filename);
-    if (sizeOf(json) > MAX_DRAFT_BYTES) throw new Error('초안 파일이 허용된 크기를 초과합니다.');
+    if (sizeOf(json) > MAX_DRAFT_BYTES) throw new Error(L({ ko: '초안 파일이 허용된 크기를 초과합니다.', en: "Draft file exceeds the allowed size." }));
     return parseDraft(JSON.parse(json), id, fallbackTime(id));
   }
 
@@ -187,7 +192,7 @@ export class InputDraftAutosave {
     await this.tail;
     if (!this.currentId) this.initialWriteQueued = true;
     await this.enqueue(snapshot);
-    if (!this.currentId) throw new Error('초안 복구본을 저장하지 못했습니다.');
+    if (!this.currentId) throw new Error(L({ ko: '초안 복구본을 저장하지 못했습니다.', en: "Could not save the draft recovery copy." }));
     return this.currentId;
   }
 

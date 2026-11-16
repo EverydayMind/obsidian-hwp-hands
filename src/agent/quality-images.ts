@@ -1,3 +1,4 @@
+import { L } from '../i18n/locale';
 import { HwpHandsError, type DocumentObject, type Json, type ObjectResource } from '../api';
 
 export interface ImageInspection {
@@ -19,21 +20,21 @@ export async function inspectImages(objects: DocumentObject[], total: number, ep
   const findings: ImageInspection['findings'] = [];
   let scanned = 0, unchecked = 0;
   for (const { object, index } of pictures.slice(0, 40)) {
-    if (signal?.aborted) throw new HwpHandsError('CANCELLED', '그림 점검이 취소됐다.');
+    if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '그림 점검이 취소됐다.', en: "Picture inspection was cancelled." }));
     let empty = false;
     try { empty = (await load(object)).bytes.length === 0; }
     catch (error) {
       if (error instanceof HwpHandsError && ['REVISION_CONFLICT', 'CANCELLED', 'CLOSED'].includes(error.code)) throw error;
       unchecked++;
       findings.push({ code: 'image_resource_unavailable', severity: 'warning', handle: `${epoch}:o${index + 1}`,
-        context: '그림 리소스를 조회하지 못했다. 누락 여부는 미확인이다.',
-        suggest: '사람이 해당 그림을 화면에서 확인하라. 조회 실패만으로 그림을 삭제하거나 다시 만들지 마라.' });
+        context: L({ ko: '그림 리소스를 조회하지 못했다. 누락 여부는 미확인이다.', en: "Could not read the picture resource. Whether it is missing is unverified." }),
+        suggest: L({ ko: '사람이 해당 그림을 화면에서 확인하라. 조회 실패만으로 그림을 삭제하거나 다시 만들지 마라.', en: "A person must inspect this picture onscreen. Do not delete or recreate it based only on a failed read." }) });
     }
     scanned++;
     if (empty) findings.push({ code: 'missing_image', severity: 'warning', handle: `${epoch}:o${index + 1}`,
-      context: '그림 리소스가 비어 있다.', suggest: '사람이 그림 원본과 화면을 확인한 뒤 복구 여부를 결정해야 한다.' });
+      context: L({ ko: '그림 리소스가 비어 있다.', en: "The picture resource is empty." }), suggest: L({ ko: '사람이 그림 원본과 화면을 확인한 뒤 복구 여부를 결정해야 한다.', en: "A person must inspect the original picture and its onscreen rendering before deciding whether to restore it." }) });
   }
-  if (signal?.aborted) throw new HwpHandsError('CANCELLED', '그림 점검이 취소됐다.');
+  if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '그림 점검이 취소됐다.', en: "Picture inspection was cancelled." }));
   unchecked += pictures.length - scanned;
   return { findings, scanned, pictures: pictures.length, unchecked, complete: objects.length === total && unchecked === 0,
     objectCount: objects.length, objectTotal: total };

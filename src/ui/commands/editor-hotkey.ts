@@ -1,3 +1,4 @@
+import { LT, L } from '../../i18n/locale';
 import type { Hotkey, Modifier } from 'obsidian';
 
 const MODIFIERS = new Set<Modifier>(['Mod', 'Ctrl', 'Meta', 'Shift', 'Alt']);
@@ -7,11 +8,11 @@ const FUNCTION_KEY = /^F(?:[1-9]|1\d|2[0-4])$/u;
 export function editorHotkey(shortcut: string): Hotkey {
   const parts = shortcut.split('+').map(part => part.trim()).filter(Boolean);
   const key = parts.pop();
-  if (!key || !/^[\w[\]`',./;=-]+$/u.test(key)) throw new Error(`잘못된 편집기 단축키: ${shortcut}`);
+  if (!key || !/^[\w[\]`',./;=-]+$/u.test(key)) throw new Error(LT({ ko: () => `잘못된 편집기 단축키: ${shortcut}`, en: () => `Invalid editor shortcut: ${shortcut}` }));
   const modifiers = parts as Modifier[];
   // Bare function keys (F6, F7) are the only shortcuts that may omit a modifier; a bare letter would steal normal typing.
   if ((!modifiers.length && !FUNCTION_KEY.test(key)) || modifiers.some(modifier => !MODIFIERS.has(modifier)) || new Set(modifiers).size !== modifiers.length) {
-    throw new Error(`잘못된 편집기 단축키: ${shortcut}`);
+    throw new Error(LT({ ko: () => `잘못된 편집기 단축키: ${shortcut}`, en: () => `Invalid editor shortcut: ${shortcut}` }));
   }
   return { modifiers, key: key.length === 1 ? key.toLowerCase() : key };
 }

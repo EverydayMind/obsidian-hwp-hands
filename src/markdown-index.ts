@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { DocumentStory, Field, Paragraph, State, StoryParagraph, Table } from './api';
+import { indexFormat, sourceLinkLocale } from './i18n/index-format';
 
 export const INDEX_MARKER = '<!-- hwp-hands:index:v2';
 const INDEX_MARKER_PATTERN = /^<!-- (?:hwp-hands|hwp-editor):index:v2 sha256=([a-f0-9]{64}) -->$/;
@@ -46,26 +47,28 @@ function wrapManagedIndex(body: string): string {
 }
 
 function storyLabel(story: DocumentStory): string {
-  if (story.kind === 'headerFooter') return `${story.isHeader ? '머리말' : '꼬리말'} · ${story.section + 1}구역`;
-  if (story.kind === 'textBox') return `글상자 · ${story.section + 1}구역`;
-  return `${story.kind === 'footnote' ? '각주' : '미주'} · ${story.section + 1}구역 · ${story.number ?? story.controlIndex + 1}`;
+  const f = indexFormat(), section = f.section(story.section + 1);
+  if (story.kind === 'headerFooter') return `${story.isHeader ? f.header : f.footer} · ${section}`;
+  if (story.kind === 'textBox') return `${f.textBox} · ${section}`;
+  return `${story.kind === 'footnote' ? f.footnote : f.endnote} · ${section} · ${story.number ?? story.controlIndex + 1}`;
 }
 
 export function makeIndex(state: State, sourceHash: string, paragraphs: Paragraph[], tables: Table[], fields: Field[], stories: DocumentStory[] = []): string {
+  const f = indexFormat();
   const body = [
     '---', 'hwp_hands_index: 2', `source: ${JSON.stringify(state.path)}`, `source_sha256: ${JSON.stringify(sourceHash)}`,
     `format: ${state.format}`, `pages: ${state.pageCount}`, `indexed_at: ${JSON.stringify(new Date().toISOString())}`,
     '---', '', `# ${plain(state.path.split('/').at(-1)!)}`, '',
-    `[원본 문서 열기](<${encodeURIComponent(state.path.split('/').at(-1)!)}>)`, '',
-    '> 자동 생성한 검색용 인덱스입니다. 원본 편집은 HWP Hands에서 수행하세요.', '', '## 본문', ''
+    `[${f.sourceLink}](<${encodeURIComponent(state.path.split('/').at(-1)!)}>)`, '',
+    f.notice, '', f.body, ''
   ];
   for (const paragraph of paragraphs) body.push(`<!-- ${paragraph.nodePath} -->`, plain(paragraph.text), '');
   for (const [index, table] of tables.entries()) {
-    body.push(`## 표 ${index + 1}`, '', `<!-- ${table.nodePath} -->`, '');
-    for (const cell of table.cells) body.push(`- ${cell.row + 1}행 ${cell.col + 1}열 (${cell.rowSpan}×${cell.colSpan}): ${plain(cell.paragraphs.map(paragraph => paragraph.text).join(' / '))}`);
+    body.push(`${f.table} ${index + 1}`, '', `<!-- ${table.nodePath} -->`, '');
+    for (const cell of table.cells) body.push(`- ${f.cell(cell.row + 1, cell.col + 1)} (${cell.rowSpan}×${cell.colSpan}): ${plain(cell.paragraphs.map(paragraph => paragraph.text).join(' / '))}`);
     body.push('');
   }
-  if (fields.length) { body.push('## 필드', ''); for (const field of fields) body.push(`- ${plain(field.name)}: ${plain(field.value)}`); body.push(''); }
+  if (fields.length) { body.push(f.fields, ''); for (const field of fields) body.push(`- ${plain(field.name)}: ${plain(field.value)}`); body.push(''); }
   for (const story of stories) {
     const paragraphs = story.paragraphs as Array<Paragraph | StoryParagraph>;
     if (!paragraphs.length) continue;
@@ -85,11 +88,12 @@ export function rebaseIndex(content: string, source: string): string | undefined
   const header = lines.slice(0, endFrontmatter + 1), body = lines.slice(endFrontmatter + 1);
   const sourceIndex = header.findIndex(line => line.startsWith('source: '));
   const titleIndex = body.findIndex(line => line.startsWith('# '));
-  const linkIndex = body.findIndex(line => line.startsWith('[원본 문서 열기]('));
+  const linkIndex = body.findIndex(line => sourceLinkLocale(line) !== undefined);
   if (sourceIndex < 0 || titleIndex < 0 || linkIndex < 0) return undefined;
   const basename = source.split('/').at(-1)!;
   header[sourceIndex] = `source: ${JSON.stringify(source)}`;
   body[titleIndex] = `# ${plain(basename)}`;
-  body[linkIndex] = `[원본 문서 열기](<${encodeURIComponent(basename)}>)`;
+  const f = indexFormat(sourceLinkLocale(body[linkIndex]));
+  body[linkIndex] = `[${f.sourceLink}](<${encodeURIComponent(basename)}>)`;
   return wrapManagedIndex([...header, ...body].join('\n'));
 }

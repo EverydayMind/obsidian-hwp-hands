@@ -1,3 +1,4 @@
+import { LT, L } from '../../i18n/locale';
 import type { PageLayout } from '../../api';
 import type { EditMark } from '../../agent/marks';
 
@@ -22,5 +23,5 @@ export function editMarkRects(layout: PageLayout, marks: readonly EditMark[]): A
 
 /** Text of the banner that tells a person AI edits wait for a look; empty when there is nothing to show. */
 export function editMarksNotice(count: number): string {
-  return count > 0 ? `AI가 고친 곳 ${count}곳을 아직 검토하지 않았습니다.` : '';
+  return count > 0 ? LT({ ko: () => `AI가 고친 곳 ${count}곳을 아직 검토하지 않았습니다.`, en: () => `${count} AI-edited locations have not been reviewed yet.` }) : '';
 }

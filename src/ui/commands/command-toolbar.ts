@@ -1,3 +1,4 @@
+import { LT, L } from '../../i18n/locale';
 import type { CommandRegistry } from './command-registry';
 
 /** `menu` turns the tool into a split button: the face runs `command`, the arrow opens these commands in order. */
@@ -66,7 +67,7 @@ export function createCommandMenuButton(
     for (const item of items) {
       const id = item.dataset.command!, command = registry.get(id);
       const available = !!command && registry.isAvailable(id);
-      const reason = command?.unavailableReason?.() || (command ? `${command.label} 명령을 현재 상태에서 사용할 수 없습니다.` : '명령 정의를 찾을 수 없습니다.');
+      const reason = command?.unavailableReason?.() || (command ? LT({ ko: () => `${command.label} 명령을 현재 상태에서 사용할 수 없습니다.`, en: () => `${command.label} is unavailable in the current state.` }) : L({ ko: '명령 정의를 찾을 수 없습니다.', en: "Command definition not found." }));
       const checked = options.checked(id);
       if (checked === true) pressed = true;
       item.setAttribute('aria-checked', checked === undefined ? 'false' : String(checked));
@@ -126,7 +127,7 @@ export function mountCommandToolbar(
   const root = document.createElement('div');
   root.className = 'hwp-command-toolbar';
   root.setAttribute('role', 'toolbar');
-  root.setAttribute('aria-label', '기본 도구 상자');
+  root.setAttribute('aria-label', L({ ko: '기본 도구 상자', en: "Basic toolbox" }));
   root.setAttribute('aria-orientation', 'horizontal');
   const scroller = document.createElement('div');
   scroller.className = 'hwp-command-toolbar-scroll';
@@ -155,7 +156,7 @@ export function mountCommandToolbar(
       button.className = 'hwp-command-tool';
       button.dataset.command = tool.command;
       button.setAttribute('aria-label', command?.label ?? tool.command);
-      button.title = command?.label ?? '명령 정의를 찾을 수 없습니다.';
+      button.title = command?.label ?? L({ ko: '명령 정의를 찾을 수 없습니다.', en: "Command definition not found." });
       setIcon(button, tool.icon);
       const caption = document.createElement('span');
       caption.className = 'hwp-command-tool-label';
@@ -195,13 +196,13 @@ export function mountCommandToolbar(
     toggle.className = 'hwp-command-split-toggle';
     toggle.setAttribute('aria-haspopup', 'menu');
     toggle.setAttribute('aria-expanded', 'false');
-    toggle.setAttribute('aria-label', `${label} 메뉴`);
-    toggle.title = `${label} 메뉴`;
+    toggle.setAttribute('aria-label', LT({ ko: () => `${label} 메뉴`, en: () => `${label} menu` }));
+    toggle.title = LT({ ko: () => `${label} 메뉴`, en: () => `${label} menu` });
     setIcon(toggle, 'chevron-down');
     const menu = document.createElement('div');
     menu.className = 'hwp-command-split-menu';
     menu.setAttribute('role', 'menu');
-    menu.setAttribute('aria-label', `${label} 메뉴`);
+    menu.setAttribute('aria-label', LT({ ko: () => `${label} 메뉴`, en: () => `${label} menu` }));
     menu.hidden = true;
     const entry = { toggle, menu };
     for (const id of commands) {
@@ -255,7 +256,7 @@ export function mountCommandToolbar(
     const details = document.createElement('details');
     details.className = 'hwp-command-toolbar-overflow';
     const summary = document.createElement('summary');
-    summary.textContent = '더 보기';
+    summary.textContent = L({ ko: '더 보기', en: "More" });
     details.append(summary);
     const contents = document.createElement('div');
     contents.className = 'hwp-command-toolbar-overflow-content';
@@ -330,8 +331,8 @@ export function mountCommandToolbar(
       const available = !!command && registry.isAvailable(id);
       button.disabled = !available;
       const reason = command?.unavailableReason?.();
-      const unavailableMessage = reason || (command ? `${command.label} 명령을 현재 상태에서 사용할 수 없습니다.` : '명령 정의를 찾을 수 없습니다.');
-      button.setAttribute('aria-label', available ? command.label : `${command?.label ?? id}. 사용할 수 없음. ${unavailableMessage}`);
+      const unavailableMessage = reason || (command ? LT({ ko: () => `${command.label} 명령을 현재 상태에서 사용할 수 없습니다.`, en: () => `${command.label} is unavailable in the current state.` }) : L({ ko: '명령 정의를 찾을 수 없습니다.', en: "Command definition not found." }));
+      button.setAttribute('aria-label', available ? command.label : LT({ ko: () => `${command?.label ?? id}. 사용할 수 없음. ${unavailableMessage}`, en: () => `${command?.label ?? id}. Unavailable. ${unavailableMessage}` }));
       if (available) button.removeAttribute('aria-description');
       else button.setAttribute('aria-description', unavailableMessage);
       if (available) delete button.dataset.unavailableReason;
@@ -344,7 +345,7 @@ export function mountCommandToolbar(
     for (const item of menuItems) {
       const id = item.dataset.command!, command = registry.get(id);
       const available = !!command && registry.isAvailable(id);
-      const reason = command?.unavailableReason?.() || (command ? `${command.label} 명령을 현재 상태에서 사용할 수 없습니다.` : '명령 정의를 찾을 수 없습니다.');
+      const reason = command?.unavailableReason?.() || (command ? LT({ ko: () => `${command.label} 명령을 현재 상태에서 사용할 수 없습니다.`, en: () => `${command.label} is unavailable in the current state.` }) : L({ ko: '명령 정의를 찾을 수 없습니다.', en: "Command definition not found." }));
       item.setAttribute('aria-disabled', String(!available));
       item.title = available ? command.label : reason;
       if (available) item.removeAttribute('aria-description');

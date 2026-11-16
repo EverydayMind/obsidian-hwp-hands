@@ -1,4 +1,6 @@
-import { DESCRIPTOR_TOOLS, EDIT_TOOLS, EDIT_TOOL_NAMES, CHECK_TOOL, SAVE_TOOL, CREATE_TOOL, SAVE_INSTRUCTIONS, EDIT_INSTRUCTIONS, INSTRUCTIONS, TOOL_EXAMPLES, contractGuide, validateToolInput } from './tool-catalog';
+import { L, LT } from '../i18n/locale';
+import { createToolCatalog, contractGuide, validateToolInput } from './tool-catalog';
+import { getLocale, L as select, LT as selectLazy, type Locale } from '../i18n/locale';
 import type { BodyAddress, DocumentLease, Field, HwpHandsApiV1, Json, Paragraph, State, StoryParagraph, Table } from '../api';
 import { HwpHandsError } from '../api';
 import { AgentCommits, COMMIT_TOOL_NAMES, type CommitBridge, type CommitContext, type CommitTarget } from './commit';
@@ -34,6 +36,7 @@ type JsonObject = { [key: string]: Json };
 interface ToolResult { content: Array<{ type: 'text'; text: string }>; structuredContent?: JsonObject; isError?: boolean; _meta?: JsonObject }
 interface InvocationContext extends EditContext { scope?: TurnScope }
 export interface AgentProviderOptions {
+  locale?: Locale;
   version: string;
   /** Person-controlled, persisted outside HWP/HWPX. Never supplied by a host or model. */
   privacy?: AgentPrivacy;
@@ -94,7 +97,7 @@ export function createAgentProvider(api: HwpHandsApiV1, options: AgentProviderOp
   };
   const run = <T>(inputs: unknown[], signal: AbortSignal | undefined, action: (signal: AbortSignal) => Promise<T>): Promise<T> =>
     privacy.run(inputs.flatMap(paths), signal, action);
-  const failure = (): ToolResult => ({ isError: true, content: [{ type: 'text', text: 'AI 비공개 설정으로 이 요청을 차단했다. 사람이 HWP Hands에서 설정을 확인해야 한다.' }],
+  const failure = (): ToolResult => ({ isError: true, content: [{ type: 'text', text: L({ ko: 'AI 비공개 설정으로 이 요청을 차단했다. 사람이 HWP Hands에서 설정을 확인해야 한다.', en: "AI privacy settings blocked this request. A person must check the settings in HWP Hands." }) }],
     structuredContent: { code: 'AI_PRIVATE', retryable: false, ...domainErrorDetails('AI_PRIVATE') }, _meta: { 'dev.agentinterop/error': { code: 'AI_PRIVATE', retryable: false } } });
   return {
     ...raw,
@@ -128,6 +131,10 @@ export function createAgentProvider(api: HwpHandsApiV1, options: AgentProviderOp
 }
 
 function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptions): AgentCapabilityProvider {
+  const locale = options.locale ?? getLocale();
+  const L = <T>(pair: { ko: T; en: T }): T => select(pair, locale);
+  const LT = (pair: { ko: () => string; en: () => string }): string => selectLazy(pair, locale);
+  const { DESCRIPTOR_TOOLS, EDIT_TOOLS, EDIT_TOOL_NAMES, CHECK_TOOL, SAVE_TOOL, CREATE_TOOL, SAVE_INSTRUCTIONS, EDIT_INSTRUCTIONS, INSTRUCTIONS, TOOL_EXAMPLES } = createToolCatalog(locale);
   const epochs = new Map<string, Epoch>();
   const held = new Map<string, Held>();
   const cursors = new Map<string, Cursor>();
@@ -160,7 +167,7 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
     if (!entry || (owner && !entry.owners.has(owner))) {
       const views = new Set(options.viewPaths?.() ?? []), unsaved = new Set(api.documents.list().filter(state => state.dirty).map(state => state.path));
       const oldestFirst = [...held.entries()].filter(([other]) => other !== path && !options.privacy?.blocked(other)).sort((a, b) => a[1].usedAt - b[1].usedAt);
-      const refuse = (paths: string[]): never => { throw new ToolError('HOLD_LIMIT', `화면에 없는 미저장 한글 문서를 ${paths.length}개 붙잡고 있어 다른 문서를 더 열지 않았다. 사람이 그 문서들을 저장하거나 버리거나 화면에서 연 뒤에 다시 할 수 있다.`, false, undefined, { held: paths }); };
+      const refuse = (paths: string[]): never => { throw new ToolError('HOLD_LIMIT', LT({ ko: () => `화면에 없는 미저장 한글 문서를 ${paths.length}개 붙잡고 있어 다른 문서를 더 열지 않았다. 사람이 그 문서들을 저장하거나 버리거나 화면에서 연 뒤에 다시 할 수 있다.`, en: () => `Holding ${paths.length} unsaved HWP documents without views, so no additional document was opened. Retry after a person saves, discards, or opens those documents in views.` }), false, undefined, { held: paths }); };
       // A conversation keeps at most five documents nobody sees. A saved one is let go for the next; unsaved ones wait for a person.
       const mine = owner && !views.has(path) ? oldestFirst.filter(([other, item]) => item.owners.has(owner) && !views.has(other)) : [];
       if (mine.length >= MAX_HELD_DOCUMENTS) {
@@ -201,11 +208,11 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
     if (event.type === 'saved') edits?.saved(event.state.path);
   });
   const same = (epoch: Pick<Epoch, 'sessionId' | 'revision'>, state: Pick<State, 'sessionId' | 'revision'>): void => {
-    if (state.sessionId !== epoch.sessionId || state.revision !== epoch.revision) throw new ToolError('CURSOR_STALE', '읽는 동안 문서가 바뀌었다. 처음부터 다시 읽어라.', true);
+    if (state.sessionId !== epoch.sessionId || state.revision !== epoch.revision) throw new ToolError('CURSOR_STALE', L({ ko: '읽는 동안 문서가 바뀌었다. 처음부터 다시 읽어라.', en: "The document changed during reading. Read again from the beginning." }), true);
   };
   const open = async (path: unknown, caller?: Caller): Promise<{ state: State; epoch: Epoch }> => {
     options.privacy?.assert(path);
-    if (typeof path !== 'string' || !/\.(hwp|hwpx)$/i.test(path)) throw new ToolError('INVALID_ARGUMENT', 'path는 .hwp 또는 .hwpx 문서 경로여야 한다.', true, undefined, inputAt('path', { allowed: ['.hwp', '.hwpx'] }));
+    if (typeof path !== 'string' || !/\.(hwp|hwpx)$/i.test(path)) throw new ToolError('INVALID_ARGUMENT', L({ ko: 'path는 .hwp 또는 .hwpx 문서 경로여야 한다.', en: "path must be a .hwp or .hwpx document path." }), true, undefined, inputAt('path', { allowed: ['.hwp', '.hwpx'] }));
     await hold(path, caller);
     if (options.privacy?.blocked(path)) { await release(path); options.privacy.assert(path); }
     const state = await api.documents.state(path);
@@ -214,11 +221,11 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
   const resumed = (id: unknown, kind: string, epoch: Epoch, binding: string): number => {
     if (id === undefined) return 0;
     const cursor = typeof id === 'string' ? cursors.get(id) : undefined;
-    if (!cursor || cursor.kind !== kind || cursor.epoch !== epoch.id || cursor.binding !== binding) throw new ToolError('CURSOR_STALE', 'cursor가 이 문서 상태나 요청과 맞지 않는다. cursor 없이 다시 불러라.', true, epoch, inputAt('cursor'));
+    if (!cursor || cursor.kind !== kind || cursor.epoch !== epoch.id || cursor.binding !== binding) throw new ToolError('CURSOR_STALE', L({ ko: 'cursor가 이 문서 상태나 요청과 맞지 않는다. cursor 없이 다시 불러라.', en: "The cursor does not match this document state or request. Call again without cursor." }), true, epoch, inputAt('cursor'));
     return cursor.position;
   };
   const resource = (epoch: Epoch): JsonObject => ({ 'dev.agentinterop/resource': { path: epoch.path, sessionId: epoch.sessionId, documentEpoch: epoch.id, revision: epoch.revision } });
-  const header = (state: State): string => `문서 ${state.path} · 작업본 revision ${state.revision} · ${state.pageCount}쪽${state.dirty ? ' · 저장 안 한 변경 있음' : ''}`;
+  const header = (state: State): string => LT({ ko: () => `문서 ${state.path} · 작업본 revision ${state.revision} · ${state.pageCount}쪽${state.dirty ? ' · 저장 안 한 변경 있음' : ''}`, en: () => `Document ${state.path} · working-copy revision ${state.revision} · ${state.pageCount} pages${state.dirty ? ' · unsaved changes' : ''}` });
   const withWorkingCopySource = (result: ToolResult): ToolResult => {
     const stamp = result._meta?.['dev.agentinterop/resource'] as JsonObject | undefined;
     if (!stamp || result.isError) return result;
@@ -243,7 +250,7 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
   const cellPlace = (cell: Cell): string => `${cellColumns(cell)}${cell.rowSpan > 1 ? ` · r${cell.row + 1}~${cell.row + cell.rowSpan}` : ''}`;
   const cellContent = (cell: Cell, show: (paragraph: Cell['paragraphs'][number]) => string = paragraph => paragraph.text): string => {
     const values = cell.paragraphs.map(show);
-    return values.some(value => value.trim()) ? values.join(' / ') : '(빈 칸)';
+    return values.some(value => value.trim()) ? values.join(' / ') : L({ ko: '(빈 칸)', en: "(empty cell)" });
   };
   const markKey = (address: BodyAddress): string =>
     JSON.stringify([address.section, address.paragraph, (address.cellPath ?? []).map(step => [step.controlIndex, step.cellIndex, step.cellParaIndex])]);
@@ -297,8 +304,8 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       if (span.start < at || span.end > points.length || piece !== span.text) { count.partial = true; continue; }
       if (!piece.trim()) continue;
       let wrapped = piece;
-      if (span.strike) { wrapped = `⟦취소선⟧${wrapped}⟦/취소선⟧`; count.strikethrough++; }
-      if (span.color) { wrapped = `⟦글자색 ${span.color}⟧${wrapped}⟦/글자색⟧`; count.textColor++; }
+      if (span.strike) { wrapped = LT({ ko: () => `⟦취소선⟧${wrapped}⟦/취소선⟧`, en: () => `⟦strikethrough⟧${wrapped}⟦/strikethrough⟧` }); count.strikethrough++; }
+      if (span.color) { wrapped = LT({ ko: () => `⟦글자색 ${span.color}⟧${wrapped}⟦/글자색⟧`, en: () => `⟦text color ${span.color}⟧${wrapped}⟦/text color⟧` }); count.textColor++; }
       shown += points.slice(at, span.start).join('') + wrapped;
       at = span.end;
     }
@@ -399,17 +406,17 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
     const views = new Set(options.viewPaths?.() ?? []);
     const documents = api.documents.list().filter(state => !options.privacy?.blocked(state.path)).map(state => ({ path: state.path, format: state.format, pages: state.pageCount, unsavedChanges: state.dirty, conflict: state.conflict, visible: views.has(state.path) }));
     const lines = documents.length
-      ? documents.map(item => `- ${item.path} · ${item.pages}쪽${item.unsavedChanges ? ' · 저장 안 한 변경 있음' : ''}${item.visible ? ' · 화면에 열림' : ' · 화면에 없음'}`)
-      : ['열려 있는 한글 문서가 없다. 읽을 문서의 Vault 경로를 path로 지정해 read_document를 부를 수 있다.'];
+      ? documents.map(item => LT({ ko: () => `- ${item.path} · ${item.pages}쪽${item.unsavedChanges ? ' · 저장 안 한 변경 있음' : ''}${item.visible ? ' · 화면에 열림' : ' · 화면에 없음'}`, en: () => `- ${item.path} · ${item.pages} pages${item.unsavedChanges ? ' · unsaved changes' : ''}${item.visible ? ' · visible view' : ' · no view'}` }))
+      : [L({ ko: '열려 있는 한글 문서가 없다. 읽을 문서의 Vault 경로를 path로 지정해 read_document를 부를 수 있다.', en: "No HWP documents are open. You can call read_document with the document's Vault path as path." })];
     const captured = ctx?.scope && ctx.caller ? editor.read(ctx.scope, ctx.caller) : undefined;
     // Handles of the selected paragraphs exist only while the selection still describes the document as it is now.
     const selected = captured?.allowed ? await selectionHandles(captured.scope.path, captured.allowed, ctx?.caller) : [];
     const scope = captured ? { path: captured.scope.path, revision: captured.scope.revision, page: captured.view.page,
       changedSinceCapture: captured.changed, humanInput: captured.view.humanInput,
       ...(captured.scope.selection ? { selection: { ...captured.scope.selection, handles: selected } } : {}) } : undefined;
-    return { content: [{ type: 'text', text: ['HWP Hands에 열린 한글 문서:', ...lines,
-      ...(captured ? [`제출 시 문서: ${captured.scope.path}${captured.changed ? ' · 제출 뒤 문서가 바뀜' : ''}`] : []),
-      ...(selected.length ? [`사람이 선택한 문단: ${selected.join(', ')}`] : [])].join('\n') }],
+    return { content: [{ type: 'text', text: [L({ ko: 'HWP Hands에 열린 한글 문서:', en: "HWP documents open in HWP Hands:" }), ...lines,
+      ...(captured ? [LT({ ko: () => `제출 시 문서: ${captured.scope.path}${captured.changed ? ' · 제출 뒤 문서가 바뀜' : ''}`, en: () => `Document at submission: ${captured.scope.path}${captured.changed ? ' · changed since submission' : ''}` })] : []),
+      ...(selected.length ? [LT({ ko: () => `사람이 선택한 문단: ${selected.join(', ')}`, en: () => `Paragraphs selected by the person: ${selected.join(', ')}` })] : [])].join('\n') }],
       structuredContent: { documents, ...(scope ? { scope } : {}) }, _meta: { 'dev.agentinterop/evidencePaths': documents.map(item => item.path) } };
   }
 
@@ -425,13 +432,13 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
 
   async function read(args: JsonObject, ctx?: InvocationContext): Promise<ToolResult> {
     const { state, epoch } = await open(args.path, ctx?.caller);
-    if ((args.mode === undefined || args.mode === 'blocks') && args.target !== undefined) throw new ToolError('INVALID_ARGUMENT', 'blocks 모드는 target을 받지 않는다. 처음부터 cursor로 이어 읽거나 find_text로 위치를 찾아라.', true, epoch, inputAt('target'));
-    if (args.layoutSummary === true && (args.mode !== 'layout' || args.target !== undefined)) throw new ToolError('INVALID_ARGUMENT', 'layoutSummary는 target 없는 layout 모드에서만 사용한다.', true, epoch, inputAt('layoutSummary'));
+    if ((args.mode === undefined || args.mode === 'blocks') && args.target !== undefined) throw new ToolError('INVALID_ARGUMENT', L({ ko: 'blocks 모드는 target을 받지 않는다. 처음부터 cursor로 이어 읽거나 find_text로 위치를 찾아라.', en: "blocks mode does not accept target. Read from the beginning with cursor, or locate text with find_text." }), true, epoch, inputAt('target'));
+    if (args.layoutSummary === true && (args.mode !== 'layout' || args.target !== undefined)) throw new ToolError('INVALID_ARGUMENT', L({ ko: 'layoutSummary는 target 없는 layout 모드에서만 사용한다.', en: "layoutSummary is only available in layout mode without target." }), true, epoch, inputAt('layoutSummary'));
     if (args.mode === 'sections') {
       const snapshot = { ...epoch }, offset = resumed(args.cursor, 'sections', snapshot, 'sections');
       const model = await api.query.formatting(snapshot.path, { pages: [] }), tree = await api.query.tree(snapshot.path);
       same(snapshot, await api.documents.state(snapshot.path));
-      if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '구역 조회가 취소됐다.');
+      if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '구역 조회가 취소됐다.', en: "Section reading was cancelled." }));
       const sections: JsonObject[] = [], shown: Shown[] = [];
       let budget = READ_BUDGET_CHARS, consumed = 0, truncated = false;
       for (const section of model.sections.slice(offset, offset + ((args.limit ?? 40) as number))) {
@@ -445,14 +452,14 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       const result: JsonObject = { sections, totalSections: model.sections.length, complete, truncated, ...(cursor ? { cursor } : {}),
         units: { lengths: 'native HWP units (7200/inch); update_section.page uses mm', section: 'zero based; handle suffix is one based', applyTo: '0 both, 1 even, 2 odd' },
         coverage: { headerFooterText: 'logical text and dynamic fields', innerObjects: 'unsupported' } };
-      return { content: [{ type: 'text', text: `${header(state)}\n구역·쪽 설정(JSON):\n${JSON.stringify(result)}` }], structuredContent: result,
+      return { content: [{ type: 'text', text: LT({ ko: () => `${header(state)}\n구역·쪽 설정(JSON):\n${JSON.stringify(result)}`, en: () => `${header(state)}\nSection and page settings (JSON):\n${JSON.stringify(result)}` }) }], structuredContent: result,
         _meta: { ...resource(snapshot), ...observed(ctx, snapshot, shown) } };
     }
     if (args.mode === 'styles') {
       const snapshot = { ...epoch }, offset = resumed(args.cursor, 'styles', snapshot, 'styles');
       const model = await api.query.formatting(snapshot.path, { pages: [] });
       same(snapshot, await api.documents.state(snapshot.path));
-      if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '스타일 조회가 취소됐다.');
+      if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '스타일 조회가 취소됐다.', en: "Style reading was cancelled." }));
       const styles: JsonObject[] = [], shown: Shown[] = [];
       let budget = READ_BUDGET_CHARS, consumed = 0, truncated = false;
       for (const style of model.styles.slice(offset, offset + ((args.limit ?? 40) as number))) {
@@ -468,17 +475,17 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       const cursor = !complete ? remember({ kind: 'styles', epoch: snapshot.id, binding: 'styles', position: next }) : undefined;
       const result: JsonObject = { styles, complete, truncated, totalStyles: model.styles.length, ...(cursor ? { cursor } : {}),
         units: { fontSize: 'pt', paraProps: 'native HWP units', fontLanguage: '0 Korean, 1 Latin, 2 Hanja, 3 Japanese, 4 Other, 5 Symbol, 6 User' } };
-      return { content: [{ type: 'text', text: `${header(state)}\n스타일 정의(JSON):\n${JSON.stringify(result)}` }], structuredContent: result,
+      return { content: [{ type: 'text', text: LT({ ko: () => `${header(state)}\n스타일 정의(JSON):\n${JSON.stringify(result)}`, en: () => `${header(state)}\nStyle definitions (JSON):\n${JSON.stringify(result)}` }) }], structuredContent: result,
         _meta: { ...resource(snapshot), ...observed(ctx, snapshot, shown) } };
     }
     if (args.mode === 'notes') {
       const snapshot = { ...epoch }, offset = resumed(args.cursor, 'notes', snapshot, 'notes');
       const page = await api.query.structure(snapshot.path, { collection: 'stories', offset, limit: (args.limit ?? 40) as number });
       same(snapshot, page.state);
-      if (page.collection !== 'stories') throw new ToolError('ENGINE_ERROR', '각주·미주 목록을 읽지 못했다.', false, snapshot);
+      if (page.collection !== 'stories') throw new ToolError('ENGINE_ERROR', L({ ko: '각주·미주 목록을 읽지 못했다.', en: "Could not read the footnote/endnote list." }), false, snapshot);
       const all = await api.query.paragraphs(snapshot.path), roots = rootIndexOf(all);
       same(snapshot, await api.documents.state(snapshot.path));
-      if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '각주·미주 조회가 취소됐다.');
+      if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '각주·미주 조회가 취소됐다.', en: "Footnote/endnote reading was cancelled." }));
       const notes: JsonObject[] = [], shown: Shown[] = [];
       let budget = READ_BUDGET_CHARS, consumed = 0, truncated = false;
       for (const story of page.items) {
@@ -503,7 +510,7 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       const cursor = !complete ? remember({ kind: 'notes', epoch: snapshot.id, binding: 'notes', position: next }) : undefined;
       const result: JsonObject = { scope: 'footnotes+endnotes', notes, scannedStories: consumed, totalStories: page.total, complete, truncated,
         coverage: { text: 'available anchors only', nestedAnchors: 'unsupported', characterFormatting: 'unsupported', innerObjects: 'unsupported' }, ...(cursor ? { cursor } : {}) };
-      return { content: [{ type: 'text', text: `${header(state)}\n각주·미주(JSON, 본문과 별도):\n${JSON.stringify(result)}` }], structuredContent: result,
+      return { content: [{ type: 'text', text: LT({ ko: () => `${header(state)}\n각주·미주(JSON, 본문과 별도):\n${JSON.stringify(result)}`, en: () => `${header(state)}\nFootnotes/endnotes (JSON, separate from body):\n${JSON.stringify(result)}` }) }], structuredContent: result,
         _meta: { ...resource(snapshot), ...observed(ctx, snapshot, shown) } };
     }
     if (args.mode === 'quality') {
@@ -513,11 +520,11 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       same(snapshot, fields.state);
       const paragraphs = await api.query.structure(epoch.path, { collection: 'paragraphs', includeCells: true, limit: 500 });
       same(snapshot, paragraphs.state);
-      if (fields.collection !== 'fields' || paragraphs.collection !== 'paragraphs') throw new ToolError('ENGINE_ERROR', '작성 점검 목록을 읽지 못했다.', false, snapshot);
+      if (fields.collection !== 'fields' || paragraphs.collection !== 'paragraphs') throw new ToolError('ENGINE_ERROR', L({ ko: '작성 점검 목록을 읽지 못했다.', en: "Could not read the writing quality checklist." }), false, snapshot);
       const body = paragraphs.items.filter((item): item is Paragraph => item.address.kind === 'body');
       const objects = await api.query.structure(epoch.path, { collection: 'objects', limit: 500 });
       same(snapshot, objects.state);
-      if (objects.collection !== 'objects') throw new ToolError('ENGINE_ERROR', '그림 목록을 읽지 못했다.', false, snapshot);
+      if (objects.collection !== 'objects') throw new ToolError('ENGINE_ERROR', L({ ko: '그림 목록을 읽지 못했다.', en: "Could not read the picture list." }), false, snapshot);
       const images = await inspectImages(objects.items, objects.total, snapshot.id,
         object => api.query.objectResource(snapshot.path, { kind: 'picture', address: object.address, controlIndex: object.controlIndex }, { expectedRevision: snapshot.revision }), ctx?.signal);
       const tables = await tablesOf(epoch), roots = rootIndexOf(body);
@@ -531,47 +538,47 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
         return level === undefined ? [] : [{ index, level }];
       }) };
       same(snapshot, await api.documents.state(epoch.path));
-      if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '작성 점검이 취소됐다.');
+      if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '작성 점검이 취소됐다.', en: "Writing quality inspection was cancelled." }));
       const report = inspectQuality({ fields: fields.items, fieldTotal: fields.total, paragraphs: body, paragraphTotal: paragraphs.total,
         handles, epoch: snapshot.id, placeholders: (args.placeholders ?? []) as string[], limit: (args.limit ?? 40) as number, images, outline });
-      return { content: [{ type: 'text', text: `${header(state)}\n작성 품질 점검(저장 보존 검증과 별도):\n${JSON.stringify(report)}` }],
+      return { content: [{ type: 'text', text: LT({ ko: () => `${header(state)}\n작성 품질 점검(저장 보존 검증과 별도):\n${JSON.stringify(report)}`, en: () => `${header(state)}\nWriting quality inspection (separate from save preservation validation):\n${JSON.stringify(report)}` }) }],
         structuredContent: { quality: report }, _meta: resource(snapshot) };
     }
     if (args.mode === 'formatting') {
       const snapshot = { ...epoch };
       const handle = args.target;
-      if (typeof handle !== 'string' || !handle.startsWith(`${epoch.id}:`)) throw new ToolError('HANDLE_EXPIRED', '현재 문단 핸들을 target으로 지정하라.', true, epoch, inputAt('target'));
+      if (typeof handle !== 'string' || !handle.startsWith(`${epoch.id}:`)) throw new ToolError('HANDLE_EXPIRED', L({ ko: '현재 문단 핸들을 target으로 지정하라.', en: "Specify the current paragraph handle as target." }), true, epoch, inputAt('target'));
       const all = await paragraphsOf(epoch), tables = await tablesOf(epoch), roots = rootIndexOf(all);
       const paragraph = all.find(item => { const own = handleOf(epoch, item, roots, tables); return own === handle || own === `${handle}.p1`; });
-      if (!paragraph || paragraph.address.kind !== 'body') throw new ToolError('UNSUPPORTED_TARGET', '본문 또는 표 셀 문단 핸들이 필요하다.', false, epoch, inputAt('target'));
+      if (!paragraph || paragraph.address.kind !== 'body') throw new ToolError('UNSUPPORTED_TARGET', L({ ko: '본문 또는 표 셀 문단 핸들이 필요하다.', en: "A body or table-cell paragraph handle is required." }), false, epoch, inputAt('target'));
       const offset = args.runOffset ?? 0;
-      if (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0) throw new ToolError('INVALID_ARGUMENT', 'runOffset은 0 이상의 정수다.', true, epoch, inputAt('runOffset', { allowed: { minimum: 0 } }));
+      if (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0) throw new ToolError('INVALID_ARGUMENT', L({ ko: 'runOffset은 0 이상의 정수다.', en: "runOffset is a nonnegative integer." }), true, epoch, inputAt('runOffset', { allowed: { minimum: 0 } }));
       const model = await api.query.formatting(epoch.path, { runs: 'model' });
       same(snapshot, await api.documents.state(epoch.path));
       const format = model.paragraphs.find(item => item.address.kind === 'body' && addressKey(item.address) === addressKey(paragraph.address as BodyAddress));
-      if (!format) throw new ToolError('UNSUPPORTED_TARGET', '이 문단의 서식을 읽을 수 없다.', false, epoch, inputAt('target'));
+      if (!format) throw new ToolError('UNSUPPORTED_TARGET', L({ ko: '이 문단의 서식을 읽을 수 없다.', en: "Cannot read formatting for this paragraph." }), false, epoch, inputAt('target'));
       const runs = format.characterRuns.slice(offset, offset + 5).map(run => ({ ...run, text: clip(run.text), textTruncated: Array.from(run.text).length > PREVIEW_CHARS }));
       const next = offset + runs.length;
       const result = JSON.parse(JSON.stringify({ target: handle, revision: state.revision, style: format.style, properties: format.properties,
         propertyCoverage: format.propertyCoverage, characterCoverage: format.characterCoverage, missingRanges: format.missingRanges,
         units: { offset: 'Unicode code point', fontSize: 'pt', paragraphLengths: 'px at 96dpi', percentLineSpacing: '%' },
         runs, complete: next >= format.characterRuns.length, ...(next < format.characterRuns.length ? { nextRunOffset: next } : {}) })) as JsonObject;
-      return { content: [{ type: 'text', text: `${header(state)}\n서식(JSON, offset/length는 Unicode code point):\n${JSON.stringify(result)}` }], structuredContent: result,
+      return { content: [{ type: 'text', text: LT({ ko: () => `${header(state)}\n서식(JSON, offset/length는 Unicode code point):\n${JSON.stringify(result)}`, en: () => `${header(state)}\nFormatting (JSON; offset/length in Unicode code points):\n${JSON.stringify(result)}` }) }], structuredContent: result,
         _meta: { ...resource(snapshot), ...observed(ctx, snapshot, format.characterRuns.slice(offset, offset + 5).map(run => ({ handle,
           key: runKey(paragraph.address as BodyAddress, run), text: runText(run) }))) } };
     }
     if (args.mode === 'table') {
       const snapshot = { ...epoch }, target = args.target;
-      if (typeof target !== 'string' || !target.startsWith(`${epoch.id}:t`)) throw new ToolError('HANDLE_EXPIRED', '현재 표 읽기용 핸들을 target으로 지정하라.', true, epoch, inputAt('target'));
+      if (typeof target !== 'string' || !target.startsWith(`${epoch.id}:t`)) throw new ToolError('HANDLE_EXPIRED', L({ ko: '현재 표 읽기용 핸들을 target으로 지정하라.', en: "Specify the current table reading handle as target." }), true, epoch, inputAt('target'));
       const tables = await tablesOf(epoch), index = Number(target.slice(`${epoch.id}:t`.length)) - 1;
-      if (!Number.isSafeInteger(index) || index < 0 || target !== `${epoch.id}:t${index + 1}` || !tables[index]) throw new ToolError('UNSUPPORTED_TARGET', '현재 문서의 표 핸들이 필요하다.', false, epoch, inputAt('target'));
+      if (!Number.isSafeInteger(index) || index < 0 || target !== `${epoch.id}:t${index + 1}` || !tables[index]) throw new ToolError('UNSUPPORTED_TARGET', L({ ko: '현재 문서의 표 핸들이 필요하다.', en: "A table handle from the current document is required." }), false, epoch, inputAt('target'));
       const table = tables[index], start = resumed(args.cursor, 'table', snapshot, target);
       const tablePosition = typeof args.cursor === 'string' ? cursors.get(args.cursor)?.tablePosition : undefined;
-      if (args.cursor !== undefined && !tablePosition) throw new ToolError('CURSOR_STALE', '표 cursor 위치가 유효하지 않다.', true, epoch, inputAt('cursor'));
+      if (args.cursor !== undefined && !tablePosition) throw new ToolError('CURSOR_STALE', L({ ko: '표 cursor 위치가 유효하지 않다.', en: "The table cursor position is invalid." }), true, epoch, inputAt('cursor'));
       const cellIndex = epoch.revision === snapshot.revision && epoch.tables === tables ? (epoch.tableIndex ??= new TableCellIndex()) : new TableCellIndex();
       const { page, next: nextPosition } = tableTextPage(tableTextFragments(table, tablePosition, cellIndex)), next = start + page.length;
       same(snapshot, await api.documents.state(snapshot.path));
-      if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '표 읽기가 취소됐다.');
+      if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '표 읽기가 취소됐다.', en: "Table reading was cancelled." }));
       const cursor = nextPosition ? remember({ kind: 'table', epoch: snapshot.id, binding: target, position: next, tablePosition: nextPosition }) : undefined;
       const fragments = page.map(fragment => {
         const cell = cellIndex.at(table, fragment.row, fragment.col);
@@ -579,28 +586,28 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
           ? `${target}:r${fragment.row}c${fragment.col}.p${fragment.paragraph}` : undefined;
         return { ...fragment, ...(paragraphTarget ? { paragraphTarget } : {}) };
       });
-      return { content: [{ type: 'text', text: `${header(state)}\n표 셀 텍스트 단편 ${page.length ? start + 1 : 0}~${next}. 읽기 전용이며 서식은 paragraphTarget으로 mode=formatting 조회, 누름틀·중첩 개체는 별도 확인이 필요하다.${cursor ? ` 계속: cursor=${cursor}` : ''}` }],
+      return { content: [{ type: 'text', text: LT({ ko: () => `${header(state)}\n표 셀 텍스트 단편 ${page.length ? start + 1 : 0}~${next}. 읽기 전용이며 서식은 paragraphTarget으로 mode=formatting 조회, 누름틀·중첩 개체는 별도 확인이 필요하다.${cursor ? ` 계속: cursor=${cursor}` : ''}`, en: () => `${header(state)}\nTable cell text fragments ${page.length ? start + 1 : 0}–${next}. Read-only. Inspect formatting with mode=formatting and paragraphTarget; input fields/nested objects require separate inspection.${cursor ? ` Continue: cursor=${cursor}` : ''}` }) }],
         structuredContent: { target, rows: table.rows, cols: table.cols, from: page.length ? start + 1 : 0, to: next, offsetUnit: 'Unicode code point', fragments, complete: !cursor, ...(cursor ? { cursor } : {}), coverage: 'cell-text-only; formatting, fields and nested objects not verified' }, _meta: resource(snapshot) };
     }
     if (args.mode === 'layout') {
       // Page count and how much of the body area the last pages use, from this plugin's own page layout.
       const snapshot = { ...epoch }, pageCount = state.pageCount, pages: { page: number; bodyHeight: number; usedHeight: number; usedPercent: number }[] = [];
       if (args.layoutSummary === true) {
-        if (pageCount > 80) throw new ToolError('LIMIT_EXCEEDED', '문단 조판 요약은 80쪽 이하 문서에서만 지원한다.', false);
+        if (pageCount > 80) throw new ToolError('LIMIT_EXCEEDED', L({ ko: '문단 조판 요약은 80쪽 이하 문서에서만 지원한다.', en: "Per-paragraph layout summaries are only supported for documents of up to 80 pages." }), false);
         const limit = args.limit ?? 20;
-        if (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > 20) throw new ToolError('INVALID_ARGUMENT', '문단 조판 요약은 한 번에 1~20개다.', true, epoch, inputAt('limit'));
+        if (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > 20) throw new ToolError('INVALID_ARGUMENT', L({ ko: '문단 조판 요약은 한 번에 1~20개다.', en: "Request 1–20 paragraph layout summaries per call." }), true, epoch, inputAt('limit'));
         const offset = resumed(args.cursor, 'layout', snapshot, 'paragraph-summary');
         const tableOffset = typeof args.cursor === 'string' ? cursors.get(args.cursor)?.layoutTablePosition : 0;
-        if (tableOffset === undefined) throw new ToolError('CURSOR_STALE', '조판 요약 cursor 위치가 유효하지 않다.', true, epoch, inputAt('cursor'));
+        if (tableOffset === undefined) throw new ToolError('CURSOR_STALE', L({ ko: '조판 요약 cursor 위치가 유효하지 않다.', en: "The layout summary cursor position is invalid." }), true, epoch, inputAt('cursor'));
         const all = await paragraphsOf(epoch), tables = await tablesOf(epoch), roots = rootIndexOf(all);
         const body = all.filter((paragraph): paragraph is Paragraph => paragraph.address.kind === 'body');
         const layouts = [];
         for (let page = 0; page < pageCount; page++) {
-          if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '조판 측정이 취소됐다.');
+          if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '조판 측정이 취소됐다.', en: "Layout measurement was cancelled." }));
           layouts.push(await api.query.layout(snapshot.path, page));
         }
         same(snapshot, await api.documents.state(snapshot.path));
-        if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '조판 측정이 취소됐다.');
+        if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '조판 측정이 취소됐다.', en: "Layout measurement was cancelled." }));
         const layoutIndex = await indexParagraphLayouts(layouts, ctx?.signal);
         const items: JsonObject[] = [];
         let bytes = 0;
@@ -609,7 +616,7 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
           const item = { target: handleOf(snapshot, paragraph, roots, tables), ...measured };
           const size = JSON.stringify(item).length;
           if (items.length && bytes + size > 7000) break;
-          if (size > 7000) throw new ToolError('LIMIT_EXCEEDED', '문단 조판 요약이 출력 예산을 초과했다.', false);
+          if (size > 7000) throw new ToolError('LIMIT_EXCEEDED', L({ ko: '문단 조판 요약이 출력 예산을 초과했다.', en: "The paragraph layout summary exceeded the output budget." }), false);
           bytes += size; items.push(item);
         }
         const spanning = spanningTableCandidates(layouts);
@@ -621,7 +628,7 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
         const render = (cursor?: string) => {
           const next = offset + items.length;
           const result: JsonObject = { layoutSource: 'rhwp_estimate', engineVersion: api.engineVersion, fontSubstitution: 'unknown', lineFillBasis: 'run_span_over_column_width', pageBoundaryCoverage: 'single-column body text without controls', revision: state.revision, pageCount, items, total: body.length, paragraphsComplete: next >= body.length, complete: !cursor, ...(cursor ? { cursor } : {}), spanningTables: { candidates: spanningTables, total: spanning.length, offset: tableOffset, complete: tableOffset + spanningTables.length >= spanning.length, identity: 'candidate; nested table anchors may be ambiguous' } };
-          const text = `${header(state)}\n문단별 조판 추정 ${offset + (items.length ? 1 : 0)}~${next}/${body.length}. 실제 한글 조판과 다를 수 있다.${cursor ? ` 계속: cursor=${cursor}` : ''}`;
+          const text = LT({ ko: () => `${header(state)}\n문단별 조판 추정 ${offset + (items.length ? 1 : 0)}~${next}/${body.length}. 실제 한글 조판과 다를 수 있다.${cursor ? ` 계속: cursor=${cursor}` : ''}`, en: () => `${header(state)}\nPer-paragraph layout estimates ${offset + (items.length ? 1 : 0)}–${next}/${body.length}. May differ from Hancom Hangul layout.${cursor ? ` Continue: cursor=${cursor}` : ''}` });
           return { result, text };
         };
         // Reserve room for the wrapper's working-copy source and host's joined text.
@@ -631,10 +638,10 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
           if (preview.text.length + 1 + JSON.stringify({ ...preview.result, source }).length <= 11500) break;
           if (spanningTables.length > 1) spanningTables.pop();
           else if (items.length > 1) items.pop();
-          else throw new ToolError('LIMIT_EXCEEDED', '문단 조판 요약이 출력 예산을 초과했다.', false);
+          else throw new ToolError('LIMIT_EXCEEDED', L({ ko: '문단 조판 요약이 출력 예산을 초과했다.', en: "The paragraph layout summary exceeded the output budget." }), false);
         }
         same(snapshot, await api.documents.state(snapshot.path));
-        if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '조판 측정이 취소됐다.');
+        if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '조판 측정이 취소됐다.', en: "Layout measurement was cancelled." }));
         const next = offset + items.length;
         const tableNext = tableOffset + spanningTables.length;
         const cursor = next < body.length || tableNext < spanning.length ? remember({ kind: 'layout', epoch: snapshot.id, binding: 'paragraph-summary', position: next, layoutTablePosition: tableNext }) : undefined;
@@ -643,23 +650,23 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       }
       if (args.target !== undefined) {
         const handle = args.target;
-        if (typeof handle !== 'string' || !handle.startsWith(`${epoch.id}:`)) throw new ToolError('HANDLE_EXPIRED', '현재 문단 핸들을 target으로 지정하라.', true, epoch, inputAt('target'));
-        if (pageCount > 80) throw new ToolError('LIMIT_EXCEEDED', '문단 줄 측정은 80쪽 이하 문서에서만 지원한다.', false);
+        if (typeof handle !== 'string' || !handle.startsWith(`${epoch.id}:`)) throw new ToolError('HANDLE_EXPIRED', L({ ko: '현재 문단 핸들을 target으로 지정하라.', en: "Specify the current paragraph handle as target." }), true, epoch, inputAt('target'));
+        if (pageCount > 80) throw new ToolError('LIMIT_EXCEEDED', L({ ko: '문단 줄 측정은 80쪽 이하 문서에서만 지원한다.', en: "Paragraph line measurement is only supported for documents of up to 80 pages." }), false);
         const all = await paragraphsOf(epoch), tables = await tablesOf(epoch), roots = rootIndexOf(all);
         const paragraph = all.find(item => { const own = handleOf(epoch, item, roots, tables); return own === handle || own === `${handle}.p1`; });
-        if (!paragraph || paragraph.address.kind !== 'body') throw new ToolError('UNSUPPORTED_TARGET', '본문 또는 표 셀 문단 핸들이 필요하다.', false, epoch, inputAt('target'));
+        if (!paragraph || paragraph.address.kind !== 'body') throw new ToolError('UNSUPPORTED_TARGET', L({ ko: '본문 또는 표 셀 문단 핸들이 필요하다.', en: "A body or table-cell paragraph handle is required." }), false, epoch, inputAt('target'));
         const layouts = [];
         for (let page = 0; page < pageCount; page++) {
-          if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '조판 측정이 취소됐다.');
+          if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '조판 측정이 취소됐다.', en: "Layout measurement was cancelled." }));
           layouts.push(await api.query.layout(snapshot.path, page));
         }
         same(snapshot, await api.documents.state(snapshot.path));
         const measured = paragraphLayout(paragraph.address, paragraph.text, layouts);
-        return { content: [{ type: 'text', text: `${header(state)}\n${handle}의 조판 추정 ${measured.estimatedLineCount}줄, 문자 범위 ${measured.coverage}. 글꼴·위 첨자·단·개체에 따라 부정확할 수 있으므로 화면에서 확인한다.` }],
+        return { content: [{ type: 'text', text: LT({ ko: () => `${header(state)}\n${handle}의 조판 추정 ${measured.estimatedLineCount}줄, 문자 범위 ${measured.coverage}. 글꼴·위 첨자·단·개체에 따라 부정확할 수 있으므로 화면에서 확인한다.`, en: () => `${header(state)}\nLayout estimate for ${handle}: ${measured.estimatedLineCount} lines, character coverage ${measured.coverage}. Fonts, superscripts, columns, and objects can affect accuracy; confirm onscreen.` }) }],
           structuredContent: { target: handle, revision: state.revision, ...measured, engine: 'rhwp', estimated: true }, _meta: resource(snapshot) };
       }
       for (let page = Math.max(0, pageCount - 2); page < pageCount; page++) {
-        if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '조판 측정이 취소됐다.');
+        if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '조판 측정이 취소됐다.', en: "Layout measurement was cancelled." }));
         const layout = await api.query.layout(snapshot.path, page), info = layout.info;
         const top = info.marginTop + info.marginHeader, bottom = info.height - info.marginBottom - info.marginFooter, height = bottom - top;
         // Header and footer content (page numbers) sit outside the body area and are left out.
@@ -670,19 +677,19 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       }
       same(snapshot, await api.documents.state(snapshot.path));
       const measured = { pageCount, pages, unit: 'px at 96dpi', engine: 'rhwp', engineVersion: api.engineVersion };
-      return { content: [{ type: 'text', text: `${header(state)}\n조판 측정(HWP Hands 조판 기준, 실제 한글과 다를 수 있음): 전체 ${pageCount}쪽. ${pages.map(page => `${page.page}쪽 본문 영역 ${page.usedPercent}% 사용`).join(', ')}.` }],
+      return { content: [{ type: 'text', text: LT({ ko: () => `${header(state)}\n조판 측정(HWP Hands 조판 기준, 실제 한글과 다를 수 있음): 전체 ${pageCount}쪽. ${pages.map(page => `${page.page}쪽 본문 영역 ${page.usedPercent}% 사용`).join(', ')}.`, en: () => `${header(state)}\nLayout measurement (HWP Hands layout; may differ from Hancom Hangul): ${pageCount} pages. ${pages.map(page => `Page ${page.page} body area ${page.usedPercent}% used`).join(', ')}.` }) }],
         structuredContent: measured, _meta: resource(snapshot) };
     }
     if (args.mode === 'outline') {
       const outline = await api.query.outline(epoch.path);
-      return { content: [{ type: 'text', text: `${header(state)}\n개요(JSON):\n${JSON.stringify(outline)}` }], _meta: resource(epoch) };
+      return { content: [{ type: 'text', text: LT({ ko: () => `${header(state)}\n개요(JSON):\n${JSON.stringify(outline)}`, en: () => `${header(state)}\nOutline (JSON):\n${JSON.stringify(outline)}` }) }], _meta: resource(epoch) };
     }
     // Freeze the revision while asynchronous body queries run.
     const snapshot = { ...epoch };
     const limit = typeof args.limit === 'number' ? args.limit : 40, offset = resumed(args.cursor, 'read', snapshot, 'blocks');
     const page = await api.query.structure(epoch.path, { collection: 'paragraphs', offset, limit });
     same(snapshot, page.state);
-    if (page.collection !== 'paragraphs') throw new ToolError('ENGINE_ERROR', '문단 목록을 읽지 못했다.', false, epoch);
+    if (page.collection !== 'paragraphs') throw new ToolError('ENGINE_ERROR', L({ ko: '문단 목록을 읽지 못했다.', en: "Could not read the paragraph list." }), false, epoch);
     const tables = await tablesOf(epoch), hosted = new Map<string, Table[]>();
     for (const table of tables) if (!table.address.cellPath?.length) hosted.set(tableKey(table), [...(hosted.get(tableKey(table)) ?? []), table]);
     // Fields sit inside paragraphs but are not part of their text, so each shown paragraph lists its fields with their values.
@@ -700,7 +707,7 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
     const listFields = (address: BodyAddress, indent: string, block: string[], blockShown: Shown[]): void => {
       for (const { field, place } of fieldsAt.get(addressKey(address)) ?? []) {
         const unique = named.get(field.name) === 1, placed = `${epoch.id}:f${place + 1}`;
-        block.push(`${indent}누름틀 ${JSON.stringify(field.name)}${unique ? '' : ` [${placed}]`} = ${JSON.stringify(clip(field.value))}`);
+        block.push(LT({ ko: () => `${indent}누름틀 ${JSON.stringify(field.name)}${unique ? '' : ` [${placed}]`} = ${JSON.stringify(clip(field.value))}`, en: () => `${indent}Input field ${JSON.stringify(field.name)}${unique ? '' : ` [${placed}]`} = ${JSON.stringify(clip(field.value))}` }));
         if (Array.from(field.value).length > PREVIEW_CHARS) { contentComplete = false; continue; }
         blockShown.push({ handle: placed, key: fieldPlaceKey(place), text: field.value });
         if (unique) blockShown.push({ handle: `${epoch.id}:f:${field.name}`, key: fieldKey(field.name), text: field.value });
@@ -723,13 +730,13 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
         same(snapshot, await api.documents.state(snapshot.path));
         const occupied = new Set(overlay.coveredCellIndices);
         const rowIndex = new TableRowIndex(table.cells);
-        block.push(`[${name}] 표 ${table.rows}행×${table.cols}열 (${handle}에 있음)${overlay.complete ? '' : ' [겹친 개체 위치 확인 불가]'}`);
+        block.push(LT({ ko: () => `[${name}] 표 ${table.rows}행×${table.cols}열 (${handle}에 있음)${overlay.complete ? '' : ' [겹친 개체 위치 확인 불가]'}`, en: () => `[${name}] Table ${table.rows} rows × ${table.cols} columns (in ${handle})${overlay.complete ? '' : ' [overlapping object positions unavailable]'}` }));
         for (let row = 0; row < table.rows; row++) {
           const cells = rowIndex.cellsAt(row);
           // Every cell names its columns, so an empty or merged cell never shifts the column numbers a form is filled by.
           const covered = rowIndex.coveredAt(row);
-          const parts = [...cells.map(cell => ({ col: cell.col, text: `[${cellPlace(cell)}] ${occupied.has(cell.index) ? '[겹친 개체] ' : ''}${cellContent(cell, p => `${marks.boxes.has(markKey(p.address)) ? `[체크 상자 ${marks.boxes.get(markKey(p.address))}] ` : ''}${show(p.text, p.address)}`)}` })),
-            ...covered.map(cell => ({ col: cell.col, text: `[${cellColumns(cell)}] (r${cell.row + 1}c${cell.col + 1}과 병합)` }))].sort((a, b) => a.col - b.col);
+          const parts = [...cells.map(cell => ({ col: cell.col, text: LT({ ko: () => `[${cellPlace(cell)}] ${occupied.has(cell.index) ? '[겹친 개체] ' : ''}${cellContent(cell, p => `${marks.boxes.has(markKey(p.address)) ? `[체크 상자 ${marks.boxes.get(markKey(p.address))}] ` : ''}${show(p.text, p.address)}`)}`, en: () => `[${cellPlace(cell)}] ${occupied.has(cell.index) ? '[overlapping object] ' : ''}${cellContent(cell, p => `${marks.boxes.has(markKey(p.address)) ? `[checkbox ${marks.boxes.get(markKey(p.address))}] ` : ''}${show(p.text, p.address)}`)}` }) })),
+            ...covered.map(cell => ({ col: cell.col, text: LT({ ko: () => `[${cellColumns(cell)}] (r${cell.row + 1}c${cell.col + 1}과 병합)`, en: () => `[${cellColumns(cell)}] (merged with r${cell.row + 1}c${cell.col + 1})` }) }))].sort((a, b) => a.col - b.col);
           block.push(`  r${row + 1}: ${parts.map(part => part.text).join(' | ')}`);
           for (const cell of cells) cell.paragraphs.forEach((p, k) => {
             const handle = `${name}:r${cell.row + 1}c${cell.col + 1}.p${k + 1}`, bullet = marks.boxes.get(markKey(p.address));
@@ -746,9 +753,9 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       if (size > budget) {
         contentComplete = false;
         const prefix = paragraph.text.slice(0, budget);
-        lines.push(`[${handle}] ${prefix}${prefix.length < paragraph.text.length ? `…(문단 ${paragraph.text.length}자 중 앞부분만 표시)` : ''}`);
-        if (blockTableHandles.length) { tableReadTargets.push(...blockTableHandles); lines.push(`표 내용이 길이 제한으로 생략되었습니다. 읽기 전용 표 핸들: ${blockTableHandles.join(', ')}. mode=table과 target으로 셀 텍스트를 이어 읽으세요. 서식과 중첩 개체는 별도 확인이 필요합니다.`); }
-        else if (prefix.length === paragraph.text.length) lines.push('문단에 속한 일부 내용이 길이 제한으로 생략되었습니다. 문서를 직접 확인하세요.');
+        lines.push(LT({ ko: () => `[${handle}] ${prefix}${prefix.length < paragraph.text.length ? `…(문단 ${paragraph.text.length}자 중 앞부분만 표시)` : ''}`, en: () => `[${handle}] ${prefix}${prefix.length < paragraph.text.length ? `…(only the beginning of ${paragraph.text.length} characters shown)` : ''}` }));
+        if (blockTableHandles.length) { tableReadTargets.push(...blockTableHandles); lines.push(LT({ ko: () => `표 내용이 길이 제한으로 생략되었습니다. 읽기 전용 표 핸들: ${blockTableHandles.join(', ')}. mode=table과 target으로 셀 텍스트를 이어 읽으세요. 서식과 중첩 개체는 별도 확인이 필요합니다.`, en: () => `Table content was omitted due to length limits. Read-only table handles: ${blockTableHandles.join(', ')}. Continue reading cell text with mode=table and target. Formatting and nested objects require separate inspection.` })); }
+        else if (prefix.length === paragraph.text.length) lines.push(L({ ko: '문단에 속한 일부 내용이 길이 제한으로 생략되었습니다. 문서를 직접 확인하세요.', en: "Some paragraph content was omitted due to length limits. Inspect the document directly." }));
         handles.push(handle); consumed++; break;
       }
       lines.push(...block); handles.push(...blockTableHandles, handle); shown.push(...blockShown); budget -= size; consumed++;
@@ -756,11 +763,11 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
     }
     const next = offset + consumed, remaining = page.total - next;
     const cursor = remaining > 0 ? remember({ kind: 'read', epoch: epoch.id, binding: 'blocks', position: next }) : undefined;
-    if (cursor) lines.push(`… 계속: cursor=${cursor} (남은 블록 ${remaining})`);
+    if (cursor) lines.push(LT({ ko: () => `… 계속: cursor=${cursor} (남은 블록 ${remaining})`, en: () => `… Continue: cursor=${cursor} (${remaining} blocks remaining)` }));
     const markCoverage = marks.coverage === 'complete' && marked.partial ? 'partial' : marks.coverage;
     const legend = [
-      ...(marked.strikethrough || marked.textColor ? ['⟦취소선⟧…⟦/취소선⟧과 ⟦글자색 #rrggbb⟧…⟦/글자색⟧은 원문의 글자 서식 표시다(본문 글자가 아님). 검토 문서에서는 흔히 삭제·추가를 뜻한다. 문구를 찾거나 바꿀 때는 표시를 빼고 원문만 쓴다.'] : []),
-      ...(markCoverage !== 'complete' ? ['취소선·글자색 표시는 일부 문단에서 확인하지 못했다. 필요하면 formatting 모드로 해당 문단을 확인한다.'] : []),
+      ...(marked.strikethrough || marked.textColor ? [L({ ko: '⟦취소선⟧…⟦/취소선⟧과 ⟦글자색 #rrggbb⟧…⟦/글자색⟧은 원문의 글자 서식 표시다(본문 글자가 아님). 검토 문서에서는 흔히 삭제·추가를 뜻한다. 문구를 찾거나 바꿀 때는 표시를 빼고 원문만 쓴다.', en: "⟦strikethrough⟧…⟦/strikethrough⟧ and ⟦text color #rrggbb⟧…⟦/text color⟧ mark original character formatting (not body text). In review documents they often mean deletions/additions. When finding or replacing, omit these markers and use original text only." })] : []),
+      ...(markCoverage !== 'complete' ? [L({ ko: '취소선·글자색 표시는 일부 문단에서 확인하지 못했다. 필요하면 formatting 모드로 해당 문단을 확인한다.', en: "Could not inspect strikethrough/text color in some paragraphs. Use formatting mode on those paragraphs if needed." })] : []),
     ];
     lines.splice(1, 0, ...legend);
     return { content: [{ type: 'text', text: lines.join('\n') }], structuredContent: { handles, ...(tableReadTargets.length ? { tableReadTargets } : {}), totalBlocks: page.total, from: offset + 1, to: next, ...(cursor ? { cursor } : {}), complete: remaining <= 0, contentComplete,
@@ -772,7 +779,7 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
   async function find(args: JsonObject, ctx?: InvocationContext): Promise<ToolResult> {
     const { state, epoch } = await open(args.path, ctx?.caller);
     const query = args.query as string, includeStories = args.includeStories === true, limit = typeof args.limit === 'number' ? args.limit : MAX_MATCHES;
-    if (typeof query !== 'string' || !query.length) throw new ToolError('INVALID_ARGUMENT', 'query가 비어 있다.', true, epoch, inputAt('query', { allowed: { minLength: 1 } }));
+    if (typeof query !== 'string' || !query.length) throw new ToolError('INVALID_ARGUMENT', L({ ko: 'query가 비어 있다.', en: "query is empty." }), true, epoch, inputAt('query', { allowed: { minLength: 1 } }));
     const start = resumed(args.cursor, 'find', epoch, JSON.stringify([query, includeStories]));
     if (!epoch.all || epoch.withStories !== includeStories) {
       // One whole-list read per document state; later calls for the same state reuse it.
@@ -803,10 +810,10 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       }
     }
     const cursor = more ? remember({ kind: 'find', epoch: epoch.id, binding: JSON.stringify([query, includeStories]), position: start + matches.length }) : undefined;
-    const lines = [header(state), matches.length ? `"${query}" ${start + 1}번째부터 ${matches.length}곳:` : start ? `"${query}"의 일치가 더 없다.` : `"${query}"를 찾지 못했다.`,
-      '치환에는 text 또는 context.text의 실제 문구를 사용한다. snippet은 강조 표시 전용이다. offset은 문단 내 Unicode code point 기준이며 생략 여부는 truncatedBefore/After로 표시한다.',
+    const lines = [header(state), matches.length ? LT({ ko: () => `"${query}" ${start + 1}번째부터 ${matches.length}곳:`, en: () => `"${query}": ${matches.length} matches starting at match ${start + 1}:` }) : start ? LT({ ko: () => `"${query}"의 일치가 더 없다.`, en: () => `No more matches for "${query}".` }) : LT({ ko: () => `"${query}"를 찾지 못했다.`, en: () => `Could not find "${query}".` }),
+      L({ ko: '치환에는 text 또는 context.text의 실제 문구를 사용한다. snippet은 강조 표시 전용이다. offset은 문단 내 Unicode code point 기준이며 생략 여부는 truncatedBefore/After로 표시한다.', en: "For replacement, use the actual phrase in text or context.text. snippet is only for highlighted display. offset uses Unicode code points within the paragraph; truncatedBefore/After indicate omissions." }),
       ...matches.map(({ snippet: _snippet, ...match }) => JSON.stringify(match))];
-    if (cursor) lines.push(`… 계속: cursor=${cursor}`);
+    if (cursor) lines.push(LT({ ko: () => `… 계속: cursor=${cursor}`, en: () => `… Continue: cursor=${cursor}` }));
     return { content: [{ type: 'text', text: lines.join('\n') }], structuredContent: { matches, snippetFormat: 'highlighted-display-only', complete: !more, scope: includeStories ? 'body+cells+stories' : 'body+cells', ...(cursor ? { cursor } : {}) }, _meta: { ...resource(epoch), ...observed(ctx, epoch, [...shown.values()]) } };
   }
 
@@ -814,7 +821,7 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
     const known = error instanceof ToolError, host = error instanceof HwpHandsError;
     const code = known ? error.code : host ? (error.code === 'NOT_FOUND' || error.code === 'INVALID_PATH' ? 'TARGET_REQUIRED' : error.code) : 'ENGINE_ERROR';
     const retryable = known ? error.retryable : host && error.code === 'REVISION_CONFLICT';
-    const message = known ? error.message : host && (error.code === 'NOT_FOUND' || error.code === 'INVALID_PATH') ? '그 경로의 한글 문서를 찾을 수 없다. Vault 경로를 확인하라.' : error instanceof Error ? error.message : '문서를 읽지 못했다.';
+    const message = known ? error.message : host && (error.code === 'NOT_FOUND' || error.code === 'INVALID_PATH') ? L({ ko: '그 경로의 한글 문서를 찾을 수 없다. Vault 경로를 확인하라.', en: "No HWP document exists at that path. Check the Vault path." }) : error instanceof Error ? error.message : L({ ko: '문서를 읽지 못했다.', en: "Could not read the document." });
     return { isError: true, content: [{ type: 'text', text: message }], structuredContent: { code, retryable, ...domainErrorDetails(code, known ? error.extra : {}) }, _meta: { 'dev.agentinterop/error': { code, retryable }, ...(known && error.state ? resource(error.state) : {}) } };
   };
 
@@ -824,25 +831,25 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
     async describe() {
       const tools = [...DESCRIPTOR_TOOLS, ...(edits ? [...EDIT_TOOLS, CHECK_TOOL] : []),
         ...(commits ? [SAVE_TOOL, ...(options.commit?.prepareNew && options.commit?.resolveNew ? [CREATE_TOOL] : [])] : [])];
-      const instructions = edits ? (commits ? EDIT_INSTRUCTIONS.replace(' 저장은 사람이 한다.', '') + SAVE_INSTRUCTIONS : EDIT_INSTRUCTIONS) : INSTRUCTIONS;
+      const instructions = edits ? (commits ? EDIT_INSTRUCTIONS.replace(L({ ko: ' 저장은 사람이 한다.', en: " A person saves files." }), '') + SAVE_INSTRUCTIONS : EDIT_INSTRUCTIONS) : INSTRUCTIONS;
       return structuredClone({ provider: { id: 'hwp-hands', name: 'HWP Hands', version: options.version,
-        description: edits ? (commits ? '한글(HWP/HWPX) 문서를 읽고 작업본을 편집하고 저장한다.' : '한글(HWP/HWPX) 문서를 읽고 작업본을 편집한다.') : '한글(HWP/HWPX) 문서를 읽는다.' },
-        instructions: instructions.replace(tools.some(tool => tool.name === 'create_document') ? '' : ' 새 파일은 create_document로 만든 뒤 읽고 편집한다.', '') + contractGuide(tools),
+        description: edits ? (commits ? L({ ko: '한글(HWP/HWPX) 문서를 읽고 작업본을 편집하고 저장한다.', en: "Read HWP/HWPX documents and edit and save working copies." }) : L({ ko: '한글(HWP/HWPX) 문서를 읽고 작업본을 편집한다.', en: "Read HWP/HWPX documents and edit working copies." })) : L({ ko: '한글(HWP/HWPX) 문서를 읽는다.', en: "Read HWP/HWPX documents." }) },
+        instructions: instructions.replace(tools.some(tool => tool.name === 'create_document') ? '' : L({ ko: ' 새 파일은 create_document로 만든 뒤 읽고 편집한다.', en: " Create new files with create_document, then read and edit." }), '') + contractGuide(tools, locale),
         tools: tools.map(tool => TOOL_EXAMPLES[tool.name as string]
-          ? { ...tool, description: `${typeof tool.description === 'string' ? tool.description : JSON.stringify(tool.description)}\n입력 예(핸들은 실제 조회값 사용): ${JSON.stringify(TOOL_EXAMPLES[tool.name as string])}` } : tool) });
+          ? { ...tool, description: LT({ ko: () => `${typeof tool.description === 'string' ? tool.description : JSON.stringify(tool.description)}\n입력 예(핸들은 실제 조회값 사용): ${JSON.stringify(TOOL_EXAMPLES[tool.name as string])}`, en: () => `${typeof tool.description === 'string' ? tool.description : JSON.stringify(tool.description)}\nInput example (use handles from actual reads): ${JSON.stringify(TOOL_EXAMPLES[tool.name as string])}` }) } : tool) });
     },
     editor: editor.capability,
     ...(edits ? { resolveTarget: ((name: string, args: JsonObject, ctx: InvocationContext) => commits && COMMIT_TOOL_NAMES.includes(name) ? commits.resolveTarget(name, args, ctx) : edits.resolveTarget(name, args, ctx)) as AgentCapabilityProvider['resolveTarget'] } : {}),
     // The functions are captured once: a host holds on to the exact ones it discovered.
     ...(commits ? { commit: {
-      prepare: (request: Parameters<AgentCommits['prepare']>[0], ctx: CommitContext) => { if (disposed) throw new HwpHandsError('CANCELLED', 'HWP Hands가 종료됐다.'); return commits.prepare(request, ctx); },
-      execute: (ticket: Parameters<AgentCommits['execute']>[0], ctx: CommitContext) => { if (disposed) throw new HwpHandsError('CANCELLED', 'HWP Hands가 종료됐다.'); return commits.execute(ticket, ctx); },
+      prepare: (request: Parameters<AgentCommits['prepare']>[0], ctx: CommitContext) => { if (disposed) throw new HwpHandsError('CANCELLED', L({ ko: 'HWP Hands가 종료됐다.', en: "HWP Hands has been disposed." })); return commits.prepare(request, ctx); },
+      execute: (ticket: Parameters<AgentCommits['execute']>[0], ctx: CommitContext) => { if (disposed) throw new HwpHandsError('CANCELLED', L({ ko: 'HWP Hands가 종료됐다.', en: "HWP Hands has been disposed." })); return commits.execute(ticket, ctx); },
       status: (preparationId: string, ctx?: CommitContext) => commits.status(preparationId, ctx),
     } } : {}),
     async callTool(name, args, ctx) {
-      if (disposed) return failure(new ToolError('CLOSED', 'HWP Hands가 종료됐다.', false));
+      if (disposed) return failure(new ToolError('CLOSED', L({ ko: 'HWP Hands가 종료됐다.', en: "HWP Hands has been disposed." }), false));
       try {
-        if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', '도구 호출이 취소됐다.');
+        if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '도구 호출이 취소됐다.', en: "The tool call was cancelled." }));
         if (DESCRIPTOR_TOOLS.some(tool => tool.name === name) || (edits && name === 'check_before_save')) {
           const issue = validateToolInput(name, args ?? {});
           if (issue) throw new ToolError('INVALID_ARGUMENT', issue.message, true, undefined, issue.details);
@@ -855,9 +862,9 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
           return await edits.call(name, args ?? {}, { ...ctx, ...(selection ? { selection } : {}) });
         }
         if (edits && name === 'check_before_save') return await edits.check(args ?? {}, ctx ?? {});
-        if (commits && COMMIT_TOOL_NAMES.includes(name)) return failure(new ToolError('INVALID_ARGUMENT', '저장은 host의 저장 승인 절차로만 할 수 있다.', false));
-        return failure(new ToolError('INVALID_ARGUMENT', '사용할 수 없는 도구다. available의 이름을 확인하라.', true, undefined,
-          { available: [...DESCRIPTOR_TOOLS, ...(edits ? [...EDIT_TOOLS, CHECK_TOOL] : [])].map(tool => tool.name!), suggestion: 'describe()에서 현재 도구 목록을 다시 확인하라.' }));
+        if (commits && COMMIT_TOOL_NAMES.includes(name)) return failure(new ToolError('INVALID_ARGUMENT', L({ ko: '저장은 host의 저장 승인 절차로만 할 수 있다.', en: "Saving is only available through the host save approval flow." }), false));
+        return failure(new ToolError('INVALID_ARGUMENT', L({ ko: '사용할 수 없는 도구다. available의 이름을 확인하라.', en: "This tool is unavailable. Check the names in available." }), true, undefined,
+          { available: [...DESCRIPTOR_TOOLS, ...(edits ? [...EDIT_TOOLS, CHECK_TOOL] : [])].map(tool => tool.name!), suggestion: L({ ko: 'describe()에서 현재 도구 목록을 다시 확인하라.', en: "Check the current tool list again with describe()." }) }));
       } catch (error) { return failure(error); }
     },
     async dispose() {

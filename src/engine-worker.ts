@@ -1,11 +1,12 @@
 import { HwpHandsError } from './api';
+import { initLocale, type Locale } from './i18n/locale';
 import { ENGINE_RPC_METHODS, type EngineRpcMethod } from './engine-port';
 import { initializeEngine, RhwpEngine } from './engine';
 import { closeBitmaps } from './canvas-page';
 import { computeRewrite, type RewriteComputeRequest } from './agent/rewrite-compute';
 
 type Request =
-  | { id: number; type: 'initialize'; wasm: ArrayBuffer }
+  | { id: number; type: 'initialize'; wasm: ArrayBuffer; locale: Locale }
   | { id: number; type: 'create'; handle: number; kind: 'parse'; bytes: ArrayBuffer }
   | { id: number; type: 'create'; handle: number; kind: 'blank' }
   | { id: number; type: 'call'; handle: number; method: EngineRpcMethod; args: unknown[] }
@@ -61,6 +62,7 @@ async function handleMessage(event: MessageEvent<Request>): Promise<void> {
   try {
     if (request.type === 'initialize') {
       if (!initialized) {
+        initLocale(() => request.locale);
         await initializeEngine(async () => new Uint8Array(request.wasm));
         initialized = true;
       }

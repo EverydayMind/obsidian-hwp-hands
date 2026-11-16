@@ -1,3 +1,4 @@
+import { LT, L, getLocale, type Locale } from './i18n/locale';
 import { HwpHandsError, type ErrorCode } from './api';
 import { closeBitmaps } from './canvas-page';
 import { ENGINE_RPC_METHODS, type EnginePort, type EngineProvider, type EngineRpcMethod } from './engine-port';
@@ -14,7 +15,7 @@ export interface EngineProgress {
 type ProgressListener = (progress: EngineProgress) => void;
 type Factory = (source: string) => Worker;
 type RequestMessage =
-  | { type: 'initialize'; wasm: ArrayBuffer }
+  | { type: 'initialize'; wasm: ArrayBuffer; locale: Locale }
   | { type: 'create'; handle: number; kind: 'parse'; bytes: ArrayBuffer }
   | { type: 'create'; handle: number; kind: 'blank' }
   | { type: 'call'; handle: number; method: EngineRpcMethod; args: unknown[] }
@@ -76,11 +77,11 @@ export class WorkerEngineProvider implements EngineProvider {
 
   /** Bounded read-only planning runs away from the renderer; cancellation never writes a document. */
   async rewriteCompute(request: RewriteComputeRequest, signal?: AbortSignal): Promise<RewriteComputeResult> {
-    if (signal?.aborted) throw new HwpHandsError('CANCELLED', '재작성 계산이 취소됐습니다.');
+    if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '재작성 계산이 취소됐습니다.', en: "Rewrite computation was cancelled." }));
     await this.ensureReady();
-    if (signal?.aborted) throw new HwpHandsError('CANCELLED', '재작성 계산이 취소됐습니다.');
+    if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '재작성 계산이 취소됐습니다.', en: "Rewrite computation was cancelled." }));
     const { result } = await this.send({ type: 'rewrite-compute', request }, 'rewrite-compute', false);
-    if (signal?.aborted) throw new HwpHandsError('CANCELLED', '재작성 계산이 취소됐습니다.');
+    if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '재작성 계산이 취소됐습니다.', en: "Rewrite computation was cancelled." }));
     return result as RewriteComputeResult;
   }
 
@@ -141,7 +142,7 @@ export class WorkerEngineProvider implements EngineProvider {
       }
     }
     else if (method === 'free') this.engines.delete(record.handle);
-    if (cancelled) { closeBitmaps(result); throw new HwpHandsError('CANCELLED', `문서 작업이 안전한 작업 경계에서 취소되었습니다: ${method}.`); }
+    if (cancelled) { closeBitmaps(result); throw new HwpHandsError('CANCELLED', LT({ ko: () => `문서 작업이 안전한 작업 경계에서 취소되었습니다: ${method}.`, en: () => `Document operation cancelled at a safe boundary: ${method}.` })); }
     return result;
   }
 
@@ -163,7 +164,7 @@ export class WorkerEngineProvider implements EngineProvider {
     this.wasmPromise ??= this.readWasm().catch(error => { this.wasmPromise = undefined; throw error; });
     const wasm = await this.wasmPromise;
     const copy = Uint8Array.from(wasm);
-    await this.send({ type: 'initialize', wasm: copy.buffer }, 'initialize WASM', false, [copy.buffer]);
+    await this.send({ type: 'initialize', wasm: copy.buffer, locale: getLocale() }, 'initialize WASM', false, [copy.buffer]);
     for (const record of this.engines.values()) await this.restoreRecord(record);
   }
 

@@ -1,3 +1,4 @@
+import { LT, L } from '../../i18n/locale';
 import { releaseCanvases } from '../../canvas-page';
 export interface PageStackEntry {
   slot: HTMLElement;
@@ -322,7 +323,7 @@ export class PageStack {
     const slot = document.createElement('div');
     slot.className = 'hwp-page-slot';
     slot.dataset.page = String(index);
-    slot.setAttribute('aria-label', `${index + 1}쪽`);
+    slot.setAttribute('aria-label', LT({ ko: () => `${index + 1}쪽`, en: () => `Page ${index + 1}` }));
     const page = document.createElement('div');
     page.className = 'hwp-page';
     page.dataset.page = String(index);

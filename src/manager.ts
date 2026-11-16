@@ -1,3 +1,4 @@
+import { LT, L } from './i18n/locale';
 import { createHash, randomUUID } from 'node:crypto';
 import { copyRootOutputAnchors, rootOutputCandidates } from './output-anchor-candidates';
 import { deflateSync, inflateSync } from 'node:zlib';
@@ -155,71 +156,71 @@ function recoveryRecordHash(recovery: Omit<RecoveryV2, 'recordHash'>): string {
 }
 function validateRecoveryActions(value: unknown): { actions: RecoveryAction[]; commandCount: number } {
 const commandTypes = new Set(['insertText', 'insertLineBreak', 'insertTab', 'pasteHtml', 'deleteText', 'replaceParagraph', 'replaceRange', 'deleteRange', 'splitParagraph', 'mergeParagraph', 'deleteParagraphAt', 'replaceText', 'insertParagraph', 'insertCellParagraph', 'deleteParagraph', 'setCellText', 'setField', 'setFieldById', 'insertClickHereField', 'updateField', 'removeField', 'formatText', 'formatParagraph', 'setParagraphStyle', 'setParagraphList', 'createStyle', 'updateStyle', 'deleteStyle', 'createNumbering', 'createTable', 'insertTableRow', 'deleteTableRow', 'insertTableColumn', 'deleteTableColumn', 'mergeTableCells', 'splitTableCell', 'resizeTableCells', 'setTableProperties', 'setCellProperties', 'transposeTable', 'splitTable', 'mergeTableWithNext', 'deleteTable', 'setTableFormula', 'insertNote', 'deleteNote', 'setEndnoteShape', 'applyHeaderFooterTemplate', 'deleteHeaderFooter', 'insertPageBreak', 'setPageSettings', 'setPageHide', 'insertNewNumber', 'addBookmark', 'renameBookmark', 'deleteBookmark', 'setColumnSettings', 'setPageBorderFill', 'setSectionDefinition', 'insertEquation', 'insertPicture', 'insertShape', 'setObjectProperties', 'setObjectZOrder', 'groupObjects', 'ungroupObject', 'deleteObject']);
-  if (!Array.isArray(value) || value.length > MAX_RECOVERY_ACTIONS) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 작업 수가 올바르지 않습니다.');
+  if (!Array.isArray(value) || value.length > MAX_RECOVERY_ACTIONS) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 작업 수가 올바르지 않습니다.', en: "Invalid recovery action count." }));
   commandTypes.add('formatRange'); commandTypes.add('formatCellBlock'); commandTypes.add('setFields'); commandTypes.add('setFieldsAt');
   let commandCount = 0;
   let activeGroupId: string | undefined, activeGroupLastCommand: Command | undefined, activeGroupActor: unknown;
   for (const action of value) {
-    if (!action || typeof action !== 'object' || Array.isArray(action)) throw new HwpHandsError('VERIFY_FAILED', '복구 기록에 잘못된 작업이 있습니다.');
+    if (!action || typeof action !== 'object' || Array.isArray(action)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록에 잘못된 작업이 있습니다.', en: "The recovery record contains an invalid action." }));
     const item = action as Record<string, unknown>;
     const keys = Object.keys(item);
     if ('history' in item) {
-      if (keys.length !== 1) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 작업의 필드 구성이 올바르지 않습니다.');
-      if (item.history !== 'undo' && item.history !== 'redo') throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 undo/redo 작업이 올바르지 않습니다.');
+      if (keys.length !== 1) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 작업의 필드 구성이 올바르지 않습니다.', en: "Invalid recovery action fields." }));
+      if (item.history !== 'undo' && item.history !== 'redo') throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 undo/redo 작업이 올바르지 않습니다.', en: "Invalid recovery undo/redo action." }));
       activeGroupId = undefined;
       activeGroupLastCommand = undefined;
       continue;
     }
-    if (keys.some(key => !['commands', 'origin', 'groupId', 'undoBoundary', 'actor', 'editId'].includes(key))) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 작업의 필드 구성이 올바르지 않습니다.');
+    if (keys.some(key => !['commands', 'origin', 'groupId', 'undoBoundary', 'actor', 'editId'].includes(key))) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 작업의 필드 구성이 올바르지 않습니다.', en: "Invalid recovery action fields." }));
     validateActionActor(item.actor, item.editId);
-    if (!('commands' in item) || !Array.isArray(item.commands) || item.commands.length < 1 || item.commands.length > 500) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 명령 묶음이 올바르지 않습니다.');
-    if (item.origin !== undefined && item.origin !== 'input' && item.origin !== 'command' && item.origin !== 'api') throw new HwpHandsError('VERIFY_FAILED', '복구 기록 origin이 올바르지 않습니다.');
+    if (!('commands' in item) || !Array.isArray(item.commands) || item.commands.length < 1 || item.commands.length > 500) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 명령 묶음이 올바르지 않습니다.', en: "Invalid recovery command batch." }));
+    if (item.origin !== undefined && item.origin !== 'input' && item.origin !== 'command' && item.origin !== 'api') throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 origin이 올바르지 않습니다.', en: "Invalid recovery origin." }));
     if (item.groupId !== undefined) {
       // eslint-disable-next-line no-control-regex -- Recovery group IDs must reject control characters.
-      if (typeof item.groupId !== 'string' || !item.groupId.length || item.groupId.length > 128 || /[\u0000-\u001f\u007f]/.test(item.groupId) || item.origin !== 'input' || typeof item.undoBoundary !== 'boolean' || item.commands.length !== 1) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 입력 그룹 메타데이터가 올바르지 않습니다.');
+      if (typeof item.groupId !== 'string' || !item.groupId.length || item.groupId.length > 128 || /[\u0000-\u001f\u007f]/.test(item.groupId) || item.origin !== 'input' || typeof item.undoBoundary !== 'boolean' || item.commands.length !== 1) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 입력 그룹 메타데이터가 올바르지 않습니다.', en: "Invalid recovery input group metadata." }));
       const command = item.commands[0] as { type?: unknown; target?: { kind?: unknown } } | undefined;
-      if (!command || typeof command !== 'object') throw new HwpHandsError('VERIFY_FAILED', '복구 기록 입력 그룹의 명령이 올바르지 않습니다.');
-      if ((command.type !== 'insertText' && command.type !== 'deleteText') || command.target?.kind !== undefined) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 입력 그룹에 지원하지 않는 명령이 있습니다.');
-      if (item.undoBoundary === false && activeGroupId !== item.groupId) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 입력 그룹 경계 순서가 올바르지 않습니다.');
-      if (item.undoBoundary === false && JSON.stringify(item.actor) !== JSON.stringify(activeGroupActor)) throw new HwpHandsError('VERIFY_FAILED', '복구 입력 그룹의 편집 주체가 변경되었습니다.');
-      if (item.undoBoundary === false && (!activeGroupLastCommand || !inputGroupCommandsJoin(activeGroupLastCommand, command as Command))) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 입력 그룹의 연속 위치가 올바르지 않습니다.');
+      if (!command || typeof command !== 'object') throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 입력 그룹의 명령이 올바르지 않습니다.', en: "Invalid recovery input group command." }));
+      if ((command.type !== 'insertText' && command.type !== 'deleteText') || command.target?.kind !== undefined) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 입력 그룹에 지원하지 않는 명령이 있습니다.', en: "Unsupported command in recovery input group." }));
+      if (item.undoBoundary === false && activeGroupId !== item.groupId) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 입력 그룹 경계 순서가 올바르지 않습니다.', en: "Invalid recovery input group boundary order." }));
+      if (item.undoBoundary === false && JSON.stringify(item.actor) !== JSON.stringify(activeGroupActor)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 입력 그룹의 편집 주체가 변경되었습니다.', en: "The recovery input group's edit actor changed." }));
+      if (item.undoBoundary === false && (!activeGroupLastCommand || !inputGroupCommandsJoin(activeGroupLastCommand, command as Command))) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 입력 그룹의 연속 위치가 올바르지 않습니다.', en: "Invalid recovery input group continuation position." }));
       activeGroupId = item.undoBoundary ? item.groupId : activeGroupId;
       activeGroupLastCommand = command as Command;
       activeGroupActor = item.actor;
     } else {
-      if (item.undoBoundary !== undefined) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 입력 그룹 경계가 없습니다.');
+      if (item.undoBoundary !== undefined) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 입력 그룹 경계가 없습니다.', en: "Missing recovery input group boundary." }));
       activeGroupId = undefined;
       activeGroupLastCommand = undefined;
     }
     commandCount += item.commands.length;
     for (const command of item.commands) {
-      if (!command || typeof command !== 'object' || Array.isArray(command) || !commandTypes.has(String((command as { type?: unknown }).type))) throw new HwpHandsError('VERIFY_FAILED', '복구 기록에 지원하지 않는 명령이 있습니다.');
+      if (!command || typeof command !== 'object' || Array.isArray(command) || !commandTypes.has(String((command as { type?: unknown }).type))) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록에 지원하지 않는 명령이 있습니다.', en: "Unsupported command in recovery record." }));
     }
   }
-  if (commandCount > MAX_RECOVERY_COMMANDS) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 명령 수가 제한을 초과합니다.');
+  if (commandCount > MAX_RECOVERY_COMMANDS) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 명령 수가 제한을 초과합니다.', en: "Recovery command count exceeds the limit." }));
   return { actions: value as RecoveryAction[], commandCount };
 }
 function decodeBase64(value: unknown, label: string): Uint8Array {
-  if (typeof value !== 'string' || value.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) throw new HwpHandsError('VERIFY_FAILED', `복구 기록 ${label} 인코딩이 올바르지 않습니다.`);
+  if (typeof value !== 'string' || value.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) throw new HwpHandsError('VERIFY_FAILED', LT({ ko: () => `복구 기록 ${label} 인코딩이 올바르지 않습니다.`, en: () => `Invalid recovery record ${label} encoding.` }));
   const bytes = Buffer.from(value, 'base64');
-  if (bytes.toString('base64') !== value) throw new HwpHandsError('VERIFY_FAILED', `복구 기록 ${label} 인코딩이 올바르지 않습니다.`);
+  if (bytes.toString('base64') !== value) throw new HwpHandsError('VERIFY_FAILED', LT({ ko: () => `복구 기록 ${label} 인코딩이 올바르지 않습니다.`, en: () => `Invalid recovery record ${label} encoding.` }));
   return bytes;
 }
 export function documentPath(input: string): string {
-  if (typeof input !== 'string') throw new HwpHandsError('INVALID_PATH', '볼트 상대 경로를 사용하세요.');
+  if (typeof input !== 'string') throw new HwpHandsError('INVALID_PATH', L({ ko: '볼트 상대 경로를 사용하세요.', en: "Use a Vault-relative path." }));
   const path = input.replaceAll('\\', '/');
   if (!path || path.startsWith('/') || /[:\0\r\n]/.test(path) || path.split('/').some(p => !p || p === '.' || p === '..' || p.toLowerCase() === '.obsidian' || p.toLowerCase() === '.trash') || !/\.(hwp|hwpx)$/i.test(path)) {
-    throw new HwpHandsError('INVALID_PATH', '볼트 안의 .hwp 또는 .hwpx 상대 경로가 필요합니다.');
+    throw new HwpHandsError('INVALID_PATH', L({ ko: '볼트 안의 .hwp 또는 .hwpx 상대 경로가 필요합니다.', en: "A relative .hwp or .hwpx path within the Vault is required." }));
   }
   return path;
 }
 function fileNameFromPath(path: string): string { return path.slice(path.lastIndexOf('/') + 1); }
 function pathWithFormat(path: string, format: Format): string { return path.replace(/\.(?:hwp|hwpx)$/i, `.${format}`); }
 function folderPath(input: string): string {
-  if (typeof input !== 'string') throw new HwpHandsError('INVALID_PATH', '볼트 상대 경로를 사용하세요.');
+  if (typeof input !== 'string') throw new HwpHandsError('INVALID_PATH', L({ ko: '볼트 상대 경로를 사용하세요.', en: "Use a Vault-relative path." }));
   const path = input.replaceAll('\\', '/');
   if (!path || path.startsWith('/') || /[:\0\r\n]/.test(path) || path.split('/').some(p => !p || p === '.' || p === '..' || p.toLowerCase() === '.obsidian' || p.toLowerCase() === '.trash')) {
-    throw new HwpHandsError('INVALID_PATH', '볼트 안의 상대 폴더 경로가 필요합니다.');
+    throw new HwpHandsError('INVALID_PATH', L({ ko: '볼트 안의 상대 폴더 경로가 필요합니다.', en: "A relative folder path within the Vault is required." }));
   }
   return path;
 }
@@ -274,7 +275,7 @@ export class DocumentManager {
   constructor(private readonly storage: Storage, private readonly engineProvider: EngineProvider, public options: ManagerOptions = { ...DEFAULT_OPTIONS }, private readonly pluginVersion = '0.3.0', private readonly autosaveOptions?: ManagerAutosaveOptions) {
     if (autosaveOptions) {
       if (!autosaveOptions.save && (!autosaveOptions.limits || [autosaveOptions.limits.maxCandidateBytes, autosaveOptions.limits.maxPages].some(value => !Number.isSafeInteger(value) || value <= 0))) {
-        throw new HwpHandsError('INVALID_ARGUMENT', '검증된 자동 저장에는 후보 바이트·쪽 수 상한이 필요합니다.');
+        throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '검증된 자동 저장에는 후보 바이트·쪽 수 상한이 필요합니다.', en: "Verified autosave requires candidate byte and page count limits." }));
       }
       this.autosave = new AutosaveScheduler({ ...autosaveOptions, save: autosaveOptions.save ? candidate => autosaveOptions.save!(candidate) : candidate => this.executeAutosave(candidate),
         onStatus: (sessionId, status) => {
@@ -367,9 +368,9 @@ export class DocumentManager {
         }),
         close: path => this.withAutosavePathsPaused([path], 'close', () => this.run(path, async path => {
           const s = this.sessions.get(path); if (!s) return;
-          if (s.dirty) throw new HwpHandsError('UNSAVED_CHANGES', '저장되지 않은 변경이 있습니다. 저장하거나 reload로 명시적으로 버린 뒤 닫으세요.');
+          if (s.dirty) throw new HwpHandsError('UNSAVED_CHANGES', L({ ko: '저장되지 않은 변경이 있습니다. 저장하거나 reload로 명시적으로 버린 뒤 닫으세요.', en: "There are unsaved changes. Save or explicitly discard them with reload before closing." }));
           if (s.legacyReferences > 0) { s.legacyReferences--; s.references--; }
-          else if (s.references > 0) throw new HwpHandsError('INVALID_ARGUMENT', '다른 화면 또는 API 소비자가 이 세션을 사용 중입니다.');
+          else if (s.references > 0) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '다른 화면 또는 API 소비자가 이 세션을 사용 중입니다.', en: "Another view or API consumer is using this session." }));
           else { await this.closeSession(s); return; }
           if (s.references === 0) await this.closeSession(s);
         })),
@@ -384,8 +385,8 @@ export class DocumentManager {
           this.expect(s, this.expectedRevisionOption(options, 'saveAs'));
           return this.withAutosavePaused(s, 'save-as', async () => {
             s.activeGroup = undefined;
-            if (target === s.path) throw new HwpHandsError('INVALID_ARGUMENT', '새 파일 경로를 사용하세요.');
-            if (this.sessions.has(target)) throw new HwpHandsError('FILE_CONFLICT', '대상 문서 세션이 이미 열려 있습니다.');
+            if (target === s.path) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '새 파일 경로를 사용하세요.', en: "Use a new file path." }));
+            if (this.sessions.has(target)) throw new HwpHandsError('FILE_CONFLICT', L({ ko: '대상 문서 세션이 이미 열려 있습니다.', en: "The target document session is already open." }));
             const { bytes, warnings } = await this.readableExport(s.engine, target, this.options.maxFileBytes, s.sourceGuard, s.sectionTails); await this.storage.create(target, bytes);
             return { ...this.state(await this.session(target)), warnings };
           });
@@ -483,7 +484,7 @@ export class DocumentManager {
       }) },
       index: {
         refresh: path => run(path, async s => {
-          if (s.dirty || s.conflict) throw new HwpHandsError('UNSAVED_CHANGES', '원본을 먼저 저장하세요.');
+          if (s.dirty || s.conflict) throw new HwpHandsError('UNSAVED_CHANGES', L({ ko: '원본을 먼저 저장하세요.', en: "Save the original first." }));
           await this.checkDisk(s); return this.index(s);
         }),
         status: path => {
@@ -549,14 +550,14 @@ export class DocumentManager {
   }
   private runPaths<T>(inputs: string[], callback: (paths: string[]) => Promise<T>, ignoreTransitions = false): Promise<T> {
     const paths = [...new Set(inputs.map(documentPath))].sort();
-    if (this.disposed) return Promise.reject(new HwpHandsError('CLOSED', '플러그인이 종료되었습니다.'));
+    if (this.disposed) return Promise.reject(new HwpHandsError('CLOSED', L({ ko: '플러그인이 종료되었습니다.', en: "The plugin has been disposed." })));
     if (!ignoreTransitions) {
       const transitions = this.transitions.filter(t => paths.some(path => t.prefixes.some(prefix => within(path, prefix))));
       if (transitions.length) return Promise.all(transitions.map(t => t.promise)).then(() => this.runPaths(paths, callback));
     }
     const previous = Promise.all(paths.map(path => this.pending.get(path) ?? Promise.resolve()));
     const current = previous.catch(() => undefined).then(async () => {
-      if (this.disposed) throw new HwpHandsError('CLOSED', '플러그인이 종료되었습니다.');
+      if (this.disposed) throw new HwpHandsError('CLOSED', L({ ko: '플러그인이 종료되었습니다.', en: "The plugin has been disposed." }));
       for (const path of paths) this.cancelIdle(this.sessions.get(path));
       try { return await callback(paths); } catch (error) {
         if (error instanceof HwpHandsError) throw error;
@@ -606,22 +607,22 @@ export class DocumentManager {
   }
   private maxRecoveryBytes(): number { return Math.max(1024 * 1024, this.options.maxFileBytes * 2); }
   private decodeRecovery(record: Recovery, path: string): DecodedRecovery {
-    if (!record || typeof record !== 'object') throw new HwpHandsError('VERIFY_FAILED', '복구 기록 형식이 올바르지 않습니다.');
+    if (!record || typeof record !== 'object') throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 형식이 올바르지 않습니다.', en: "Invalid recovery record format." }));
     const maxBytes = this.maxRecoveryBytes();
     if (record.version === 3) {
-      if (record.path !== path || typeof record.baseHash !== 'string' || !HASH_PATTERN.test(record.baseHash) || typeof record.seedHash !== 'string' || !HASH_PATTERN.test(record.seedHash) || typeof record.recordHash !== 'string' || !HASH_PATTERN.test(record.recordHash) || typeof record.tailHash !== 'string' || !HASH_PATTERN.test(record.tailHash)) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 경로 또는 해시가 올바르지 않습니다. 기존 기록을 보존했습니다.');
-      if (typeof record.pluginVersion !== 'string' || !record.pluginVersion || record.pluginVersion.length > 64 || record.engineVersion !== ENGINE_VERSION || record.commandSchema !== COMMAND_SCHEMA_VERSION) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 플러그인·엔진·명령 스키마 버전을 지원하지 않습니다. 기존 기록을 보존했습니다.');
-      if (!Number.isInteger(record.historyLimit) || record.historyLimit < 1 || record.historyLimit > 100 || !Number.isInteger(record.seedBytes) || record.seedBytes < 1 || record.seedBytes > this.options.maxFileBytes || !Number.isSafeInteger(record.sequence) || record.sequence < 0 || record.sequence > MAX_RECOVERY_ACTIONS || !Array.isArray(record.actions) || record.sequence !== record.actions.length || typeof record.truncatedTail !== 'boolean' || (record.intendedSaveHash !== undefined && !HASH_PATTERN.test(record.intendedSaveHash))) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 크기 또는 설정값이 올바르지 않습니다.');
-      if (typeof record.seed !== 'string' || record.seed.length > Math.ceil(this.options.maxFileBytes * 4 / 3) + 4 || Buffer.byteLength(JSON.stringify(record), 'utf8') > maxBytes) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 크기가 제한을 초과합니다.');
+      if (record.path !== path || typeof record.baseHash !== 'string' || !HASH_PATTERN.test(record.baseHash) || typeof record.seedHash !== 'string' || !HASH_PATTERN.test(record.seedHash) || typeof record.recordHash !== 'string' || !HASH_PATTERN.test(record.recordHash) || typeof record.tailHash !== 'string' || !HASH_PATTERN.test(record.tailHash)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 경로 또는 해시가 올바르지 않습니다. 기존 기록을 보존했습니다.', en: "Invalid recovery path or hash. Existing records were preserved." }));
+      if (typeof record.pluginVersion !== 'string' || !record.pluginVersion || record.pluginVersion.length > 64 || record.engineVersion !== ENGINE_VERSION || record.commandSchema !== COMMAND_SCHEMA_VERSION) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 플러그인·엔진·명령 스키마 버전을 지원하지 않습니다. 기존 기록을 보존했습니다.', en: "Unsupported recovery plugin, engine, or command schema version. Existing records were preserved." }));
+      if (!Number.isInteger(record.historyLimit) || record.historyLimit < 1 || record.historyLimit > 100 || !Number.isInteger(record.seedBytes) || record.seedBytes < 1 || record.seedBytes > this.options.maxFileBytes || !Number.isSafeInteger(record.sequence) || record.sequence < 0 || record.sequence > MAX_RECOVERY_ACTIONS || !Array.isArray(record.actions) || record.sequence !== record.actions.length || typeof record.truncatedTail !== 'boolean' || (record.intendedSaveHash !== undefined && !HASH_PATTERN.test(record.intendedSaveHash))) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 크기 또는 설정값이 올바르지 않습니다.', en: "Invalid recovery record size or settings." }));
+      if (typeof record.seed !== 'string' || record.seed.length > Math.ceil(this.options.maxFileBytes * 4 / 3) + 4 || Buffer.byteLength(JSON.stringify(record), 'utf8') > maxBytes) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 크기가 제한을 초과합니다.', en: "Recovery record size exceeds the limit." }));
       const seed = decodeBase64(record.seed, 'seed');
       const { actions, commandCount } = validateRecoveryActions(record.actions);
-      if (!seed.byteLength || seed.byteLength !== record.seedBytes || seed.byteLength > this.options.maxFileBytes || hash(seed) !== record.seedHash || commandCount > MAX_RECOVERY_COMMANDS) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 seed 무결성 또는 크기가 올바르지 않습니다.');
+      if (!seed.byteLength || seed.byteLength !== record.seedBytes || seed.byteLength > this.options.maxFileBytes || hash(seed) !== record.seedHash || commandCount > MAX_RECOVERY_COMMANDS) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 seed 무결성 또는 크기가 올바르지 않습니다.', en: "Invalid recovery seed integrity or size." }));
       const { actions: _actions, sequence: _sequence, tailHash: _tailHash, truncatedTail: _truncatedTail, recordHash: _recordHash, ...headerFields } = record;
       const expectedHeader = createRecoveryV3Header(headerFields);
-      if (record.recordHash !== expectedHeader.recordHash) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 manifest 해시 검증에 실패했습니다.');
+      if (record.recordHash !== expectedHeader.recordHash) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 manifest 해시 검증에 실패했습니다.', en: "Recovery manifest hash verification failed." }));
       let expectedTail = expectedHeader.recordHash;
       for (let index = 0; index < actions.length; index++) expectedTail = createRecoveryV3Line(index + 1, expectedTail, actions[index]).hash;
-      if (record.tailHash !== expectedTail) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 hash chain 검증에 실패했습니다.');
+      if (record.tailHash !== expectedTail) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 hash chain 검증에 실패했습니다.', en: "Recovery hash chain verification failed." }));
       return {
         path, baseHash: record.baseHash, seed, actions, actors: record.actors === undefined ? undefined : validatePersistedActors(record.actors), historyLimit: record.historyLimit, intendedSaveHash: record.intendedSaveHash,
         migrated: record.pluginVersion !== this.pluginVersion || !this.storage.appendRecovery,
@@ -629,40 +630,40 @@ export class DocumentManager {
       };
     }
     if (record.version === 1) {
-      if (record.path !== path || typeof record.baseHash !== 'string' || !HASH_PATTERN.test(record.baseHash) || typeof record.seedHash !== 'string' || !HASH_PATTERN.test(record.seedHash)) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 경로 또는 해시가 올바르지 않습니다.');
-      if (!Number.isInteger(record.historyLimit) || record.historyLimit < 1 || record.historyLimit > 100 || (record.intendedSaveHash !== undefined && !HASH_PATTERN.test(record.intendedSaveHash))) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 설정값이 올바르지 않습니다.');
-      if (typeof record.seed !== 'string' || record.seed.length > Math.ceil(this.options.maxFileBytes * 4 / 3) + 4 || Buffer.byteLength(JSON.stringify(record), 'utf8') > maxBytes) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 크기가 제한을 초과합니다.');
+      if (record.path !== path || typeof record.baseHash !== 'string' || !HASH_PATTERN.test(record.baseHash) || typeof record.seedHash !== 'string' || !HASH_PATTERN.test(record.seedHash)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 경로 또는 해시가 올바르지 않습니다.', en: "Invalid recovery path or hash." }));
+      if (!Number.isInteger(record.historyLimit) || record.historyLimit < 1 || record.historyLimit > 100 || (record.intendedSaveHash !== undefined && !HASH_PATTERN.test(record.intendedSaveHash))) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 설정값이 올바르지 않습니다.', en: "Invalid recovery settings." }));
+      if (typeof record.seed !== 'string' || record.seed.length > Math.ceil(this.options.maxFileBytes * 4 / 3) + 4 || Buffer.byteLength(JSON.stringify(record), 'utf8') > maxBytes) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 크기가 제한을 초과합니다.', en: "Recovery record size exceeds the limit." }));
       const seed = decodeBase64(record.seed, 'seed');
       const { actions, commandCount } = validateRecoveryActions(record.actions);
-      if (!seed.byteLength || seed.byteLength > this.options.maxFileBytes || hash(seed) !== record.seedHash || commandCount > MAX_RECOVERY_COMMANDS) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 seed 무결성 또는 크기가 올바르지 않습니다.');
+      if (!seed.byteLength || seed.byteLength > this.options.maxFileBytes || hash(seed) !== record.seedHash || commandCount > MAX_RECOVERY_COMMANDS) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 seed 무결성 또는 크기가 올바르지 않습니다.', en: "Invalid recovery seed integrity or size." }));
       return { path, baseHash: record.baseHash, seed, actions, historyLimit: record.historyLimit, intendedSaveHash: record.intendedSaveHash, migrated: true };
     }
-    if (record.version !== 2) throw new HwpHandsError('VERIFY_FAILED', '지원하지 않는 복구 기록 버전입니다. 기존 복구 파일을 보존했습니다.');
-    if (record.path !== path || typeof record.baseHash !== 'string' || !HASH_PATTERN.test(record.baseHash) || typeof record.seedHash !== 'string' || !HASH_PATTERN.test(record.seedHash) || typeof record.payloadHash !== 'string' || !HASH_PATTERN.test(record.payloadHash) || typeof record.recordHash !== 'string' || !HASH_PATTERN.test(record.recordHash)) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 경로 또는 해시가 올바르지 않습니다.');
-    if (typeof record.pluginVersion !== 'string' || !record.pluginVersion || record.pluginVersion.length > 64 || record.engineVersion !== ENGINE_VERSION || record.commandSchema !== COMMAND_SCHEMA_VERSION) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 플러그인·엔진·명령 스키마 버전을 지원하지 않습니다. 기존 복구 파일을 보존했습니다.');
-    if (!Number.isInteger(record.historyLimit) || record.historyLimit < 1 || record.historyLimit > 100 || !Number.isInteger(record.seedBytes) || record.seedBytes < 1 || record.seedBytes > this.options.maxFileBytes || !Number.isInteger(record.actionCount) || record.actionCount < 0 || record.actionCount > MAX_RECOVERY_ACTIONS || !Number.isInteger(record.commandCount) || record.commandCount < 0 || record.commandCount > MAX_RECOVERY_COMMANDS || !Number.isInteger(record.payloadBytes) || record.payloadBytes < 1 || record.payloadBytes > maxBytes || !Number.isInteger(record.expandedBytes) || record.expandedBytes < 1 || record.expandedBytes > maxBytes || (record.intendedSaveHash !== undefined && !HASH_PATTERN.test(record.intendedSaveHash))) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 크기 또는 설정값이 올바르지 않습니다.');
-    if (typeof record.payload !== 'string' || record.payload.length > Math.ceil(maxBytes * 4 / 3) + 4 || record.payload.length + path.length + 2048 > maxBytes) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 payload 크기가 제한을 초과합니다.');
+    if (record.version !== 2) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '지원하지 않는 복구 기록 버전입니다. 기존 복구 파일을 보존했습니다.', en: "Unsupported recovery record version. Existing recovery file was preserved." }));
+    if (record.path !== path || typeof record.baseHash !== 'string' || !HASH_PATTERN.test(record.baseHash) || typeof record.seedHash !== 'string' || !HASH_PATTERN.test(record.seedHash) || typeof record.payloadHash !== 'string' || !HASH_PATTERN.test(record.payloadHash) || typeof record.recordHash !== 'string' || !HASH_PATTERN.test(record.recordHash)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 경로 또는 해시가 올바르지 않습니다.', en: "Invalid recovery path or hash." }));
+    if (typeof record.pluginVersion !== 'string' || !record.pluginVersion || record.pluginVersion.length > 64 || record.engineVersion !== ENGINE_VERSION || record.commandSchema !== COMMAND_SCHEMA_VERSION) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 플러그인·엔진·명령 스키마 버전을 지원하지 않습니다. 기존 복구 파일을 보존했습니다.', en: "Unsupported recovery plugin, engine, or command schema version. Existing recovery file was preserved." }));
+    if (!Number.isInteger(record.historyLimit) || record.historyLimit < 1 || record.historyLimit > 100 || !Number.isInteger(record.seedBytes) || record.seedBytes < 1 || record.seedBytes > this.options.maxFileBytes || !Number.isInteger(record.actionCount) || record.actionCount < 0 || record.actionCount > MAX_RECOVERY_ACTIONS || !Number.isInteger(record.commandCount) || record.commandCount < 0 || record.commandCount > MAX_RECOVERY_COMMANDS || !Number.isInteger(record.payloadBytes) || record.payloadBytes < 1 || record.payloadBytes > maxBytes || !Number.isInteger(record.expandedBytes) || record.expandedBytes < 1 || record.expandedBytes > maxBytes || (record.intendedSaveHash !== undefined && !HASH_PATTERN.test(record.intendedSaveHash))) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 크기 또는 설정값이 올바르지 않습니다.', en: "Invalid recovery record size or settings." }));
+    if (typeof record.payload !== 'string' || record.payload.length > Math.ceil(maxBytes * 4 / 3) + 4 || record.payload.length + path.length + 2048 > maxBytes) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 payload 크기가 제한을 초과합니다.', en: "Recovery payload size exceeds the limit." }));
     const compressed = decodeBase64(record.payload, 'payload');
-    if (compressed.byteLength !== record.payloadBytes || hash(compressed) !== record.payloadHash) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 payload 해시 또는 크기가 올바르지 않습니다.');
+    if (compressed.byteLength !== record.payloadBytes || hash(compressed) !== record.payloadHash) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 payload 해시 또는 크기가 올바르지 않습니다.', en: "Invalid recovery payload hash or size." }));
     const { recordHash: _recordHash, ...recordBody } = record;
-    if (recoveryRecordHash(recordBody) !== record.recordHash) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 메타데이터 검사에 실패했습니다.');
+    if (recoveryRecordHash(recordBody) !== record.recordHash) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 메타데이터 검사에 실패했습니다.', en: "Recovery metadata validation failed." }));
     let expanded: Uint8Array;
     try { expanded = inflateSync(compressed, { maxOutputLength: maxBytes }); }
-    catch (error) { throw new HwpHandsError('VERIFY_FAILED', '복구 기록 압축 데이터를 풀 수 없습니다.', String(error)); }
-    if (expanded.byteLength !== record.expandedBytes) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 압축 해제 크기가 일치하지 않습니다.');
+    catch (error) { throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 압축 데이터를 풀 수 없습니다.', en: "Cannot decompress recovery data." }), String(error)); }
+    if (expanded.byteLength !== record.expandedBytes) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 압축 해제 크기가 일치하지 않습니다.', en: "Recovery decompressed size does not match." }));
     let payload: unknown;
     try { payload = JSON.parse(Buffer.from(expanded).toString('utf8')); }
-    catch (error) { throw new HwpHandsError('VERIFY_FAILED', '복구 기록 payload JSON이 올바르지 않습니다.', String(error)); }
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).some(key => !['seed', 'actions', 'actors'].includes(key)) || !('seed' in payload) || !('actions' in payload)) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 payload 필드가 올바르지 않습니다.');
+    catch (error) { throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 payload JSON이 올바르지 않습니다.', en: "Invalid recovery payload JSON." }), String(error)); }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).some(key => !['seed', 'actions', 'actors'].includes(key)) || !('seed' in payload) || !('actions' in payload)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 payload 필드가 올바르지 않습니다.', en: "Invalid recovery payload fields." }));
     const content = payload as { seed: unknown; actions: unknown; actors?: unknown }, seed = decodeBase64(content.seed, 'seed');
     const { actions, commandCount } = validateRecoveryActions(content.actions);
-    if (seed.byteLength !== record.seedBytes || hash(seed) !== record.seedHash || actions.length !== record.actionCount || commandCount !== record.commandCount) throw new HwpHandsError('VERIFY_FAILED', '복구 기록 seed 또는 명령 지문이 일치하지 않습니다.');
+    if (seed.byteLength !== record.seedBytes || hash(seed) !== record.seedHash || actions.length !== record.actionCount || commandCount !== record.commandCount) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록 seed 또는 명령 지문이 일치하지 않습니다.', en: "Recovery seed or command fingerprint does not match." }));
     return { path, baseHash: record.baseHash, seed, actions, actors: content.actors === undefined ? undefined : validatePersistedActors(content.actors), historyLimit: record.historyLimit, intendedSaveHash: record.intendedSaveHash, migrated: record.pluginVersion !== this.pluginVersion || !!this.storage.appendRecovery };
   }
   private async session(path: string): Promise<Session> {
     const existing = this.sessions.get(path); if (existing) return existing;
     await this.engineProvider.initialize(); const bytes = await this.storage.read(path);
-    if (bytes.byteLength > this.options.maxFileBytes) throw new HwpHandsError('INVALID_ARGUMENT', '문서가 설정된 최대 크기를 초과합니다.');
+    if (bytes.byteLength > this.options.maxFileBytes) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '문서가 설정된 최대 크기를 초과합니다.', en: "Document exceeds the configured maximum size." }));
     const diskHash = hash(bytes), recoveryRecord = await this.storage.readRecovery(path, this.maxRecoveryBytes()), recovery = recoveryRecord ? this.decodeRecovery(recoveryRecord, path) : undefined;
     const replayRecovery = !!recovery?.actions.length && recovery.intendedSaveHash !== diskHash;
     const seed = replayRecovery ? recovery.seed : bytes;
@@ -694,7 +695,7 @@ export class DocumentManager {
         recovery.actions = recovery.actions.map((action, index) => 'commands' in action && !action.actor
           ? { ...action, actor: { kind: 'unknown' as const }, editId: 'legacy:' + hash(seed).slice(0, 32) + ':' + index } : action);
         const actorIds = [...actorState.seed.map(entry => entry.id), ...recovery.actions.flatMap(action => 'commands' in action ? [action.editId!] : [])];
-        if (new Set(actorIds).size !== actorIds.length || actorState.approved.some(id => !actorIds.includes(id))) throw new HwpHandsError('VERIFY_FAILED', '복구 원장의 편집 식별자/저장 승인 참조가 올바르지 않습니다.');
+        if (new Set(actorIds).size !== actorIds.length || actorState.approved.some(id => !actorIds.includes(id))) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 원장의 편집 식별자/저장 승인 참조가 올바르지 않습니다.', en: "Invalid recovery ledger edit identifiers/save approval references." }));
         s.actorLedger = new EditActorLedger(actorState.seed, actorState.approved);
         if (legacyActors) { recovery.migrated = true; s.journalNeedsRewrite = true; }
         s.baseHash = recovery.baseHash;
@@ -703,22 +704,22 @@ export class DocumentManager {
           if ('commands' in action) {
             if (action.groupId !== undefined && action.undoBoundary === false) {
               try { for (const command of action.commands) await s.engine.execute(command); }
-              catch (error) { throw new HwpHandsError('VERIFY_FAILED', `복구 작업 ${actionIndex + 1}을 재생할 수 없습니다.`, String(error)); }
+              catch (error) { throw new HwpHandsError('VERIFY_FAILED', LT({ ko: () => `복구 작업 ${actionIndex + 1}을 재생할 수 없습니다.`, en: () => `Cannot replay recovery action ${actionIndex + 1}.` }), String(error)); }
               s.actorLedger.apply(action.actor!, action.editId!);
               continue;
             }
             const snapshot = await s.engine.snapshot();
             s.actorLedger.capture(snapshot);
             try { for (const command of action.commands) await s.engine.execute(command); }
-            catch (error) { await s.engine.restore(snapshot); await this.discardSnapshot(s, snapshot); throw new HwpHandsError('VERIFY_FAILED', `복구 작업 ${actionIndex + 1}을 재생할 수 없습니다.`, String(error)); }
+            catch (error) { await s.engine.restore(snapshot); await this.discardSnapshot(s, snapshot); throw new HwpHandsError('VERIFY_FAILED', LT({ ko: () => `복구 작업 ${actionIndex + 1}을 재생할 수 없습니다.`, en: () => `Cannot replay recovery action ${actionIndex + 1}.` }), String(error)); }
             s.actorLedger.apply(action.actor!, action.editId!);
             s.undo.push(snapshot); s.origins.set(snapshot, actionIndex); await this.trim(s, s.undo); await this.clearHistory(s, s.redo);
           } else {
             const from = action.history === 'redo' ? s.redo : s.undo, to = action.history === 'redo' ? s.undo : s.redo;
-            if (!from.length) throw new HwpHandsError('VERIFY_FAILED', '복구 기록의 실행 취소 순서가 올바르지 않습니다.');
+            if (!from.length) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 기록의 실행 취소 순서가 올바르지 않습니다.', en: "Invalid recovery undo order." }));
             const current = await s.engine.snapshot(), target = from.pop()!;
             s.actorLedger.capture(current);
-            try { await s.engine.restore(target); } catch (error) { await this.discardSnapshot(s, current); throw new HwpHandsError('VERIFY_FAILED', `복구 작업 ${actionIndex + 1}을 재생할 수 없습니다.`, String(error)); }
+            try { await s.engine.restore(target); } catch (error) { await this.discardSnapshot(s, current); throw new HwpHandsError('VERIFY_FAILED', LT({ ko: () => `복구 작업 ${actionIndex + 1}을 재생할 수 없습니다.`, en: () => `Cannot replay recovery action ${actionIndex + 1}.` }), String(error)); }
             s.actorLedger.restore(target);
             await this.discardSnapshot(s, target); s.origins.delete(target); to.push(current); s.origins.set(current, actionIndex); await this.trim(s, to);
           }
@@ -870,17 +871,17 @@ export class DocumentManager {
   }
   private expect(s: Session, expected: number): void {
     integer(expected, 'expectedRevision');
-    if (expected !== s.revision) throw new HwpHandsError('REVISION_CONFLICT', '문서가 변경되었습니다. 현재 상태를 다시 조회하세요.', { expectedRevision: expected, actualRevision: s.revision });
+    if (expected !== s.revision) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '문서가 변경되었습니다. 현재 상태를 다시 조회하세요.', en: "The document changed. Query the current state again." }), { expectedRevision: expected, actualRevision: s.revision });
   }
   private expectQueryContext(s: Session, context: QueryContext): void {
     if (!context || typeof context !== 'object' || typeof context.sessionId !== 'string') throw new HwpHandsError('INVALID_ARGUMENT', 'sessionId and expectedRevision are required for this query.');
     this.expect(s, context.expectedRevision);
-    if (context.sessionId !== s.sessionId) throw new HwpHandsError('REVISION_CONFLICT', '대상 주소가 다른 문서 세션에서 조회되었습니다.', { expectedSessionId: context.sessionId, actualSessionId: s.sessionId });
+    if (context.sessionId !== s.sessionId) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '대상 주소가 다른 문서 세션에서 조회되었습니다.', en: "The target address was queried from a different document session." }), { expectedSessionId: context.sessionId, actualSessionId: s.sessionId });
   }
   private expectAddressContext(s: Session, target: { sessionId?: string; revision?: number } | undefined): void {
     if (!target || typeof target !== 'object') return;
-    if (target.sessionId !== undefined && target.sessionId !== s.sessionId) throw new HwpHandsError('REVISION_CONFLICT', '대상 주소가 다른 문서 세션에서 조회되었습니다.', { expectedSessionId: target.sessionId, actualSessionId: s.sessionId });
-    if (target.revision !== undefined && target.revision !== s.revision) throw new HwpHandsError('REVISION_CONFLICT', '대상 주소가 오래되었습니다. 현재 문서 구조를 다시 조회하세요.', { expectedTargetRevision: target.revision, actualRevision: s.revision });
+    if (target.sessionId !== undefined && target.sessionId !== s.sessionId) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '대상 주소가 다른 문서 세션에서 조회되었습니다.', en: "The target address was queried from a different document session." }), { expectedSessionId: target.sessionId, actualSessionId: s.sessionId });
+    if (target.revision !== undefined && target.revision !== s.revision) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '대상 주소가 오래되었습니다. 현재 문서 구조를 다시 조회하세요.', en: "The target address is stale. Query the current document structure again." }), { expectedTargetRevision: target.revision, actualRevision: s.revision });
   }
   private async probeSaveFormat(s: Session, format: Format): Promise<SaveFormatCapability> {
     try { await this.readableExport(s.engine, pathWithFormat(s.path, format), this.options.maxFileBytes, s.sourceGuard, s.sectionTails); return { available: true }; }
@@ -901,7 +902,7 @@ export class DocumentManager {
     for (const field of fields) { nameCounts.set(field.name, (nameCounts.get(field.name) ?? 0) + 1); idCounts.set(field.fieldId, (idCounts.get(field.fieldId) ?? 0) + 1); }
     const ambiguousFieldNames = [...nameCounts].filter(([, count]) => count > 1).map(([name]) => name).sort();
     const ambiguousFieldIds = [...idCounts].filter(([, count]) => count > 1).map(([id]) => id).sort((a, b) => a - b);
-    const readOnlyReasons = current.available ? [] : [current.reason ?? '현재 형식으로 안전한 저장을 확인하지 못했습니다.'];
+    const readOnlyReasons = current.available ? [] : [current.reason ?? L({ ko: '현재 형식으로 안전한 저장을 확인하지 못했습니다.', en: "Could not verify safe saving in the current format." })];
     const result: DocumentCapabilities = {
       sessionId: s.sessionId, revision: s.revision, format, readOnly: !current.available, readOnlyReasons,
       queries: { text: 'partial', structure: 'partial', formatting: 'partial', layout: 'full', pictureResource: 'partial' },
@@ -912,14 +913,14 @@ export class DocumentManager {
       },
       saveFormats, ambiguousFieldNames, ambiguousFieldIds,
       limitations: [
-        '문자·문단 서식, 표 편집은 공개 명령의 일부 범위만 지원합니다.',
-        '필드 이름 기반 쓰기는 해당 이름이 현재 문서에서 유일할 때만 허용됩니다. fieldId는 이 sessionId/revision 안에서만 유효합니다.',
-        '셀 앵커 각주·미주 본문과 문자 run 서식은 RHWP core 제한으로 조회할 수 없습니다.',
-        '표 구조·셀/표 서식은 root-body 표에서 지원하며 중첩 표 구조 변경은 거절합니다.',
-        '그림·수식·사각형/글상자 삽입과 root-body 개체 속성/삭제를 지원합니다. 차트와 중첩 개체 쓰기는 제공하지 않습니다.',
-        '용지 크기/여백, 본문 페이지 나누기·단 나누기를 지원합니다. 단 정의 및 구역 전체 속성 변경은 제공하지 않습니다.',
+        L({ ko: '문자·문단 서식, 표 편집은 공개 명령의 일부 범위만 지원합니다.', en: "Character/paragraph formatting and table editing support only a subset of public commands." }),
+        L({ ko: '필드 이름 기반 쓰기는 해당 이름이 현재 문서에서 유일할 때만 허용됩니다. fieldId는 이 sessionId/revision 안에서만 유효합니다.', en: "Writing by field name is allowed only when the name is unique in the current document. fieldId is valid only within this sessionId/revision." }),
+        L({ ko: '셀 앵커 각주·미주 본문과 문자 run 서식은 RHWP core 제한으로 조회할 수 없습니다.', en: "Cell-anchored footnote/endnote bodies and character-run formatting cannot be queried due to RHWP core limitations." }),
+        L({ ko: '표 구조·셀/표 서식은 root-body 표에서 지원하며 중첩 표 구조 변경은 거절합니다.', en: "Table structure and cell/table formatting are supported in root-body tables; nested table structural changes are refused." }),
+        L({ ko: '그림·수식·사각형/글상자 삽입과 root-body 개체 속성/삭제를 지원합니다. 차트와 중첩 개체 쓰기는 제공하지 않습니다.', en: "Supports picture/equation/rectangle/text box insertion and root-body object property updates/deletion. Chart and nested object writes are unavailable." }),
+        L({ ko: '용지 크기/여백, 본문 페이지 나누기·단 나누기를 지원합니다. 단 정의 및 구역 전체 속성 변경은 제공하지 않습니다.', en: "Supports paper size/margins, body page breaks, and column breaks. Column definitions and whole-section property changes are unavailable." }),
       ],
-      saveWarnings: ['RHWP 내보내기로 글자·서식·배치가 달라질 수 있습니다. 저장은 재파싱과 첫 페이지 렌더 성공 여부로 판단합니다.', '엔진의 내용 손실 보고는 저장 경고로 전달합니다. query.verify는 별도로 원본 보존 지문과 선택 페이지의 SVG·layout·쪽 수를 비교합니다.'],
+      saveWarnings: [L({ ko: 'RHWP 내보내기로 글자·서식·배치가 달라질 수 있습니다. 저장은 재파싱과 첫 페이지 렌더 성공 여부로 판단합니다.', en: "RHWP export may change text, formatting, or layout. Saving is validated by successful reparsing and first-page rendering." }), L({ ko: '엔진의 내용 손실 보고는 저장 경고로 전달합니다. query.verify는 별도로 원본 보존 지문과 선택 페이지의 SVG·layout·쪽 수를 비교합니다.', en: "Engine content loss reports are forwarded as save warnings. query.verify separately compares original preservation fingerprints and selected-page SVG/layout/page counts." })],
     };
     s.capabilityCache = result;
     s.writePreflight = current;
@@ -929,7 +930,7 @@ export class DocumentManager {
     const format = this.state(s).format;
     const baseline = s.writePreflight ?? (s.capabilityCache?.revision === s.revision ? s.capabilityCache.saveFormats[format] : undefined) ?? await this.probeSaveFormat(s, format);
     s.writePreflight = baseline;
-    if (!baseline.available) throw new HwpHandsError(baseline.errorCode ?? 'VERIFY_FAILED', '현재 형식의 안전한 내보내기 검증에 실패해 문서를 읽기 전용으로 열었습니다.', { readOnlyReasons: [baseline.reason ?? '저장 검증에 실패했습니다.'] });
+    if (!baseline.available) throw new HwpHandsError(baseline.errorCode ?? 'VERIFY_FAILED', L({ ko: '현재 형식의 안전한 내보내기 검증에 실패해 문서를 읽기 전용으로 열었습니다.', en: "Opened read-only because safe export validation failed for the current format." }), { readOnlyReasons: [baseline.reason ?? L({ ko: '저장 검증에 실패했습니다.', en: "Save validation failed." })] });
   }
   private validateCommandContext(s: Session, command: Command): void {
     if (!command || typeof command !== 'object') return;
@@ -959,7 +960,7 @@ export class DocumentManager {
   }
   private async restoreInputGroup(s: Session, groupId: string): Promise<void> {
     const group = s.activeGroup, origin = group && s.origins.get(group.snapshot);
-    if (!group || group.id !== groupId || origin === undefined) throw new HwpHandsError('VERIFY_FAILED', '입력 그룹의 undo 경계를 찾을 수 없습니다.');
+    if (!group || group.id !== groupId || origin === undefined) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '입력 그룹의 undo 경계를 찾을 수 없습니다.', en: "Could not find the input group's undo boundary." }));
     await s.engine.restore(group.snapshot);
     let replaying = false;
     for (const action of s.actions.slice(origin)) {
@@ -1061,9 +1062,9 @@ export class DocumentManager {
     return this.run(path, async path => {
       const s = await this.session(path), generation = this.inputGenerations.get(s.sessionId) ?? 0;
       return this.history(s, this.expectedRevisionOption(options, 'undo'), false, () => {
-        if (signal?.aborted) throw new HwpHandsError('CANCELLED', 'AI 되돌리기가 취소됐습니다.');
+        if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: 'AI 되돌리기가 취소됐습니다.', en: "AI undo was cancelled." }));
         if ((this.inputGenerations.get(s.sessionId) ?? 0) !== generation || !this.stableInput(s.sessionId))
-          throw new HwpHandsError('CANCELLED', '사람이 이 문서에 입력 중이라 AI 편집을 되돌리지 않았습니다.', { reason: 'human-input' });
+          throw new HwpHandsError('CANCELLED', L({ ko: '사람이 이 문서에 입력 중이라 AI 편집을 되돌리지 않았습니다.', en: "AI edits were not undone because a person is typing in this document." }), { reason: 'human-input' });
       }, true);
     });
   }
@@ -1077,11 +1078,11 @@ export class DocumentManager {
     const source = documentPath(path);
     return this.withAutosavePathsPaused([source], 'reload', () => this.run(source, async path => {
       const s = this.sessions.get(path);
-      if (!s || s.sessionId !== options?.sessionId) throw new HwpHandsError('CLOSED', '버릴 작업본이 이미 닫혔거나 다른 세션입니다.');
+      if (!s || s.sessionId !== options?.sessionId) throw new HwpHandsError('CLOSED', L({ ko: '버릴 작업본이 이미 닫혔거나 다른 세션입니다.', en: "The working copy to discard is closed or belongs to another session." }));
       this.expect(s, options.expectedRevision);
-      if (!this.stableInput(s.sessionId)) throw new HwpHandsError('CANCELLED', '사람이 이 문서에 입력 중이라 버리지 않았습니다.', { reason: 'human-input' });
-      if (!s.dirty || s.conflict || s.soleAiActor !== actor.id) throw new HwpHandsError('INVALID_ARGUMENT', '마지막 저장 이후 변경이 모두 이 대화의 AI 편집이라고 확인할 수 없어 버리지 않았습니다.', { reason: 'mixed-edits' });
-      return this.reload(s, true, () => { if (signal?.aborted) throw new HwpHandsError('CANCELLED', 'AI 작업본 버리기가 취소됐습니다.'); });
+      if (!this.stableInput(s.sessionId)) throw new HwpHandsError('CANCELLED', L({ ko: '사람이 이 문서에 입력 중이라 버리지 않았습니다.', en: "Nothing was discarded because a person is typing in this document." }), { reason: 'human-input' });
+      if (!s.dirty || s.conflict || s.soleAiActor !== actor.id) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '마지막 저장 이후 변경이 모두 이 대화의 AI 편집이라고 확인할 수 없어 버리지 않았습니다.', en: "Nothing was discarded because not all changes since the last save could be verified as this conversation's AI edits." }), { reason: 'mixed-edits' });
+      return this.reload(s, true, () => { if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: 'AI 작업본 버리기가 취소됐습니다.', en: "Discarding the AI working copy was cancelled." })); });
     }));
   }
   private async transaction(s: Session, commands: Command[], options: TransactionOptions, actor: EditActor = { kind: 'unknown' }, signal?: AbortSignal): Promise<Receipt> {
@@ -1093,26 +1094,26 @@ export class DocumentManager {
     // eslint-disable-next-line no-control-regex -- Input group IDs must reject control characters.
     if (groupId !== undefined && (typeof groupId !== 'string' || !groupId.length || groupId.length > 128 || /[\u0000-\u001f\u007f]/.test(groupId))) throw new HwpHandsError('INVALID_ARGUMENT', 'groupId must be a non-empty string of at most 128 characters.');
     this.expect(s, expectedRevision as number);
-    if (!Array.isArray(commands) || !commands.length || commands.length > 500) throw new HwpHandsError('INVALID_ARGUMENT', '트랜잭션은 1~500개 명령을 받습니다.');
+    if (!Array.isArray(commands) || !commands.length || commands.length > 500) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '트랜잭션은 1~500개 명령을 받습니다.', en: "Transactions accept 1–500 commands." }));
     for (const command of commands) {
-      if (!command || typeof command !== 'object' || Array.isArray(command) || typeof (command as { type?: unknown }).type !== 'string') throw new HwpHandsError('INVALID_ARGUMENT', '트랜잭션 명령은 type을 가진 객체여야 합니다.');
+      if (!command || typeof command !== 'object' || Array.isArray(command) || typeof (command as { type?: unknown }).type !== 'string') throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '트랜잭션 명령은 type을 가진 객체여야 합니다.', en: "Transaction commands must be objects with type." }));
       this.validateCommandContext(s, command);
       if (command.type === 'insertPicture') imageBase64ByteLength(command.imageBase64);
     }
-    if (commands.length > 1 && commands.some(command => command?.type === 'setFieldById' || command?.type === 'setFields' || command?.type === 'setFieldsAt' || command?.type === 'updateField' || command?.type === 'removeField')) throw new HwpHandsError('INVALID_ARGUMENT', 'fieldId는 조회 revision에 종속되므로 한 트랜잭션에서 단독 명령으로 적용하세요.');
+    if (commands.length > 1 && commands.some(command => command?.type === 'setFieldById' || command?.type === 'setFields' || command?.type === 'setFieldsAt' || command?.type === 'updateField' || command?.type === 'removeField')) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: 'fieldId는 조회 revision에 종속되므로 한 트랜잭션에서 단독 명령으로 적용하세요.', en: "fieldId depends on the queried revision; apply it as the only command in a transaction." }));
     const firstCommand = commands[0] as Command & { target?: { kind?: unknown } } | undefined;
     if (groupId !== undefined && (origin !== 'input' || value.dryRun === true || commands.length !== 1 || (firstCommand?.type !== 'insertText' && firstCommand?.type !== 'deleteText') || firstCommand?.target?.kind !== undefined)) {
-      throw new HwpHandsError('INVALID_ARGUMENT', '입력 그룹은 dryRun이 아닌 단일 본문 insertText/deleteText 명령에만 사용할 수 있습니다.');
+      throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '입력 그룹은 dryRun이 아닌 단일 본문 insertText/deleteText 명령에만 사용할 수 있습니다.', en: "Input groups can only be used for a single body insertText/deleteText command without dryRun." }));
     }
     let serializedCommands: string;
     try { serializedCommands = JSON.stringify(commands); }
-    catch (error) { throw new HwpHandsError('INVALID_ARGUMENT', '트랜잭션 명령은 JSON으로 직렬화할 수 있어야 합니다.', String(error)); }
-    if (Buffer.byteLength(serializedCommands, 'utf8') > MAX_TRANSACTION_BYTES) throw new HwpHandsError('INVALID_ARGUMENT', '트랜잭션 인자 크기가 16 MiB 제한을 초과합니다.');
+    catch (error) { throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '트랜잭션 명령은 JSON으로 직렬화할 수 있어야 합니다.', en: "Transaction commands must be JSON-serializable." }), String(error)); }
+    if (Buffer.byteLength(serializedCommands, 'utf8') > MAX_TRANSACTION_BYTES) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '트랜잭션 인자 크기가 16 MiB 제한을 초과합니다.', en: "Transaction arguments exceed the 16 MiB limit." }));
     const inputGeneration = this.inputGenerations.get(s.sessionId) ?? 0;
     const yieldToHuman = (): void => {
-      if (signal?.aborted) throw new HwpHandsError('CANCELLED', 'AI 편집 또는 미리보기가 취소됐습니다.');
+      if (signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: 'AI 편집 또는 미리보기가 취소됐습니다.', en: "AI editing or preview was cancelled." }));
       if (actor.kind === 'ai' && ((this.inputGenerations.get(s.sessionId) ?? 0) !== inputGeneration || !this.stableInput(s.sessionId)))
-        throw new HwpHandsError('CANCELLED', '사람이 이 문서에 입력 중이라 AI 편집을 적용하지 않았습니다.', { reason: 'human-input' });
+        throw new HwpHandsError('CANCELLED', L({ ko: '사람이 이 문서에 입력 중이라 AI 편집을 적용하지 않았습니다.', en: "AI edits were not applied because a person is typing in this document." }), { reason: 'human-input' });
     };
     yieldToHuman();
     await this.assertWritable(s);
@@ -1187,7 +1188,7 @@ export class DocumentManager {
       if (before !== undefined && !restored) { await s.engine.restore(before); restored = true; }
       else if (continuation) {
         try { await this.restoreInputGroup(s, groupId); }
-        catch (rollbackError) { throw new HwpHandsError('VERIFY_FAILED', '입력 그룹 편집을 원상 복구하지 못했습니다.', { cause: String(error), rollback: String(rollbackError) }); }
+        catch (rollbackError) { throw new HwpHandsError('VERIFY_FAILED', L({ ko: '입력 그룹 편집을 원상 복구하지 못했습니다.', en: "Could not restore the input group edit." }), { cause: String(error), rollback: String(rollbackError) }); }
       }
       throw error;
     } finally { if (restored && before !== undefined) await this.discardSnapshot(s, before); }
@@ -1218,7 +1219,7 @@ export class DocumentManager {
     const [snapshot, objects] = await Promise.all([engine.preservationSnapshot(runs), engine.objects()]);
     const resources: Array<{ address: unknown; controlIndex: number; mimeType: string; byteLength: number; sha256: string }> = [];
     for (const object of objects.filter(item => item.kind === 'picture')) {
-      if (object.resource?.availability !== 'referenced') throw new HwpHandsError('VERIFY_FAILED', `그림 참조 자원을 확인할 수 없습니다: ${object.nodePath}`);
+      if (object.resource?.availability !== 'referenced') throw new HwpHandsError('VERIFY_FAILED', LT({ ko: () => `그림 참조 자원을 확인할 수 없습니다: ${object.nodePath}`, en: () => `Cannot verify picture resource reference: ${object.nodePath}` }));
       const resource = await engine.objectResource({ kind: 'picture', address: object.address, controlIndex: object.controlIndex });
       resources.push({ address: object.address, controlIndex: object.controlIndex, mimeType: resource.mimeType, byteLength: resource.bytes.byteLength, sha256: hash(resource.bytes) });
     }
@@ -1246,10 +1247,10 @@ export class DocumentManager {
       const hasHeaderFooterFileName = (await engine.tree()).stories.some(story => story.kind === 'headerFooter'
         && story.paragraphs.some(paragraph => paragraph.dynamicFields?.some(field => field.type === 'fileName')));
       bytes = await engine.export(targetFormat, hasHeaderFooterFileName ? fileName : undefined);
-      if (maxBytes !== undefined && bytes.byteLength > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', '자동 저장 후보가 바이트 상한을 초과합니다.');
+      if (maxBytes !== undefined && bytes.byteLength > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '자동 저장 후보가 바이트 상한을 초과합니다.', en: "Autosave candidate exceeds the byte limit." }));
     } catch (error) { return fail(error); }
     let copy: EnginePort;
-    try { copy = await this.engineProvider.parse(bytes); } catch (error) { return fail(new HwpHandsError('VERIFY_FAILED', `내보낸 파일을 재파싱할 수 없습니다: ${error instanceof Error ? error.message : String(error)}`)); }
+    try { copy = await this.engineProvider.parse(bytes); } catch (error) { return fail(new HwpHandsError('VERIFY_FAILED', LT({ ko: () => `내보낸 파일을 재파싱할 수 없습니다: ${error instanceof Error ? error.message : String(error)}`, en: () => `Cannot reparse exported file: ${error instanceof Error ? error.message : String(error)}` }))); }
     try {
       let before: PreservationBuckets, after: PreservationBuckets;
       try {
@@ -1257,14 +1258,14 @@ export class DocumentManager {
           ? [await probeSource(), await this.preservationBuckets(copy, 'model')]
           : await Promise.all([this.preservationBuckets(engine), this.preservationBuckets(copy)]);
       }
-      catch (error) { return fail(new HwpHandsError('VERIFY_FAILED', `보존 지문을 완성하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`), await copy.pages()); }
+      catch (error) { return fail(new HwpHandsError('VERIFY_FAILED', LT({ ko: () => `보존 지문을 완성하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`, en: () => `Could not complete preservation fingerprint: ${error instanceof Error ? error.message : String(error)}` })), await copy.pages()); }
       const categories = Object.keys(before.buckets);
       const differences = categories.filter(category => category === 'structure'
         ? !preservationStructureEqual(before.buckets[category], after.buckets[category])
         : JSON.stringify(before.buckets[category]) !== JSON.stringify(after.buckets[category]));
       const afterCount = await copy.pages();
       if (targetFormat === sourceFormat && beforeCount !== afterCount) differences.push('pageCount');
-      if (targetFormat !== sourceFormat && beforeCount !== afterCount) warnings.push(`형식 변환 중 페이지 수가 ${beforeCount}쪽에서 ${afterCount}쪽으로 바뀌었습니다.`);
+      if (targetFormat !== sourceFormat && beforeCount !== afterCount) warnings.push(LT({ ko: () => `형식 변환 중 페이지 수가 ${beforeCount}쪽에서 ${afterCount}쪽으로 바뀌었습니다.`, en: () => `Page count changed from ${beforeCount} to ${afterCount} during format conversion.` }));
       const unsupportedCoverage = [...new Set([...before.coverageWarnings, ...after.coverageWarnings])];
       const rendered: VerificationReport['pages']['rendered'] = [];
       for (const page of pages) {
@@ -1276,8 +1277,8 @@ export class DocumentManager {
           const layoutBeforeHash = hash(Buffer.from(layoutSignature(beforeLayout), 'utf8'));
           const beforeSummary = { page, width: beforeLayout.info.width, height: beforeLayout.info.height, textRunCount: beforeLayout.textRuns.length, controlCount: beforeLayout.controls.length };
           if (page >= afterCount) {
-            diagnostics.push('내보낸 결과에 비교할 쪽이 없습니다.');
-            warnings.push(`${page + 1}쪽 렌더 결과를 내보낸 파일에서 찾지 못했습니다.`);
+            diagnostics.push(L({ ko: '내보낸 결과에 비교할 쪽이 없습니다.', en: "No pages to compare in the exported result." }));
+            warnings.push(LT({ ko: () => `${page + 1}쪽 렌더 결과를 내보낸 파일에서 찾지 못했습니다.`, en: () => `Could not find page ${page + 1} rendering in the exported file.` }));
             rendered.push({ page, before: beforeSummary, diagnostics });
             continue;
           }
@@ -1285,21 +1286,21 @@ export class DocumentManager {
           const svgAfterHash = hash(Buffer.from(afterRender.svg, 'utf8'));
           const layoutAfterHash = hash(Buffer.from(layoutSignature(afterLayout), 'utf8'));
           const svgEqual = svgBeforeHash === svgAfterHash, layoutEqual = layoutBeforeHash === layoutAfterHash;
-          if (!svgEqual) diagnostics.push('렌더된 SVG가 내보내기 전후에 다릅니다.');
-          if (!layoutEqual) diagnostics.push('쪽 크기·텍스트 run·개체 배치가 내보내기 전후에 다릅니다.');
-          if (diagnostics.length) warnings.push(`${page + 1}쪽: ${diagnostics.join(' ')}`);
+          if (!svgEqual) diagnostics.push(L({ ko: '렌더된 SVG가 내보내기 전후에 다릅니다.', en: "Rendered SVG differs before and after export." }));
+          if (!layoutEqual) diagnostics.push(L({ ko: '쪽 크기·텍스트 run·개체 배치가 내보내기 전후에 다릅니다.', en: "Page size, text runs, or object layout differ before and after export." }));
+          if (diagnostics.length) warnings.push(LT({ ko: () => `${page + 1}쪽: ${diagnostics.join(' ')}`, en: () => `Page ${page + 1}: ${diagnostics.join(' ')}` }));
           rendered.push({
             page, before: beforeSummary,
             after: { page, width: afterLayout.info.width, height: afterLayout.info.height, textRunCount: afterLayout.textRuns.length, controlCount: afterLayout.controls.length },
             svgEqual, layoutEqual, svgBeforeHash, svgAfterHash, layoutBeforeHash, layoutAfterHash, diagnostics,
           });
         } catch (error) {
-          diagnostics.push(`쪽 렌더/layout 비교를 완료하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`);
-          warnings.push(`${page + 1}쪽 layout 진단을 완료하지 못했습니다.`);
+          diagnostics.push(LT({ ko: () => `쪽 렌더/layout 비교를 완료하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`, en: () => `Could not complete page render/layout comparison: ${error instanceof Error ? error.message : String(error)}` }));
+          warnings.push(LT({ ko: () => `${page + 1}쪽 layout 진단을 완료하지 못했습니다.`, en: () => `Could not complete page ${page + 1} layout diagnostics.` }));
           rendered.push({ page, diagnostics });
         }
       }
-      if (differences.length) warnings.push(`재파싱 보존 지문이 달라진 영역: ${differences.join(', ')}.`);
+      if (differences.length) warnings.push(LT({ ko: () => `재파싱 보존 지문이 달라진 영역: ${differences.join(', ')}.`, en: () => `Reparsed preservation fingerprint differs in: ${differences.join(', ')}.` }));
       return {
         bytes, targetFormat, passed: differences.length === 0, compared: categories.concat(targetFormat === sourceFormat ? ['pageCount'] : []), differences,
         unsupportedCoverage, pages: { beforeCount, afterCount, delta: afterCount - beforeCount, rendered }, warnings,
@@ -1309,7 +1310,7 @@ export class DocumentManager {
   private async verifiedExport(engine: EnginePort, destination: string, sourceFormat: Format, probeSource?: () => Promise<PreservationBuckets>, maxBytes?: number): Promise<Uint8Array> {
     const result = await this.inspectExport(engine, destination, sourceFormat, [], probeSource, maxBytes);
     if (result.error) throw new HwpHandsError(result.error.code, result.error.message);
-    if (!result.passed || !result.bytes) throw new HwpHandsError('VERIFY_FAILED', '저장 후 재열기 검증에서 원본 보존 지문이 달라졌습니다.', { differences: result.differences, unsupportedCoverage: result.unsupportedCoverage });
+    if (!result.passed || !result.bytes) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '저장 후 재열기 검증에서 원본 보존 지문이 달라졌습니다.', en: "Original preservation fingerprint changed in post-save reopen validation." }), { differences: result.differences, unsupportedCoverage: result.unsupportedCoverage });
     return result.bytes;
   }
   /** User-file save gate: RHWP must be able to reopen and render the exported file. Fidelity is diagnostic only. */
@@ -1329,25 +1330,25 @@ export class DocumentManager {
     const exported = await engine.exportWithReport(format, fileNameFromPath(destination));
     let bytes = exported.bytes;
     const { contentLoss } = exported;
-    if (bytes.byteLength > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', '저장 결과가 설정된 최대 크기를 초과합니다.');
+    if (bytes.byteLength > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '저장 결과가 설정된 최대 크기를 초과합니다.', en: "Saved result exceeds the configured maximum size." }));
     const compatibilityWarnings: string[] = [];
-    if (tails.status === 'unknown') compatibilityWarnings.push('원본 HWP의 바탕쪽 또는 수식 캡션 보존 여부를 확인하지 못했습니다. 한글에서 확인하세요.');
+    if (tails.status === 'unknown') compatibilityWarnings.push(L({ ko: '원본 HWP의 바탕쪽 또는 수식 캡션 보존 여부를 확인하지 못했습니다. 한글에서 확인하세요.', en: "Could not verify preservation of original HWP master pages or equation captions. Check in Hancom Hangul." }));
     else if (tails.status === 'available' && format === 'hwp') {
       const restored = restoreSectionTails(bytes, tails.value);
-      if (restored.skipped || restored.bytes.byteLength > maxBytes) compatibilityWarnings.push('원본의 바탕쪽 또는 수식 캡션을 안전하게 복원하지 못해 엔진 출력으로 저장합니다. 한글에서 확인하세요.');
+      if (restored.skipped || restored.bytes.byteLength > maxBytes) compatibilityWarnings.push(L({ ko: '원본의 바탕쪽 또는 수식 캡션을 안전하게 복원하지 못해 엔진 출력으로 저장합니다. 한글에서 확인하세요.', en: "Could not safely restore original master pages or equation captions; saving the engine output. Check in Hancom Hangul." }));
       else bytes = restored.bytes;
-    } else if (tails.status === 'available' && format === 'hwpx') compatibilityWarnings.push('HWP 바탕쪽·수식 캡션의 보존을 HWPX 변환에서 확인하지 못했습니다.');
+    } else if (tails.status === 'available' && format === 'hwpx') compatibilityWarnings.push(L({ ko: 'HWP 바탕쪽·수식 캡션의 보존을 HWPX 변환에서 확인하지 못했습니다.', en: "Could not verify preservation of HWP master pages/equation captions during HWPX conversion." }));
     const inspectedTabs = inspectNewTabs(bytes, format), tabs = inspectedTabs ?? [], tabWarnings: string[] = [];
-    if (!inspectedTabs) tabWarnings.push('저장 결과의 탭 폭을 검사하지 못했습니다. 한글에서 간격을 확인하세요.');
+    if (!inspectedTabs) tabWarnings.push(L({ ko: '저장 결과의 탭 폭을 검사하지 못했습니다. 한글에서 간격을 확인하세요.', en: "Could not inspect saved tab widths. Check spacing in Hancom Hangul." }));
     let copy: EnginePort | undefined;
     try {
       copy = await this.engineProvider.parse(bytes);
       if (tabs.length) {
-        if (tabs.length === MAX_NEW_TABS) tabWarnings.push(`탭 폭 검사는 최대 ${MAX_NEW_TABS}개까지 수행했습니다. 나머지 탭은 한글에서 확인하세요.`);
+        if (tabs.length === MAX_NEW_TABS) tabWarnings.push(LT({ ko: () => `탭 폭 검사는 최대 ${MAX_NEW_TABS}개까지 수행했습니다. 나머지 탭은 한글에서 확인하세요.`, en: () => `Tab width inspection covered at most ${MAX_NEW_TABS} tabs. Check remaining tabs in Hancom Hangul.` }));
         let fixed: ReturnType<typeof writeTabWidths> | undefined;
         try { fixed = writeTabWidths(bytes, format, await copy.measureTabs(tabs)); } catch { /* leave unmeasured tabs in the engine output */ }
         const remaining = fixed && fixed.bytes.byteLength <= maxBytes ? tabs.length - fixed.written : tabs.length;
-        if (remaining > 0) tabWarnings.push(`새 탭 ${remaining}개의 폭을 확인하지 못해 엔진 출력 그대로 저장합니다. 한글에서 간격을 확인하세요.`);
+        if (remaining > 0) tabWarnings.push(LT({ ko: () => `새 탭 ${remaining}개의 폭을 확인하지 못해 엔진 출력 그대로 저장합니다. 한글에서 간격을 확인하세요.`, en: () => `Could not verify widths of ${remaining} new tabs; saving engine output unchanged. Check spacing in Hancom Hangul.` }));
         if (fixed && fixed.written > 0 && fixed.bytes.byteLength <= maxBytes) {
           bytes = fixed.bytes;
           await copy.free(); copy = undefined;
@@ -1360,28 +1361,28 @@ export class DocumentManager {
         for (const [location, expected] of multipleFields) {
           const actual = reopened.filter(field => fieldLocation(field) === location);
           if (JSON.stringify(expected.map(signature)) !== JSON.stringify(actual.map(signature)))
-            throw new HwpHandsError('CONTENT_LOSS', '한 문단의 여러 필드가 저장 후 달라져 저장을 차단했습니다. 원본과 복구 기록은 보존됩니다.');
+            throw new HwpHandsError('CONTENT_LOSS', L({ ko: '한 문단의 여러 필드가 저장 후 달라져 저장을 차단했습니다. 원본과 복구 기록은 보존됩니다.', en: "Multiple fields in one paragraph changed after saving; saving was blocked. The original and recovery records are preserved." }));
         }
       }
       const pages = await copy.pages();
-      if (!Number.isSafeInteger(pages) || pages < 1) throw new Error('내보낸 파일에 열 수 있는 페이지가 없습니다.');
+      if (!Number.isSafeInteger(pages) || pages < 1) throw new Error(L({ ko: '내보낸 파일에 열 수 있는 페이지가 없습니다.', en: "The exported file has no pages that can be opened." }));
       const page = await copy.page(0);
       if (typeof page.svg !== 'string' || !/<svg\b/.test(page.svg) || !Number.isFinite(page.width) || page.width <= 0
-        || !Number.isFinite(page.height) || page.height <= 0) throw new Error('내보낸 파일의 첫 페이지 렌더가 유효하지 않습니다.');
+        || !Number.isFinite(page.height) || page.height <= 0) throw new Error(L({ ko: '내보낸 파일의 첫 페이지 렌더가 유효하지 않습니다.', en: "The exported file's first-page rendering is invalid." }));
     } catch (error) {
       if (error instanceof HwpHandsError && error.code === 'CONTENT_LOSS') throw error;
       const guidance = format === 'hwp'
-        ? ' 저장 대상에는 기록하지 않았습니다. HWPX로 다른 이름 저장하거나 PDF로 내보내기를 시도할 수 있습니다.'
-        : ' 저장 대상에는 기록하지 않았습니다.';
-      throw new HwpHandsError('VERIFY_FAILED', `내보낸 파일을 다시 열 수 없습니다: ${error instanceof Error ? error.message : String(error)}${guidance}`);
+        ? L({ ko: ' 저장 대상에는 기록하지 않았습니다. HWPX로 다른 이름 저장하거나 PDF로 내보내기를 시도할 수 있습니다.', en: " Nothing was written to the save destination. Try Save As HWPX or exporting to PDF." })
+        : L({ ko: ' 저장 대상에는 기록하지 않았습니다.', en: " Nothing was written to the save destination." });
+      throw new HwpHandsError('VERIFY_FAILED', LT({ ko: () => `내보낸 파일을 다시 열 수 없습니다: ${error instanceof Error ? error.message : String(error)}${guidance}`, en: () => `Cannot reopen exported file: ${error instanceof Error ? error.message : String(error)}${guidance}` }));
     } finally { await copy?.free(); }
     return { bytes, warnings: [...compatibilityWarnings, ...tabWarnings, ...(contentLoss.count > 0
-      ? [`RHWP가 저장 시 내용 손실 ${contentLoss.count}건을 보고했습니다: ${JSON.stringify(contentLoss.losses)}`] : [])] };
+      ? [LT({ ko: () => `RHWP가 저장 시 내용 손실 ${contentLoss.count}건을 보고했습니다: ${JSON.stringify(contentLoss.losses)}`, en: () => `RHWP reported ${contentLoss.count} content loss items during saving: ${JSON.stringify(contentLoss.losses)}` })] : [])] };
   }
   private async checkDisk(s: Session): Promise<Uint8Array> {
     let bytes: Uint8Array;
     try { bytes = await this.storage.read(s.path); } catch (error) { s.conflict = true; this.emit('conflict', s); throw error; }
-    if (hash(bytes) !== s.baseHash) { s.conflict = true; this.emit('conflict', s); throw new HwpHandsError('FILE_CONFLICT', '다른 프로그램이 파일을 변경했습니다. 새 파일로 저장하거나 디스크 파일을 다시 불러오세요.'); }
+    if (hash(bytes) !== s.baseHash) { s.conflict = true; this.emit('conflict', s); throw new HwpHandsError('FILE_CONFLICT', L({ ko: '다른 프로그램이 파일을 변경했습니다. 새 파일로 저장하거나 디스크 파일을 다시 불러오세요.', en: "Another program changed the file. Save to a new file or reload the disk file." })); }
     return bytes;
   }
   private async save(s: Session, expected: number): Promise<SaveResult> {
@@ -1409,7 +1410,7 @@ export class DocumentManager {
         && s.actorLedger.fingerprint() === actors && canonicalSaveJson(this.options) === canonicalSaveJson(options)
         && (this.inputGenerations.get(s.sessionId) ?? 0) === generation && this.stableInput(s.sessionId)
         && !this.transitions.some(t => t.prefixes.some(prefix => within(path, prefix)));
-      const assertCurrent = () => { if (!current()) throw new HwpHandsError('REVISION_CONFLICT', '저장 준비 중 문서·옵션·입력이 변경되었습니다. 다시 준비하고 승인하세요.'); };
+      const assertCurrent = () => { if (!current()) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '저장 준비 중 문서·옵션·입력이 변경되었습니다. 다시 준비하고 승인하세요.', en: "Document, options, or input changed during save preparation. Prepare and approve again." })); };
       assertCurrent(); const original = await this.checkDisk(s); assertCurrent();
       const artifacts: PreparedSaveArtifact[] = [], writeSet: PreparedSave['writeSet'] = [], warnings: string[] = [];
       if (dirty) {
@@ -1419,9 +1420,9 @@ export class DocumentManager {
         artifacts.push({ path, before: original, after: bytes });
         writeSet.push({ path, role: 'primary', op: 'modify', sha256Before: source.baseHash, sha256Expected: outputHash, sizeBytes: bytes.byteLength });
         if (options.autoIndex) {
-          if (!this.storage.readIndex) throw new HwpHandsError('INVALID_ARGUMENT', '준비된 인덱스 저장에는 readIndex가 필요합니다.');
+          if (!this.storage.readIndex) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '준비된 인덱스 저장에는 readIndex가 필요합니다.', en: "Prepared index saving requires readIndex." }));
           const indexPath = `${path}.index.md`, existing = await this.storage.readIndex(indexPath), inspection = existing === undefined ? undefined : inspectIndex(existing);
-          if (existing !== undefined && (inspection?.state !== 'managed' || inspection.source !== path)) warnings.push('사용자가 수정하거나 소유한 인덱스는 저장 대상에서 제외했습니다.');
+          if (existing !== undefined && (inspection?.state !== 'managed' || inspection.source !== path)) warnings.push(L({ ko: '사용자가 수정하거나 소유한 인덱스는 저장 대상에서 제외했습니다.', en: "User-edited or user-owned indexes were excluded from saving." }));
           else {
             const tree = await engine.tree(); assertCurrent();
             const content = makeIndex({ ...this.state(s), dirty: false, conflict: false }, outputHash, tree.paragraphs, tree.tables, tree.fields, tree.stories);
@@ -1440,9 +1441,9 @@ export class DocumentManager {
   resolveNewDocument(destination: string, template?: string): Promise<{ destination: string; template?: { path: string; sha256: string } }> {
     destination = documentPath(destination); template = template === undefined ? undefined : documentPath(template);
     return this.runPaths([destination, ...(template ? [template] : [])], async () => {
-      if (!this.storage.pathKind) throw new HwpHandsError('INVALID_ARGUMENT', '새 경로 검사를 지원하지 않는 저장소입니다.');
-      if (this.sessions.has(destination) || await this.storage.pathKind(destination) !== null) throw new HwpHandsError('FILE_CONFLICT', '새 문서 경로가 이미 있습니다.');
-      if (template && this.sessions.get(template)?.dirty) throw new HwpHandsError('UNSAVED_CHANGES', '템플릿 작업본을 먼저 저장하세요.');
+      if (!this.storage.pathKind) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '새 경로 검사를 지원하지 않는 저장소입니다.', en: "Storage does not support checking new paths." }));
+      if (this.sessions.has(destination) || await this.storage.pathKind(destination) !== null) throw new HwpHandsError('FILE_CONFLICT', L({ ko: '새 문서 경로가 이미 있습니다.', en: "The new document path already exists." }));
+      if (template && this.sessions.get(template)?.dirty) throw new HwpHandsError('UNSAVED_CHANGES', L({ ko: '템플릿 작업본을 먼저 저장하세요.', en: "Save the template working copy first." }));
       return { destination, ...(template ? { template: { path: template, sha256: hash(await this.storage.read(template)) } } : {}) };
     });
   }
@@ -1452,10 +1453,10 @@ export class DocumentManager {
     request.destination = documentPath(request.destination);
     if (request.source) request.source.path = documentPath(request.source.path);
     if (request.template) request.template.path = documentPath(request.template.path);
-    if (request.source && request.template) return Promise.reject(new HwpHandsError('INVALID_ARGUMENT', '사본과 템플릿을 동시에 지정할 수 없습니다.'));
+    if (request.source && request.template) return Promise.reject(new HwpHandsError('INVALID_ARGUMENT', L({ ko: '사본과 템플릿을 동시에 지정할 수 없습니다.', en: "Cannot specify both a copy and a template." })));
     const from = request.source?.path ?? request.template?.path;
     if (from && (from.toLowerCase() === request.destination.toLowerCase() || from.split('.').at(-1)!.toLowerCase() !== request.destination.split('.').at(-1)!.toLowerCase()))
-      return Promise.reject(new HwpHandsError('INVALID_ARGUMENT', '같은 형식의 새 경로를 사용하세요.'));
+      return Promise.reject(new HwpHandsError('INVALID_ARGUMENT', L({ ko: '같은 형식의 새 경로를 사용하세요.', en: "Use a new path with the same format." })));
     const paths = [request.destination, ...(request.source ? [request.source.path] : []), ...(request.template ? [request.template.path] : [])];
     return this.withAutosavePathsPaused(paths, 'commit-prepare', () => this.runPaths(paths, async () => {
       const options = { ...this.options }, s = request.source ? await this.session(request.source.path) : undefined;
@@ -1487,7 +1488,7 @@ export class DocumentManager {
       const paths = [prep.destination, ...(prep.source ? [prep.source.path] : []), ...(prep.template ? [prep.template.path] : [])];
       try {
         await this.withAutosavePathsPaused(paths, 'commit-execute', () => this.runPaths(paths, () => executeNewSave(record, permit, this.storage, async () => {
-          if (prep.source) { const s = this.sessions.get(prep.source.path); if (!s) throw new HwpHandsError('REVISION_CONFLICT', '원본 세션이 닫혔습니다.'); await this.checkDisk(s); }
+          if (prep.source) { const s = this.sessions.get(prep.source.path); if (!s) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '원본 세션이 닫혔습니다.', en: "The original session was closed." })); await this.checkDisk(s); }
         })));
       } catch (error) { receipt.state = 'not_written'; receipt.error = { code: 'REVISION_CONFLICT', message: String(error) }; }
       return this.preparedSaves.finish(record);
@@ -1497,7 +1498,7 @@ export class DocumentManager {
     let attempted = false;
     const assertCurrent = () => {
       if (!permit || !permit.signal || permit.signal.aborted || Date.parse(record.ticket!.expiresAt) <= Date.now()
-        || Date.parse(prep.expiresAt) <= Date.now() || !record.current()) throw new HwpHandsError('REVISION_CONFLICT', '저장 승인 상태가 만료되거나 문서·입력이 변경되었습니다. 다시 준비하고 승인하세요.');
+        || Date.parse(prep.expiresAt) <= Date.now() || !record.current()) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '저장 승인 상태가 만료되거나 문서·입력이 변경되었습니다. 다시 준비하고 승인하세요.', en: "Save approval expired or the document/input changed. Prepare and approve again." }));
       permit.assertAuthorized();
     };
     const failed = (error: unknown) => {
@@ -1507,7 +1508,7 @@ export class DocumentManager {
     const observe = async () => {
       // Observe under the source queue, before subsequent human/autosave writes can run.
       for (const entry of prep.writeSet) {
-        if (entry.kind === 'folder') throw new HwpHandsError('INVALID_ARGUMENT', 'overwrite에는 새 폴더가 없습니다.');
+        if (entry.kind === 'folder') throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: 'overwrite에는 새 폴더가 없습니다.', en: "overwrite has no new folders." }));
         const item = receipt.entries.find(item => item.path === entry.path)!;
         try {
           const bytes = entry.role === 'primary' ? await this.storage.read(entry.path) : await this.storage.readIndex!(entry.path).then(text => text === undefined ? null : Buffer.from(text, 'utf8'));
@@ -1531,9 +1532,9 @@ export class DocumentManager {
           const checkBefore = async () => {
             for (const item of record.artifacts) {
               const bytes = await readArtifact(item), entry = prep.writeSet.find(entry => entry.kind !== 'folder' && entry.path === item.path)!;
-              if (entry.kind === 'folder') throw new HwpHandsError('INVALID_ARGUMENT', '잘못된 overwrite 항목');
-              if ((bytes === null ? null : hash(bytes)) !== entry.sha256Before) throw new HwpHandsError('FILE_CONFLICT', '승인한 저장 대상이 디스크에서 변경되었습니다.');
-              if (hash(item.after) !== entry.sha256Expected) throw new HwpHandsError('VERIFY_FAILED', '준비한 저장 바이트가 변경되었습니다.');
+              if (entry.kind === 'folder') throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '잘못된 overwrite 항목', en: "Invalid overwrite entry" }));
+              if ((bytes === null ? null : hash(bytes)) !== entry.sha256Before) throw new HwpHandsError('FILE_CONFLICT', L({ ko: '승인한 저장 대상이 디스크에서 변경되었습니다.', en: "The approved save destination changed on disk." }));
+              if (hash(item.after) !== entry.sha256Expected) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '준비한 저장 바이트가 변경되었습니다.', en: "Prepared save bytes changed." }));
             }
             assertCurrent(); await this.checkDisk(s); assertCurrent();
           };
@@ -1545,21 +1546,21 @@ export class DocumentManager {
           const primary = record.artifacts[0];
           const result = await this.commitVerifiedExport(s, primary.after, primary.before!, { ...prep.saveOptions, autoIndex: false },
             () => { assertCurrent(); return true; }, () => { assertCurrent(); attempted = true; }, true, checkBefore);
-          if (!result) throw new HwpHandsError('REVISION_CONFLICT', '저장 승인이 변경되었습니다.');
+          if (!result) throw new HwpHandsError('REVISION_CONFLICT', L({ ko: '저장 승인이 변경되었습니다.', en: "Save approval changed." }));
           receipt.warnings.push(...result.warnings);
           // After the primary write starts, finish/observe this revision even if new input arrives. Never retry it.
           for (const item of record.artifacts.slice(1)) {
             const entry = prep.writeSet.find(entry => entry.kind !== 'folder' && entry.path === item.path)!, before = await readArtifact(item);
-            if (entry.kind === 'folder') throw new HwpHandsError('INVALID_ARGUMENT', '잘못된 overwrite 항목');
-            if ((before === null ? null : hash(before)) !== entry.sha256Before) throw new HwpHandsError('FILE_CONFLICT', '원본 저장 후 인덱스 파일이 변경되었습니다.');
+            if (entry.kind === 'folder') throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '잘못된 overwrite 항목', en: "Invalid overwrite entry" }));
+            if ((before === null ? null : hash(before)) !== entry.sha256Before) throw new HwpHandsError('FILE_CONFLICT', L({ ko: '원본 저장 후 인덱스 파일이 변경되었습니다.', en: "The index file changed after saving the original." }));
             await this.checkDisk(s);
             const finalBefore = await readArtifact(item);
-            if ((finalBefore === null ? null : hash(finalBefore)) !== entry.sha256Before) throw new HwpHandsError('FILE_CONFLICT', '인덱스 쓰기 직전에 파일이 변경되었습니다.');
+            if ((finalBefore === null ? null : hash(finalBefore)) !== entry.sha256Before) throw new HwpHandsError('FILE_CONFLICT', L({ ko: '인덱스 쓰기 직전에 파일이 변경되었습니다.', en: "The file changed immediately before writing the index." }));
             let indexError: unknown;
             try { await this.storage.writeIndex(item.path, Buffer.from(item.after).toString('utf8'), path); } catch (error) { indexError = error; }
             const after = await readArtifact(item);
-            if (!after || hash(after) !== entry.sha256Expected) throw indexError instanceof Error ? indexError : new HwpHandsError('VERIFY_FAILED', '준비된 인덱스 저장 후 해시가 일치하지 않습니다.');
-            if (indexError) receipt.warnings.push(`인덱스 쓰기 호출은 오류를 반환했지만 디스크 해시가 일치합니다: ${indexError instanceof Error ? indexError.message : JSON.stringify(indexError)}`);
+            if (!after || hash(after) !== entry.sha256Expected) throw indexError instanceof Error ? indexError : new HwpHandsError('VERIFY_FAILED', L({ ko: '준비된 인덱스 저장 후 해시가 일치하지 않습니다.', en: "Hash mismatch after prepared index save." }));
+            if (indexError) receipt.warnings.push(LT({ ko: () => `인덱스 쓰기 호출은 오류를 반환했지만 디스크 해시가 일치합니다: ${indexError instanceof Error ? indexError.message : JSON.stringify(indexError)}`, en: () => `Index write returned an error, but the disk hash matches: ${indexError instanceof Error ? indexError.message : JSON.stringify(indexError)}` }));
           }
           receipt.state = 'written';
         } catch (error) { failed(error); }
@@ -1638,29 +1639,29 @@ export class DocumentManager {
     try { written = await this.storage.read(s.path); }
     catch (error) {
       s.conflict = true; this.emit('conflict', s);
-      throw new HwpHandsError('VERIFY_FAILED', '저장 후 원본을 다시 읽을 수 없습니다. 백업과 복구 기록을 보존했습니다.', { backupPath, writeError: writeError instanceof Error ? writeError.message : JSON.stringify(writeError ?? ''), verifyError: String(error) });
+      throw new HwpHandsError('VERIFY_FAILED', L({ ko: '저장 후 원본을 다시 읽을 수 없습니다. 백업과 복구 기록을 보존했습니다.', en: "Cannot reread the original after saving. Backups and recovery records were preserved." }), { backupPath, writeError: writeError instanceof Error ? writeError.message : JSON.stringify(writeError ?? ''), verifyError: String(error) });
     }
     const writtenHash = hash(written);
     if (writtenHash !== outputHash) {
       if (writtenHash !== s.baseHash) { s.conflict = true; this.emit('conflict', s); }
-      throw new HwpHandsError('VERIFY_FAILED', '저장 후 디스크 내용이 예상 결과와 다릅니다. 백업과 복구 기록을 보존했습니다.', { backupPath, expectedHash: outputHash, actualHash: writtenHash, writeError: writeError instanceof Error ? writeError.message : JSON.stringify(writeError) });
+      throw new HwpHandsError('VERIFY_FAILED', L({ ko: '저장 후 디스크 내용이 예상 결과와 다릅니다. 백업과 복구 기록을 보존했습니다.', en: "Disk content after saving differs from the expected result. Backups and recovery records were preserved." }), { backupPath, expectedHash: outputHash, actualHash: writtenHash, writeError: writeError instanceof Error ? writeError.message : JSON.stringify(writeError) });
     }
     s.baseHash = hash(bytes); s.dirty = false; s.soleAiActor = undefined; s.conflict = false; s.writePreflight = { available: true };
-    const warnings: string[] = writeError === undefined ? [] : [`쓰기 호출은 오류를 반환했지만 디스크 해시가 저장 결과와 일치합니다: ${writeError instanceof Error ? writeError.message : JSON.stringify(writeError)}`]; let indexPath: string | undefined;
+    const warnings: string[] = writeError === undefined ? [] : [LT({ ko: () => `쓰기 호출은 오류를 반환했지만 디스크 해시가 저장 결과와 일치합니다: ${writeError instanceof Error ? writeError.message : JSON.stringify(writeError)}`, en: () => `Write returned an error, but the disk hash matches the saved result: ${writeError instanceof Error ? writeError.message : JSON.stringify(writeError)}` })]; let indexPath: string | undefined;
     // Automatic saves retain the intended-save marker and the active Undo seed/actions. A later edit
     // rewrites the marker with the new baseHash; manual save retains its existing cleanup contract.
     if (!current || approveActors) s.actorLedger.approveCurrent();
     if (!current) {
-      try { await this.storage.removeRecovery(s.path); s.journalNeedsRewrite = true; s.journalIntendedSaveHash = undefined; s.checkpointAttempt = undefined; } catch (error) { warnings.push(`복구 기록 정리 실패: ${String(error)}`); }
+      try { await this.storage.removeRecovery(s.path); s.journalNeedsRewrite = true; s.journalIntendedSaveHash = undefined; s.checkpointAttempt = undefined; } catch (error) { warnings.push(LT({ ko: () => `복구 기록 정리 실패: ${String(error)}`, en: () => `Recovery cleanup failed: ${String(error)}` })); }
     }
     // Only after the new file is verified on disk, so a failed save never costs an older backup.
     if (backupPath && this.storage.pruneBackups) { try { await this.storage.pruneBackups(s.path); } catch (error) { console.error('HWP Hands backup pruning:', error); } }
-    if (options.autoIndex) { try { indexPath = await this.index(s, !!current); } catch (error) { warnings.push(`원본은 저장했지만 인덱스 생성에 실패했습니다: ${String(error)}`); } }
+    if (options.autoIndex) { try { indexPath = await this.index(s, !!current); } catch (error) { warnings.push(LT({ ko: () => `원본은 저장했지만 인덱스 생성에 실패했습니다: ${String(error)}`, en: () => `The original was saved, but index creation failed: ${String(error)}` })); } }
     this.emit('saved', s); return { ...this.state(s), backupPath, indexPath, warnings };
   }
   private async index(s: Session, reuseCurrent = false): Promise<string> {
     const path = `${s.path}.index.md`;
-    if (s.dirty || s.conflict) throw new HwpHandsError('UNSAVED_CHANGES', '원본을 먼저 저장하세요.');
+    if (s.dirty || s.conflict) throw new HwpHandsError('UNSAVED_CHANGES', L({ ko: '원본을 먼저 저장하세요.', en: "Save the original first." }));
     const sourceHash = s.baseHash, revision = s.revision;
     if (reuseCurrent) {
       const existing = await this.storage.readIndex?.(path), inspection = existing === undefined ? undefined : inspectIndex(existing);
@@ -1670,7 +1671,7 @@ export class DocumentManager {
     }
     const tree = await s.engine.tree();
     await this.checkDisk(s);
-    if (s.baseHash !== sourceHash || s.revision !== revision || s.dirty || s.conflict) throw new HwpHandsError('FILE_CONFLICT', '인덱스 생성 중 원본 문서가 변경되었습니다. 다시 시도하세요.');
+    if (s.baseHash !== sourceHash || s.revision !== revision || s.dirty || s.conflict) throw new HwpHandsError('FILE_CONFLICT', L({ ko: '인덱스 생성 중 원본 문서가 변경되었습니다. 다시 시도하세요.', en: "The original document changed during index creation. Try again." }));
     const content = makeIndex(this.state(s), sourceHash, tree.paragraphs, tree.tables, tree.fields, tree.stories);
     await this.storage.writeIndex(path, content, s.path); return path;
   }
@@ -1698,13 +1699,13 @@ export class DocumentManager {
     return this.storage.removeManagedIndex?.(`${source}.index.md`, source) ?? false;
   }
   private async reload(s: Session, discard: boolean, assertCurrent?: () => void): Promise<State> {
-    if (s.dirty && !discard) throw new HwpHandsError('UNSAVED_CHANGES', '저장되지 않은 변경이 있습니다. discardChanges를 지정하거나 새 파일로 저장하세요.');
+    if (s.dirty && !discard) throw new HwpHandsError('UNSAVED_CHANGES', L({ ko: '저장되지 않은 변경이 있습니다. discardChanges를 지정하거나 새 파일로 저장하세요.', en: "There are unsaved changes. Specify discardChanges or save to a new file." }));
     const resume = this.pauseAutosave(s, 'reload');
     try {
       assertCurrent?.();
       const bytes = await this.storage.read(s.path);
       assertCurrent?.();
-      if (bytes.byteLength > this.options.maxFileBytes) throw new HwpHandsError('INVALID_ARGUMENT', '문서 크기 제한을 초과합니다.');
+      if (bytes.byteLength > this.options.maxFileBytes) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '문서 크기 제한을 초과합니다.', en: "Document size limit exceeded." }));
       const sourceGuard = hwpSourceGuard(s.path, bytes);
       if (sourceGuard === 'tracked') assertHwpSourceSafe(sourceGuard);
       const replacement = await this.engineProvider.parse(bytes);
@@ -1751,7 +1752,7 @@ export class DocumentManager {
     if (path === oldPath) return;
     await this.runPaths([oldPath, path], async () => {
       const s = this.sessions.get(oldPath); if (!s) return;
-      if (this.sessions.has(path)) throw new HwpHandsError('FILE_CONFLICT', '대상 문서 세션이 이미 열려 있습니다.');
+      if (this.sessions.has(path)) throw new HwpHandsError('FILE_CONFLICT', L({ ko: '대상 문서 세션이 이미 열려 있습니다.', en: "The target document session is already open." }));
       const moveRecovery = s.dirty || s.journalIntendedSaveHash !== undefined;
       if (moveRecovery) await this.persistRecovery(s, s.dirty ? undefined : s.baseHash, path);
       this.clearQueryCache(s); this.sessions.delete(oldPath); s.path = path; this.sessions.set(path, s); s.revision = ++this.sequence; s.capabilityCache = undefined; s.writePreflight = undefined;
@@ -1785,7 +1786,7 @@ export class DocumentManager {
       const targets = new Set<string>();
       for (const move of moves) {
         documentPath(move.target);
-        if (targets.has(move.target) || (this.sessions.has(move.target) && !moves.some(other => other.source === move.target))) throw new HwpHandsError('FILE_CONFLICT', `대상 문서 세션이 이미 열려 있습니다: ${move.target}`);
+        if (targets.has(move.target) || (this.sessions.has(move.target) && !moves.some(other => other.source === move.target))) throw new HwpHandsError('FILE_CONFLICT', LT({ ko: () => `대상 문서 세션이 이미 열려 있습니다: ${move.target}`, en: () => `The target document session is already open: ${move.target}` }));
         targets.add(move.target);
       }
       await this.runPaths(moves.flatMap(move => [move.source, move.target]), async () => {
@@ -1869,8 +1870,8 @@ export class DocumentManager {
   }
   private unheldSession(path: string, options: { sessionId: string; expectedRevision: number }): Session {
     const s = this.sessions.get(path);
-    if (!s || s.sessionId !== options?.sessionId) throw new HwpHandsError('CLOSED', '문서 작업본이 이미 닫혔거나 다른 세션입니다.');
-    if (s.references > 0) throw new HwpHandsError('INVALID_ARGUMENT', '다른 화면 또는 API 소비자가 이 문서를 다시 사용하고 있습니다.');
+    if (!s || s.sessionId !== options?.sessionId) throw new HwpHandsError('CLOSED', L({ ko: '문서 작업본이 이미 닫혔거나 다른 세션입니다.', en: "The working copy is closed or belongs to another session." }));
+    if (s.references > 0) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '다른 화면 또는 API 소비자가 이 문서를 다시 사용하고 있습니다.', en: "Another view or API consumer is using this document again." }));
     this.expect(s, options.expectedRevision);
     return s;
   }
@@ -1906,7 +1907,7 @@ export class DocumentManager {
     if (!force && attempt?.seed === s.seed && s.actions.length - attempt.actionCount < CHECKPOINT_RETRY_ACTIONS
       && actionBytes - attempt.actionBytes < CHECKPOINT_RETRY_BYTES) return false;
     const retained = [...s.origins].map(([id, origin]) => ({ id, origin }));
-    if (retained.some(entry => entry.origin === undefined)) throw new HwpHandsError('VERIFY_FAILED', 'undo/redo 복구 위치를 찾을 수 없습니다.');
+    if (retained.some(entry => entry.origin === undefined)) throw new HwpHandsError('VERIFY_FAILED', L({ ko: 'undo/redo 복구 위치를 찾을 수 없습니다.', en: "Could not find the undo/redo recovery position." }));
     const checkpointOrigin = retained.length ? Math.min(...retained.map(entry => entry.origin)) : s.actions.length;
     if (checkpointOrigin <= 0) return false;
     const checkpointId = retained.find(entry => entry.origin === checkpointOrigin)?.id;
@@ -1926,7 +1927,7 @@ export class DocumentManager {
     } finally {
       await s.engine.restore(current); await this.discardSnapshot(s, current);
     }
-    if (seed.byteLength > this.options.maxFileBytes) throw new HwpHandsError('INVALID_ARGUMENT', '복구 체크포인트가 문서 크기 제한을 초과합니다.');
+    if (seed.byteLength > this.options.maxFileBytes) throw new HwpHandsError('INVALID_ARGUMENT', L({ ko: '복구 체크포인트가 문서 크기 제한을 초과합니다.', en: "Recovery checkpoint exceeds the document size limit." }));
     s.actorLedger.seed = checkpointId === undefined ? s.actorLedger.current() : s.actorLedger.at(checkpointId);
     s.seed = seed; s.actions = s.actions.slice(checkpointOrigin); s.actionBytes = actionsSize(s.actions);
     s.commandCount = s.actions.reduce((count, action) => count + ('commands' in action ? action.commands.length : 0), 0);
@@ -1948,13 +1949,13 @@ export class DocumentManager {
     const overLimit = s.actions.length > MAX_RECOVERY_ACTIONS || s.commandCount > MAX_RECOVERY_COMMANDS
       || recoveryExpandedSize(s.seed.byteLength, s.actionBytes, projectedActors) > this.maxRecoveryBytes();
     const checkpointed = await this.checkpointRecovery(s, overLimit);
-    if (s.actions.length > MAX_RECOVERY_ACTIONS) throw new HwpHandsError('INVALID_ARGUMENT', `복구 기록 작업 수가 ${MAX_RECOVERY_ACTIONS}개 제한을 초과합니다.`);
+    if (s.actions.length > MAX_RECOVERY_ACTIONS) throw new HwpHandsError('INVALID_ARGUMENT', LT({ ko: () => `복구 기록 작업 수가 ${MAX_RECOVERY_ACTIONS}개 제한을 초과합니다.`, en: () => `Recovery action count exceeds the ${MAX_RECOVERY_ACTIONS} limit.` }));
     const commandCount = s.commandCount;
-    if (commandCount > MAX_RECOVERY_COMMANDS) throw new HwpHandsError('INVALID_ARGUMENT', `복구 기록 명령 수가 ${MAX_RECOVERY_COMMANDS}개 제한을 초과합니다.`);
+    if (commandCount > MAX_RECOVERY_COMMANDS) throw new HwpHandsError('INVALID_ARGUMENT', LT({ ko: () => `복구 기록 명령 수가 ${MAX_RECOVERY_COMMANDS}개 제한을 초과합니다.`, en: () => `Recovery command count exceeds the ${MAX_RECOVERY_COMMANDS} limit.` }));
     const actors = s.actorLedger.persistent(s.actions.flatMap(action => 'commands' in action ? [action.editId!] : []));
     const maxBytes = this.maxRecoveryBytes();
     const expandedBytes = recoveryExpandedSize(s.seed.byteLength, s.actionBytes, actors);
-    if (expandedBytes > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', `복구 기록이 ${Math.round(maxBytes / 1024 / 1024)} MiB 제한을 초과합니다. 더 작은 단위로 편집하거나 저장하세요.`);
+    if (expandedBytes > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', LT({ ko: () => `복구 기록이 ${Math.round(maxBytes / 1024 / 1024)} MiB 제한을 초과합니다. 더 작은 단위로 편집하거나 저장하세요.`, en: () => `Recovery record exceeds the ${Math.round(maxBytes / 1024 / 1024)} MiB limit. Edit in smaller batches or save.` }));
     if (this.storage.appendRecovery) {
       const rewrite = checkpointed || s.journalNeedsRewrite === true || s.journalTailHash === undefined || intendedSaveHash !== undefined || s.journalIntendedSaveHash !== intendedSaveHash || path !== s.path || s.actions.length !== s.journalActionCount + 1;
       if (rewrite) {
@@ -1967,14 +1968,14 @@ export class DocumentManager {
         let tailHash = header.recordHash;
         for (let index = 0; index < s.actions.length; index++) tailHash = createRecoveryV3Line(index + 1, tailHash, s.actions[index]).hash;
         const recovery: RecoveryV3 = { ...header, actions: structuredClone(s.actions), sequence: s.actions.length, tailHash, truncatedTail: false };
-        if (Buffer.byteLength(encodeRecoveryV3(recovery), 'utf8') > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', `복구 저널이 ${Math.round(maxBytes / 1024 / 1024)} MiB 제한을 초과합니다. 더 작은 단위로 편집하거나 저장하세요.`);
+        if (Buffer.byteLength(encodeRecoveryV3(recovery), 'utf8') > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', LT({ ko: () => `복구 저널이 ${Math.round(maxBytes / 1024 / 1024)} MiB 제한을 초과합니다. 더 작은 단위로 편집하거나 저장하세요.`, en: () => `Recovery journal exceeds the ${Math.round(maxBytes / 1024 / 1024)} MiB limit. Edit in smaller batches or save.` }));
         await this.storage.writeRecovery(path, recovery);
         s.journalSequence = recovery.sequence; s.journalTailHash = recovery.tailHash; s.journalActionCount = s.actions.length; s.journalNeedsRewrite = false; s.journalIntendedSaveHash = intendedSaveHash;
       } else {
         const action = s.actions.at(-1);
-        if (!action || s.journalSequence === undefined || !s.journalTailHash) throw new HwpHandsError('VERIFY_FAILED', '복구 저널 append 위치를 확인할 수 없습니다.');
+        if (!action || s.journalSequence === undefined || !s.journalTailHash) throw new HwpHandsError('VERIFY_FAILED', L({ ko: '복구 저널 append 위치를 확인할 수 없습니다.', en: "Cannot verify the recovery journal append position." }));
         const line = createRecoveryV3Line(s.journalSequence + 1, s.journalTailHash, action);
-        if (Buffer.byteLength(`${JSON.stringify(line)}\n`, 'utf8') > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', `복구 저널이 ${Math.round(maxBytes / 1024 / 1024)} MiB 제한을 초과합니다. 더 작은 단위로 편집하거나 저장하세요.`);
+        if (Buffer.byteLength(`${JSON.stringify(line)}\n`, 'utf8') > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', LT({ ko: () => `복구 저널이 ${Math.round(maxBytes / 1024 / 1024)} MiB 제한을 초과합니다. 더 작은 단위로 편집하거나 저장하세요.`, en: () => `Recovery journal exceeds the ${Math.round(maxBytes / 1024 / 1024)} MiB limit. Edit in smaller batches or save.` }));
         await this.storage.appendRecovery(path, line, maxBytes);
         s.journalSequence = line.seq; s.journalTailHash = line.hash; s.journalActionCount = s.actions.length;
       }
@@ -1991,7 +1992,7 @@ export class DocumentManager {
       payloadHash: hash(compressed)
     };
     const recovery: RecoveryV2 = { ...candidate, recordHash: recoveryRecordHash(candidate) };
-    if (Buffer.byteLength(JSON.stringify(recovery), 'utf8') > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', `복구 파일이 ${Math.round(maxBytes / 1024 / 1024)} MiB 제한을 초과합니다. 더 작은 단위로 편집하거나 저장하세요.`);
+    if (Buffer.byteLength(JSON.stringify(recovery), 'utf8') > maxBytes) throw new HwpHandsError('INVALID_ARGUMENT', LT({ ko: () => `복구 파일이 ${Math.round(maxBytes / 1024 / 1024)} MiB 제한을 초과합니다. 더 작은 단위로 편집하거나 저장하세요.`, en: () => `Recovery file exceeds the ${Math.round(maxBytes / 1024 / 1024)} MiB limit. Edit in smaller batches or save.` }));
     await this.storage.writeRecovery(path, recovery);
     s.actorLedger.retainApprovals(actors.approved);
     s.journalActionCount = s.actions.length; s.journalIntendedSaveHash = intendedSaveHash;

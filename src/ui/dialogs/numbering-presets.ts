@@ -1,3 +1,4 @@
+import { L } from '../../i18n/locale';
 // Numbering shape presets for the "문단 번호 모양" dialog. Number format codes follow the HWP numbering table
 // (0 digits, 1 circled digits, 2/3 upper/lower roman, 4/5 upper/lower latin, 8 Hangul syllables).
 import type { Command } from '../../api';
@@ -13,7 +14,7 @@ export const NUMBERING_PRESETS: readonly NumberingPreset[] = [
 
 export function numberingPreset(id: string): NumberingPreset {
   const preset = NUMBERING_PRESETS.find(item => item.id === id);
-  if (!preset) throw new Error('알 수 없는 번호 모양입니다.');
+  if (!preset) throw new Error(L({ ko: '알 수 없는 번호 모양입니다.', en: "Unknown numbering format." }));
   return preset;
 }
 export function numberingCommand(presetId: string, startNumber: number): Command {

@@ -1,3 +1,4 @@
+import { L } from './i18n/locale';
 import type { CharacterProperties, CharacterRun, HeaderFooterDynamicField } from './api';
 
 export interface PreservedCharacterRun {
@@ -22,21 +23,21 @@ export function normalizeHeaderFooterCharacterRuns(
   for (const run of runs) {
     const text = Array.from(run.text);
     if (!Number.isSafeInteger(run.offset) || run.offset < 0 || run.length !== text.length || run.offset + run.length > textLength) {
-      throw new Error('머리말·꼬리말 문자 서식 범위가 원문과 맞지 않습니다.');
+      throw new Error(L({ ko: '머리말·꼬리말 문자 서식 범위가 원문과 맞지 않습니다.', en: "Header/footer character formatting ranges do not match the original text." }));
     }
     for (let index = 0; index < text.length; index++) {
       const offset = run.offset + index;
-      if (styles[offset]) throw new Error('머리말·꼬리말 문자 서식 범위가 겹칩니다.');
+      if (styles[offset]) throw new Error(L({ ko: '머리말·꼬리말 문자 서식 범위가 겹칩니다.', en: "Header/footer character formatting ranges overlap." }));
       styles[offset] = { properties: run.properties, source: run.source };
     }
   }
-  if (styles.some(style => !style)) throw new Error('머리말·꼬리말 문자 서식 조회 범위가 완전하지 않습니다.');
+  if (styles.some(style => !style)) throw new Error(L({ ko: '머리말·꼬리말 문자 서식 조회 범위가 완전하지 않습니다.', en: "Header/footer character formatting query coverage is incomplete." }));
 
   const ordered = [...fields].sort((left, right) => left.start - right.start || left.end - right.end);
   let priorEnd = 0;
   for (const field of ordered) {
     if (!Number.isSafeInteger(field.start) || !Number.isSafeInteger(field.end) || field.start < priorEnd || field.end <= field.start || field.end > textLength || Array.from(field.marker).length !== 1) {
-      throw new Error('머리말·꼬리말 동적 필드 범위가 올바르지 않습니다.');
+      throw new Error(L({ ko: '머리말·꼬리말 동적 필드 범위가 올바르지 않습니다.', en: "Invalid header/footer dynamic field range." }));
     }
     priorEnd = field.end;
   }

@@ -1,3 +1,4 @@
+import { LT, L } from './i18n/locale';
 import type { Field, FormattingModel, Paragraph } from './api';
 
 export interface BrowseEntry<T> { value: T; label: string; filterText: string }
@@ -12,8 +13,8 @@ export function optimisticHorizontalCaretOffset(text: string, offset: number, mo
 
 export function fieldBrowseEntries(fields: Field[]): BrowseEntry<Field>[] {
   return fields.filter((field): field is Field & { address: NonNullable<Field['address']> } => !!field.address).map(field => {
-    const label = `필드 · ${field.name || '(이름 없음)'} · ${field.value || '(빈 값)'}`;
-    return { value: field, label, filterText: `${label} ${field.fieldId} ${field.address.section + 1}구역 ${field.address.paragraph + 1}문단` };
+    const label = LT({ ko: () => `필드 · ${field.name || '(이름 없음)'} · ${field.value || '(빈 값)'}`, en: () => `Field · ${field.name || '(unnamed)'} · ${field.value || '(empty value)'}` });
+    return { value: field, label, filterText: LT({ ko: () => `${label} ${field.fieldId} ${field.address.section + 1}구역 ${field.address.paragraph + 1}문단`, en: () => `${label} ${field.fieldId} section ${field.address.section + 1} paragraph ${field.address.paragraph + 1}` }) };
   });
 }
 

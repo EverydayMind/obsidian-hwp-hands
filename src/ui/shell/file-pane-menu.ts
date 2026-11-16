@@ -1,3 +1,4 @@
+import { LT, L } from '../../i18n/locale';
 import { Notice, type App, type Menu, type TFile, type WorkspaceLeaf } from 'obsidian';
 
 /** The file explorer's rename prompt. FileManager has it on every supported Obsidian version but does not declare it. */
@@ -23,23 +24,23 @@ export function addFilePaneMenuItems(app: App, menu: Menu, file: TFile, source: 
   report: (error: unknown) => void;
 }): void {
   const run = (action: () => Promise<unknown>) => (): void => { void action().catch(options.report); };
-  menu.addItem(item => item.setSection('open').setTitle('새 탭에서 열기').setIcon('lucide-file-plus')
+  menu.addItem(item => item.setSection('open').setTitle(L({ ko: '새 탭에서 열기', en: "Open in new tab" })).setIcon('lucide-file-plus')
     .onClick(run(() => app.workspace.duplicateLeaf(leaf, 'tab'))));
-  menu.addItem(item => item.setSection('action').setTitle('복사본 생성').setIcon('lucide-files').onClick(run(async () => {
+  menu.addItem(item => item.setSection('action').setTitle(L({ ko: '복사본 생성', en: "Create copy" })).setIcon('lucide-files').onClick(run(async () => {
     const path = availableCopyPath(file, path => !!app.vault.getAbstractFileByPath(path));
     const copyFile = (app.vault as unknown as { copy?: (file: TFile, path: string) => Promise<TFile> }).copy;
     const copy = typeof copyFile === 'function'
       ? await copyFile.call(app.vault, file, path)
       : await app.vault.createBinary(path, await app.vault.readBinary(file));
     new Notice(options.unsaved()
-      ? `디스크에 저장된 내용으로 복사본을 만들었습니다: ${copy.path}\n저장하지 않은 편집은 들어 있지 않습니다.`
-      : `복사본을 만들었습니다: ${copy.path}`);
+      ? LT({ ko: () => `디스크에 저장된 내용으로 복사본을 만들었습니다: ${copy.path}\n저장하지 않은 편집은 들어 있지 않습니다.`, en: () => `Created a copy from disk-saved content: ${copy.path}\nUnsaved edits are not included.` })
+      : LT({ ko: () => `복사본을 만들었습니다: ${copy.path}`, en: () => `Created copy: ${copy.path}` }));
   })));
   const fileManager = app.fileManager as App['fileManager'] & RenamePrompt;
   if (typeof fileManager.promptForFileRename === 'function') {
-    menu.addItem(item => item.setSection('action').setTitle('이름 변경').setIcon('lucide-edit-3').onClick(() => fileManager.promptForFileRename!(file)));
+    menu.addItem(item => item.setSection('action').setTitle(L({ ko: '이름 변경', en: "Rename" })).setIcon('lucide-edit-3').onClick(() => fileManager.promptForFileRename!(file)));
   }
-  menu.addItem(item => item.setSection('danger').setTitle('파일 삭제').setIcon('lucide-trash-2').setWarning(true)
+  menu.addItem(item => item.setSection('danger').setTitle(L({ ko: '파일 삭제', en: "Delete file" })).setIcon('lucide-trash-2').setWarning(true)
     .onClick(run(() => app.fileManager.promptForDeletion(file))));
   app.workspace.trigger('file-menu', menu, file, source, leaf);
 }
