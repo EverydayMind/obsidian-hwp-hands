@@ -28,7 +28,7 @@ Open an HWP or HWPX file. Click on the page to type; edits apply to the document
 
 Commands (command palette): open an HWP/HWPX document, create a new HWPX document, save the current document, generate the Markdown index, recover unapplied input, cancel the current engine task, and clean up stored backups and temporary files.
 
-Settings: open HWP/HWPX by default (turn off if another plugin should handle these files), show editor tools, input preview, back up the original before saving, generate the search index automatically, maximum document size, and keeping a whole document private from AI tools.
+Settings: open HWP/HWPX by default (turn off if another plugin should handle these files), show editor tools, input preview, back up the original before saving, generate the search index automatically, maximum document size, keeping a whole document private from AI tools, and two switches for AI agent tools. By default a host plugin such as Verbex gets only the reading tools; turn on **Allow AI agent editing tools** (and **Allow AI agent save tool** to let the host save through its approval step), reload the plugin, then approve HWP Hands again in the host.
 
 ## API for other plugins
 
@@ -68,4 +68,4 @@ MIT, see [LICENSE](LICENSE). Third-party licenses are listed in [THIRD_PARTY_NOT
 
 ---
 
-**Verbex**, an AI agent plugin for Obsidian that works together with this plugin, is planned for public release.
+**Verbex**, an AI agent plugin for Obsidian that works together with this plugin, is available at [EverydayMind/obsidian-verbex](https://github.com/EverydayMind/obsidian-verbex).

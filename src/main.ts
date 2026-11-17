@@ -1,6 +1,6 @@
 import { LT, L } from './i18n/locale';
 import './i18n/app-locale';
-import { FileSystemAdapter, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder, type App, type Hotkey, type WorkspaceLeaf } from 'obsidian';
+import { FileSystemAdapter, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder, type App, type Command, type Hotkey, type WorkspaceLeaf } from 'obsidian';
 import { rename } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
@@ -37,19 +37,20 @@ import { OffscreenDocumentsModal } from './ui/dialogs/offscreen-documents-modal'
 import { FormatExceptionModal } from './ui/dialogs/format-exception-modal';
 import { offscreenStatusText, offscreenUnsavedDocuments, recoveredAiEditsNotice, type OffscreenDocument } from './ui/shell/offscreen-documents';
 import { installPluginStyles } from './plugin-styles';
+import { DEFAULT_AGENT_TOOL_SETTINGS, setAgentEditing } from './agent/settings'; import { commandDisplayName, newDocumentPath } from './ui/human-input';
 
 interface HwpHandsSettings extends ManagerOptions, InputModeSettings { autoOpenWithEditor: boolean; editorPreviewEnabled: boolean; editorChrome: EditorChrome;
-  /** Internal opt-in, no settings UI. Off until the agent edit tools pass host evaluation and visible acceptance. */
+  /** User opt-in for agent editing tools. */
   agentEditTools: boolean;
-  /** Internal opt-in, no settings UI, used only with agentEditTools. Off until a host's save approval and rollback pass acceptance. */
+  /** User opt-in for the agent save tool, used only with agentEditTools. */
   agentSaveTool: boolean;
   agentPrivacy?: AgentPrivacyData }
-const DEFAULT_PLUGIN_SETTINGS: HwpHandsSettings = { ...DEFAULT_OPTIONS, ...DEFAULT_INPUT_MODE, autoOpenWithEditor: true, editorPreviewEnabled: true, editorChrome: DEFAULT_EDITOR_CHROME, agentEditTools: false, agentSaveTool: false };
+const DEFAULT_PLUGIN_SETTINGS: HwpHandsSettings = { ...DEFAULT_OPTIONS, ...DEFAULT_INPUT_MODE, ...DEFAULT_AGENT_TOOL_SETTINGS, autoOpenWithEditor: true, editorPreviewEnabled: true, editorChrome: DEFAULT_EDITOR_CHROME };
 function managerOptions(settings: HwpHandsSettings): ManagerOptions {
   return { backup: settings.backup, autoIndex: settings.autoIndex, historyLimit: settings.historyLimit, maxFileBytes: settings.maxFileBytes };
 }
 
-export default class HwpHandsPlugin extends Plugin {
+export default class HwpHandsPlugin extends Plugin { addCommand(command: Command): Command { return super.addCommand({ ...command, name: commandDisplayName(command.name) }); }
   api!: HwpHandsApiV1;
   manager!: DocumentManager;
   settings: HwpHandsSettings = { ...DEFAULT_PLUGIN_SETTINGS };
@@ -286,7 +287,7 @@ export default class HwpHandsPlugin extends Plugin {
   createNewDocument(): void {
     const parent = this.app.workspace.getActiveFile()?.parent?.path;
     const prefix = parent && parent !== '/' ? `${parent}/` : '';
-    new PathModal(this.app, L({ ko: '새 HWPX 문서 경로', en: "New HWPX document path" }), LT({ ko: () => `${prefix}새 문서.hwpx`, en: () => `${prefix}New document.hwpx` }), async path => {
+    new PathModal(this.app, L({ ko: '새 HWPX 문서 경로', en: "New HWPX document path" }), LT({ ko: () => `${prefix}새 문서.hwpx`, en: () => `${prefix}New document.hwpx` }), async path => { path = newDocumentPath(path);
       const result = await this.api.documents.create(path);
       for (const warning of result.warnings ?? []) new Notice(warning, 8000);
       const file = this.app.vault.getAbstractFileByPath(path);
@@ -476,6 +477,9 @@ class HwpSettings extends PluginSettingTab {
       }));
     new Setting(this.containerEl).setName(L({ ko: '저장 전 원본 백업', en: "Back up original before saving" })).setDesc(L({ ko: '플러그인 폴더에 저장 전 파일을 문서별 최신 3개까지 보관합니다. 저장이 확인되면 그보다 오래된 백업은 지웁니다.', en: "Keeps up to three latest pre-save backups per document in the plugin folder. Deletes older backups after saving is verified." })).addToggle(t => t.setValue(this.plugin.settings.backup).onChange(async value => { this.plugin.settings.backup = value; await this.persist(); }));
     new Setting(this.containerEl).setName(L({ ko: '저장·외부 변경 후 검색 인덱스 자동 생성', en: "Automatically create search index after saving/external changes" })).setDesc(L({ ko: '원본 옆 .index.md를 저장, 외부 수정, 이름 변경 뒤 갱신합니다. 직접 편집하거나 사용자 소유로 확인되는 인덱스는 보존합니다.', en: "Updates the adjacent .index.md after saving, external edits, or renaming. Preserves indexes edited directly or identified as user-owned." })).addToggle(t => t.setValue(this.plugin.settings.autoIndex).onChange(async value => { this.plugin.settings.autoIndex = value; await this.persist(); }));
+    new Setting(this.containerEl).setName(L({ ko: 'AI 에이전트 도구', en: "AI agent tools" })).setHeading();
+    new Setting(this.containerEl).setName(L({ ko: 'AI 에이전트 편집 도구 허용', en: "Allow AI agent editing tools" })).setDesc(L({ ko: '켜면 Verbex 같은 호스트 플러그인에 한글 문서 편집 도구가 노출됩니다. 편집은 작업본에만 적용되고 파일은 바뀌지 않습니다. 도구 목록이 바뀌므로 호스트에서 HWP Hands를 다시 승인해야 합니다. 플러그인을 다시 불러오면 적용됩니다.', en: "When enabled, host plugins such as Verbex can use the document editing tools. Edits apply to the working copy only; the file is not changed. Because the tool list changes, approve HWP Hands again in the host. Applies after reloading the plugin." })).addToggle(t => t.setValue(this.plugin.settings.agentEditTools).onChange(async value => { setAgentEditing(this.plugin.settings, value); await this.persist(); this.display(); }));
+    new Setting(this.containerEl).setName(L({ ko: 'AI 에이전트 저장 도구 허용', en: "Allow AI agent save tool" })).setDesc(L({ ko: '켜면 호스트가 작업본을 파일로 저장하는 도구를 쓸 수 있습니다. 저장은 호스트의 승인 절차를 거칩니다. 편집 도구가 켜져 있어야 합니다. 바꾼 뒤 호스트에서 다시 승인해야 합니다. 플러그인을 다시 불러오면 적용됩니다.', en: "When enabled, the host can use the tool that saves the working copy to the file. Saving goes through the host's approval. Requires the editing tools. Approve HWP Hands again in the host after changing this. Applies after reloading the plugin." })).addToggle(t => t.setValue(this.plugin.settings.agentSaveTool).setDisabled(!this.plugin.settings.agentEditTools).onChange(async value => { this.plugin.settings.agentSaveTool = value; await this.persist(); }));
     const privatePaths = this.plugin.aiPrivatePaths();
     new Setting(this.containerEl).setName(L({ ko: '문서 전체 AI 비공개', en: "Entire-document AI privacy" })).setHeading();
     this.containerEl.createEl('p', { text: privatePaths === null

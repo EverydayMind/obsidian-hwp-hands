@@ -45,7 +45,7 @@ export class PathModal extends FocusReturnModal {
     this.contentEl.createEl('h3', { text: this.label });
     const input = this.contentEl.createEl('input', { cls: 'hwp-path-input', type: 'text', value: this.initial });
     const submit = this.contentEl.createEl('button', { text: L({ ko: '확인', en: "Confirm" }), cls: 'mod-cta' });
-    const run = async () => { submit.disabled = true; try { await this.action(input.value.trim().replaceAll('\\', '/')); this.close(); } catch (error) { new Notice(String(error), 8000); submit.disabled = false; } };
+    const run = async () => { submit.disabled = true; try { await this.action(input.value.trim().replaceAll('\\', '/')); this.close(); } catch (error) { new Notice(error instanceof Error ? error.message : String(error), 8000); submit.disabled = false; } };
     submit.addEventListener('click', () => void run()); input.addEventListener('keydown', e => { if (e.key === 'Enter') void run(); }); input.focus(); input.select();
   }
   onClose(): void { this.contentEl.empty(); this.restoreFocus(); this.onClosed?.(); }
@@ -70,7 +70,7 @@ export class SaveAsModal extends FocusReturnModal {
       catch (error) { status.setText(String(error)); path.focus(); return; }
       submit.disabled = true; status.setText(LT({ ko: () => `${format.value.toUpperCase()}로 저장하고 재파싱 보존 검사를 확인하는 중…`, en: () => `Saving as ${format.value.toUpperCase()} and checking reparsed preservation…` }));
       try { await this.action(destination, format.value as HwpDocumentFormat); this.close(); }
-      catch (error) { status.setText(LT({ ko: () => `저장하지 않았습니다: ${String(error)}`, en: () => `Not saved: ${String(error)}` })); new Notice(String(error), 8000); submit.disabled = false; }
+      catch (error) { status.setText(LT({ ko: () => `저장하지 않았습니다: ${String(error)}`, en: () => `Not saved: ${String(error)}` })); new Notice(error instanceof Error ? error.message : String(error), 8000); submit.disabled = false; }
     };
     submit.addEventListener('click', () => void run());
     path.addEventListener('keydown', event => { if (event.key === 'Enter') void run(); });
@@ -287,7 +287,7 @@ export class ClickHereFieldModal extends FocusReturnModal {
       if (!fieldName) { name.focus(); new Notice(L({ ko: '필드 이름을 입력하세요.', en: "Enter a field name." })); return; }
       submit.disabled = true;
       try { await this.action({ name: fieldName, guide: guide.value, memo: memo.value, editable: editable.checked }); this.close(); }
-      catch (error) { new Notice(String(error), 8000); submit.disabled = false; }
+      catch (error) { new Notice(error instanceof Error ? error.message : String(error), 8000); submit.disabled = false; }
     };
     submit.addEventListener('click', () => void run());
     for (const input of [name, guide, memo]) input.addEventListener('keydown', event => { if (event.key === 'Enter') void run(); });
@@ -314,7 +314,7 @@ export class CharacterTableModal extends FocusReturnModal {
         const button = grid.createEl('button', { text: entry.character, attr: { type: 'button', 'aria-label': label, title: `${entry.category} · ${entry.codePoint}` } });
         button.addEventListener('click', () => {
           button.disabled = true;
-          void this.action(entry.character).then(() => this.close()).catch(error => {
+          void this.action(entry.character).then(() => this.close()).catch((cause: unknown) => { const error = cause instanceof Error ? cause.message : cause;
             new Notice(LT({ ko: () => `문자를 삽입하지 못했습니다: ${String(error)}`, en: () => `Could not insert character: ${String(error)}` }), 8000);
             button.disabled = false;
           });
@@ -834,7 +834,7 @@ export class ConfirmDiscard extends FocusReturnModal {
     this.contentEl.createEl('p', { text: L({ ko: '현재 편집 세션과 미적용 입력을 버리고 디스크 파일을 다시 읽습니다. 변경을 보존하려면 먼저 새 파일로 저장하거나 입력 복구 목록에 보관하세요.', en: "Discards the current editing session and unapplied input, then rereads the disk file. To preserve changes, first save as a new file or keep the input in the recovery list." }) });
     const cancel = this.contentEl.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.onclick = () => this.close(); cancel.focus();
     const discard = this.contentEl.createEl('button', { text: L({ ko: '변경 버리고 불러오기', en: "Discard changes and reload" }), cls: 'mod-warning' });
-    discard.onclick = () => { void this.action().then(() => this.close()).catch(error => new Notice(String(error))); };
+    discard.onclick = () => { void this.action().then(() => this.close()).catch(error => new Notice(error instanceof Error ? error.message : String(error))); };
   }
   onClose(): void { this.contentEl.empty(); this.restoreFocus(); }
 }
@@ -867,7 +867,7 @@ export class ConfirmInputDraftDiscard extends FocusReturnModal {
     this.contentEl.createEl('p', { text: L({ ko: '이 입력 복구본을 영구적으로 삭제합니다. 원본 문서에는 적용하지 않습니다.', en: "Permanently deletes this input recovery copy. Does not apply it to the original document." }) });
     const cancel = this.contentEl.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.onclick = () => this.close(); cancel.focus();
     const discard = this.contentEl.createEl('button', { text: L({ ko: '복구본 폐기', en: "Discard recovery copy" }), cls: 'mod-warning' });
-    discard.onclick = () => { discard.disabled = true; void this.action().then(() => this.close()).catch(error => { new Notice(String(error), 8000); discard.disabled = false; }); };
+    discard.onclick = () => { discard.disabled = true; void this.action().then(() => this.close()).catch(error => { new Notice(error instanceof Error ? error.message : String(error), 8000); discard.disabled = false; }); };
   }
   onClose(): void { this.contentEl.empty(); this.restoreFocus(); }
 }
@@ -928,7 +928,7 @@ export class StorageCleanupModal extends FocusReturnModal {
         cleanup.disabled = true;
         void this.plugin.manager.cleanupStorage(plan.candidates.map(item => item.path))
           .then(async removed => { new Notice(LT({ ko: () => `${removed.length}개 보관 파일을 정리했습니다.`, en: () => `Cleaned up ${removed.length} stored files.` })); await this.refresh(); })
-          .catch(error => { new Notice(LT({ ko: () => `정리하지 못했습니다: ${String(error)}`, en: () => `Could not clean up: ${String(error)}` }), 8000); cleanup.disabled = false; });
+          .catch((cause: unknown) => { const error = cause instanceof Error ? cause.message : cause; new Notice(LT({ ko: () => `정리하지 못했습니다: ${String(error)}`, en: () => `Could not clean up: ${String(error)}` }), 8000); cleanup.disabled = false; });
       };
     } catch (error) {
       this.statusEl.setText(LT({ ko: () => `정리 후보를 읽지 못했습니다: ${String(error)}`, en: () => `Could not read cleanup candidates: ${String(error)}` }));
