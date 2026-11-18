@@ -20,7 +20,7 @@ export function styleFields(mode: 'create' | 'edit', style: StyleDefinition | un
   return [
     { key: 'name', label: L({ ko: '스타일 이름', en: "Style name" }), kind: 'text', value: style?.name ?? '', required: true, maxLength: 60 },
     { key: 'englishName', label: L({ ko: '영문 이름', en: "English name" }), kind: 'text', value: style?.englishName ?? '', maxLength: 60 },
-    ...(mode === 'create' ? [{ key: 'kind', label: L({ ko: '종류', en: "Type" }), kind: 'select', value: 'paragraph', options: [['paragraph', L({ ko: '문단 스타일', en: "paragraph style" })], ['character', L({ ko: '글자 스타일', en: "Character style" })]] } as FormField] : []),
+    ...(mode === 'create' ? [{ key: 'kind', label: L({ ko: '종류', en: "Type" }), kind: 'select', value: 'paragraph', options: [['paragraph', L({ ko: '문단 스타일', en: "Paragraph style" })], ['character', L({ ko: '글자 스타일', en: "Character style" })]] } as FormField] : []),
     { key: 'nextStyleId', label: L({ ko: '다음 문단에 쓸 스타일', en: "Next paragraph style" }), kind: 'select', value: mode === 'create' ? 'self' : String(style?.nextStyleId ?? 0), options: nextOptions },
     { key: 'fontFamily', label: L({ ko: '글꼴', en: "Font" }), kind: 'text', value: typeof char.fontFamily === 'string' ? char.fontFamily : '', maxLength: 64 },
     { key: 'fontSize', label: L({ ko: '글자 크기', en: "Font size" }), kind: 'number', value: round(finite(char.fontSize, 10), 1), min: 1, max: 1000, unit: 'pt' },
@@ -29,7 +29,7 @@ export function styleFields(mode: 'create' | 'edit', style: StyleDefinition | un
     { key: 'underline', label: L({ ko: '밑줄', en: "Underline" }), kind: 'checkbox', value: char.underline === true },
     { key: 'strikethrough', label: L({ ko: '취소선', en: "Strikethrough" }), kind: 'checkbox', value: char.strikethrough === true },
     { key: 'textColor', label: L({ ko: '글자 색', en: "Text color" }), kind: 'color', value: typeof char.textColor === 'string' && /^#[0-9a-f]{6}$/i.test(char.textColor) ? char.textColor : '#000000' },
-    { key: 'alignment', label: L({ ko: '정렬', en: "Sort" }), kind: 'select', value: alignment, options: ALIGNMENTS },
+    { key: 'alignment', label: L({ ko: '정렬', en: "Alignment" }), kind: 'select', value: alignment, options: ALIGNMENTS },
     { key: 'marginLeft', label: L({ ko: '왼쪽 여백', en: "Left margin" }), kind: 'number', value: mm(para.marginLeft), min: -1000, max: 1000, unit: 'mm' },
     { key: 'marginRight', label: L({ ko: '오른쪽 여백', en: "Right margin" }), kind: 'number', value: mm(para.marginRight), min: -1000, max: 1000, unit: 'mm' },
     { key: 'indent', label: L({ ko: '첫 줄 들여쓰기', en: "First-line indent" }), kind: 'number', value: mm(para.indent), min: -1000, max: 1000, unit: 'mm' },

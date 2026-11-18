@@ -13,7 +13,7 @@ export class ConfirmActionModal extends FocusReturnModal {
   onOpen(): void {
     this.contentEl.createEl('h3', { text: this.options.title });
     this.contentEl.createEl('p', { text: this.options.message });
-    const cancel = this.contentEl.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.addEventListener('click', () => this.finish(false)); cancel.focus();
+    const cancel = this.contentEl.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }); cancel.addEventListener('click', () => this.finish(false)); cancel.focus();
     this.contentEl.createEl('button', { text: this.options.confirmLabel, cls: 'mod-warning' }).addEventListener('click', () => this.finish(true));
   }
   onClose(): void { this.finish(false); this.contentEl.empty(); this.restoreFocus(); }

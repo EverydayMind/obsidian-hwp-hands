@@ -33,9 +33,9 @@ export class BookmarkModal extends FocusReturnModal {
     const name = nameRow.createEl('input', { type: 'text', attr: { id: 'hwp-bookmark-name', 'aria-label': L({ ko: '책갈피 이름', en: "Bookmark name" }), maxlength: '250' } });
     const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
     const goButton = buttons.createEl('button', { text: L({ ko: '이동', en: "Go" }) });
-    const addButton = buttons.createEl('button', { text: L({ ko: '추가', en: "add" }), cls: 'mod-cta' });
+    const addButton = buttons.createEl('button', { text: L({ ko: '추가', en: "Add" }), cls: 'mod-cta' });
     const renameButton = buttons.createEl('button', { text: L({ ko: '이름 바꾸기', en: "Rename" }) });
-    const deleteButton = buttons.createEl('button', { text: L({ ko: '삭제', en: "delete" }), cls: 'mod-warning' });
+    const deleteButton = buttons.createEl('button', { text: L({ ko: '삭제', en: "Delete" }), cls: 'mod-warning' });
     buttons.createEl('button', { text: L({ ko: '닫기', en: "Close" }) }).addEventListener('click', () => this.close());
 
     let bookmarks: Bookmark[] = [];
@@ -75,7 +75,7 @@ export class BookmarkModal extends FocusReturnModal {
       const message = validateBookmarkName(name.value, bookmarks.map(item => item.name));
       if (message) { status.setText(message); name.focus(); return; }
       const value = name.value.trim();
-      void run(L({ ko: '추가', en: "add" }), () => this.actions.add(value), () => value);
+      void run(L({ ko: '추가', en: "Add" }), () => this.actions.add(value), () => value);
     });
     renameButton.addEventListener('click', () => {
       const item = selected(); if (!item) return;
@@ -84,7 +84,7 @@ export class BookmarkModal extends FocusReturnModal {
       const value = name.value.trim();
       void run(L({ ko: '이름 바꿈', en: "Renamed" }), () => this.actions.rename(item.name, value), () => value);
     });
-    deleteButton.addEventListener('click', () => { const item = selected(); if (item) void run(L({ ko: '삭제', en: "delete" }), () => this.actions.remove(item.name)); });
+    deleteButton.addEventListener('click', () => { const item = selected(); if (item) void run(L({ ko: '삭제', en: "Delete" }), () => this.actions.remove(item.name)); });
     name.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); if (!addButton.disabled) addButton.click(); } });
     void render().then(() => name.focus());
   }

@@ -16,8 +16,8 @@ export const HEADER_FOOTER_TEMPLATES = [
 ] as const;
 export const headerFooterCommandId = (isHeader: boolean, applyTo: number, templateId: number): string =>
   `page.${isHeader ? 'header' : 'footer'}-${applyTo}-template-${templateId}`;
-const headerFooterMenu = (isHeader: boolean): MenuDefinitionItem => ({ kind: 'submenu', label: isHeader ? L({ ko: '머리말', en: "header" }) : L({ ko: '꼬리말', en: "footer" }), items:
-  ([[L({ ko: '양쪽', en: "Justified" }), 0], [L({ ko: '홀수 쪽', en: "Odd pages" }), 2], [L({ ko: '짝수 쪽', en: "Even pages" }), 1]] as const).map(([label, applyTo]) => ({ kind: 'submenu', label, items:
+const headerFooterMenu = (isHeader: boolean): MenuDefinitionItem => ({ kind: 'submenu', label: isHeader ? L({ ko: '머리말', en: "Header" }) : L({ ko: '꼬리말', en: "Footer" }), items:
+  ([[L({ ko: '양쪽', en: "Both pages" }), 0], [L({ ko: '홀수 쪽', en: "Odd pages" }), 2], [L({ ko: '짝수 쪽', en: "Even pages" }), 1]] as const).map(([label, applyTo]) => ({ kind: 'submenu', label, items:
     HEADER_FOOTER_TEMPLATES.flatMap((name, templateId) => [
       ...(templateId === 1 ? [separator()] : []),
       { kind: 'command' as const, id: headerFooterCommandId(isHeader, applyTo, templateId), label: templateId === 0 ? LT({ ko: () => `빈 ${isHeader ? '머리말' : '꼬리말'}`, en: () => `Empty ${isHeader ? 'header' : 'footer'}` }) : name },
@@ -69,7 +69,7 @@ export const EDITOR_MENU_DEFINITION: ReadonlyArray<{ label: string; items: MenuD
     submenu(L({ ko: '글자 효과', en: "Character effects" }), commands('format.emboss', 'format.engrave', 'format.outline', 'format.superscript', 'format.subscript')),
     separator(), ...commands('format.font-size-increase', 'format.font-size-decrease'),
     submenu(L({ ko: '장평/자간', en: "Character width/spacing" }), commands('format.ratio-increase', 'format.ratio-decrease', 'format.character-spacing-increase', 'format.character-spacing-decrease')),
-    separator(), submenu(L({ ko: '정렬', en: "Sort" }), commands('format.align-left', 'format.align-center', 'format.align-right', 'format.align-justify', 'format.align-distribute', 'format.align-split')),
+    separator(), submenu(L({ ko: '정렬', en: "Alignment" }), commands('format.align-left', 'format.align-center', 'format.align-right', 'format.align-justify', 'format.align-distribute', 'format.align-split')),
     ...commands('format.line-spacing-increase', 'format.line-spacing-decrease'),
     separator(), ...commands('format.numbering-define'), unavailable(L({ ko: '글머리표 모양', en: "Bullet format" }), L({ ko: 'RHWP 코어에 글머리표 정의 API가 없습니다.', en: "RHWP core has no bullet definition API." })),
     ...commands('format.toggle-numbering', 'format.toggle-bullet', 'format.list-level-down', 'format.list-level-up'),

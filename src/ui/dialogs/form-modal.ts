@@ -78,7 +78,7 @@ export class FormModal extends FocusReturnModal {
     if (options.preview) this.preview = new DialogSvgPreview(this.contentEl.createDiv({ cls: 'hwp-equation-preview', attr: { role: 'status', 'aria-live': 'polite' } }), options.preview);
     refreshEnabled();
     const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
-    buttons.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }).addEventListener('click', () => this.close());
+    buttons.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }).addEventListener('click', () => this.close());
     const apply = buttons.createEl('button', { text: options.submitLabel ?? L({ ko: '적용', en: "Apply" }), cls: 'mod-cta' });
     const submit = (): void => {
       if (apply.disabled) return;

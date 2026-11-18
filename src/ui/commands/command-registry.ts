@@ -1,5 +1,5 @@
-import { LT, L } from '../../i18n/locale';
-import { HEADER_FOOTER_TEMPLATES, headerFooterCommandId } from '../shell/menu-definition';
+import { LT, L, getLocale, type Locale } from '../../i18n/locale';
+import { EDITOR_MENU_DEFINITION, HEADER_FOOTER_TEMPLATES, headerFooterCommandId, type MenuDefinitionItem } from '../shell/menu-definition';
 
 export interface EditorCommand {
   id: string;
@@ -185,6 +185,74 @@ export const EDITOR_COMMAND_CATALOG = [
 ] as const;
 
 export type EditorCommandId = typeof EDITOR_COMMAND_CATALOG[number]['id'];
+
+/** Editor commands omitted from the Obsidian command palette (covered by global commands, duplicated, or always disabled). */
+export const EXCLUDED_PALETTE_COMMAND_IDS: ReadonlySet<string> = new Set([
+  'file.save',
+  'file.refresh-index',
+  'file.new-document',
+  'file.open',
+  'edit.recover-input',
+  'view.toggle-all-chrome',
+  'edit.document-history',
+  'insert.hyperlink',
+]);
+
+const ID_PREFIX_CATEGORIES: Readonly<Record<string, { ko: string; en: string }>> = {
+  file: { ko: '파일', en: "File" },
+  edit: { ko: '편집', en: "Edit" },
+  view: { ko: '보기', en: "View" },
+  insert: { ko: '입력', en: "Insert" },
+  format: { ko: '서식', en: "Format" },
+  page: { ko: '쪽', en: "Page" },
+  table: { ko: '표', en: "Table" },
+  object: { ko: '개체', en: "Object" },
+  field: { ko: '필드', en: "Field" },
+  story: { ko: '영역', en: "Area" },
+  tool: { ko: '도구', en: "Tools" },
+};
+
+const MENU_CATEGORY_BY_COMMAND = (() => {
+  const map = new Map<string, string>();
+  const walk = (items: readonly MenuDefinitionItem[], category: string): void => {
+    for (const item of items) {
+      if (item.kind === 'command') { if (!map.has(item.id)) map.set(item.id, category); }
+      else if (item.kind === 'submenu') walk(item.items, category);
+    }
+  };
+  for (const group of EDITOR_MENU_DEFINITION) walk(group.items, group.label);
+  return map;
+})();
+
+function paletteCategory(id: string, locale: Locale): string | undefined {
+  const fromMenu = MENU_CATEGORY_BY_COMMAND.get(id);
+  if (fromMenu) return fromMenu;
+  const prefix = id.split('.')[0] ?? '';
+  const entry = ID_PREFIX_CATEGORIES[prefix];
+  return entry ? L(entry, locale) : undefined;
+}
+
+/** Formats an editor command name for the Obsidian command palette without changing its catalog label. */
+export function paletteName(command: { id: string; label: string }, locale: Locale = getLocale()): string {
+  const zoom = /^view\.zoom-(\d+)$/.exec(command.id);
+  if (zoom) return LT({ ko: () => `보기: 배율 ${zoom[1]}%`, en: () => `View: Zoom ${zoom[1]}%` }, locale);
+  const headerFooter = /^page\.(?:header|footer)-([012])-template-\d+$/.exec(command.id);
+  if (headerFooter) {
+    const scope = headerFooter[1] === '0'
+      ? L({ ko: '양쪽', en: 'both pages' }, locale)
+      : headerFooter[1] === '2'
+        ? L({ ko: '홀수 쪽', en: 'odd pages' }, locale)
+        : L({ ko: '짝수 쪽', en: 'even pages' }, locale);
+    return `${command.label} (${scope})`;
+  }
+  if (/^[a-z]/.test(command.label)) {
+    const category = paletteCategory(command.id, locale);
+    const sentence = `${command.label.charAt(0).toUpperCase()}${command.label.slice(1)}`;
+    return category ? `${category}: ${sentence}` : sentence;
+  }
+  return command.label;
+}
+
 export function editorCommandDefinition(id: string): typeof EDITOR_COMMAND_CATALOG[number] | undefined {
   return EDITOR_COMMAND_CATALOG.find(command => command.id === id);
 }

@@ -1,7 +1,7 @@
 import { L as select, LT as selectLazy, getLocale, type Locale } from '../i18n/locale';
 import type { Json } from '../api';
 type JsonObject = { [key: string]: Json };
-const MAX_BLOCKS = 80, MAX_MATCHES = 20;
+const MAX_BLOCKS = 80, MAX_MATCHES = 20, both = (pair: { ko: string | string[]; en: string | string[] }): string[] => [pair.ko, pair.en].flat(), dedupe = (...items: (string | string[])[]): string[] => [...new Set(items.flatMap(item => item))];
 export function createToolCatalog(locale: Locale = getLocale()) {
 const L = <T>(pair: { ko: T; en: T }): T => select(pair, locale);
 const RESOURCE_TYPES = ['.hwp', '.hwpx'];
@@ -48,7 +48,10 @@ const DESCRIPTOR_TOOLS: JsonObject[] = [
     annotations: { readOnlyHint: true }, _meta: meta(),
   },
 ];
-const sessionMeta = (group = 'text', keywords = [L({ ko: '문구', en: "phrase" }), L({ ko: '문단', en: "paragraph" }), L({ ko: '고쳐', en: "correct" }), L({ ko: '바꾸', en: "replace" }), L({ ko: '수정', en: "edit" }), L({ ko: '추가', en: "add" }), L({ ko: '삽입', en: "insert" }), L({ ko: '삭제', en: "delete" }), L({ ko: '지워', en: "remove" }), L({ ko: '되돌', en: "undo" }), 'replace', 'paragraph', L({ ko: '바꿔', en: "change" }), L({ ko: '바꿀', en: "change" }), L({ ko: '바꾼', en: "changed" }), L({ ko: '변경', en: "change" }), L({ ko: '교체', en: "replace" }), L({ ko: '치환', en: "substitute" }), L({ ko: '고칠', en: "correct" }), L({ ko: '고친', en: "corrected" }), L({ ko: '지울', en: "delete" }), L({ ko: '지운', en: "deleted" }), L({ ko: '넣어', en: "insert" }), L({ ko: '넣을', en: "insert" }), 'change', L({ ko: '손봐', en: 'revise' }), L({ ko: '손보', en: 'revision' })]): JsonObject => ({ ...meta(), 'dev.agentinterop/effect': 'session', 'dev.agentinterop/group': group, 'dev.agentinterop/keywords': keywords });
+// Korean keywords match as substrings, so they carry the particle that separates 표 from words such as 목표.
+// English keywords match on word boundaries (plurals included), so "table" covers every English phrasing.
+const TABLE_KEYWORDS = both({ ko: ["표 2", "표에서", "표를", "표의", "표에", "표 수정", "표 삽입", "새 표", "표 추가", "표 하나", "표 만들", "표 넣", "표의 문장", "표의 문단", "셀", " 표로", " 표는", " 표도", " 표와", " 표 형식"], en: ["table", "cell"] });
+const sessionMeta = (group = 'text', keywords = dedupe(both({ ko: ['문단', '고쳐', '고칠', '바꾸', '바꿔', '바꿀', '바꾼', '수정', '추가', '삽입', '삭제', '지워', '지울', '지운', '되돌', '변경', '교체', '치환', '넣', '손봐', '손보'], en: ['paragraph', 'replace', 'edit', 'add', 'insert', 'delete', 'remove', 'change', 'revise', 'revision', 'correct'] }))): JsonObject => ({ ...meta(), 'dev.agentinterop/effect': 'session', 'dev.agentinterop/group': group, 'dev.agentinterop/keywords': dedupe(...keywords) });
 const EDIT_TOOLS: JsonObject[] = [
   {
     name: 'apply_draft', title: L({ ko: '한글 문서 초안 채택', en: "Accept HWP document draft" }),
@@ -58,7 +61,7 @@ const EDIT_TOOLS: JsonObject[] = [
       position: { type: 'string', enum: ['before', 'after'] },
       paragraphs: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', maxLength: 20000 }, description: L({ ko: '초안 문단. 줄바꿈 없이 문단마다 항목 하나. 빈 문단 허용.', en: "Draft paragraphs. One item per paragraph, without line breaks. Empty paragraphs allowed." }) },
       accept: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'integer', minimum: 1, maximum: 50 }, description: L({ ko: '채택할 문단 번호. 중복 불가. 생략한 문단은 적용하지 않는다.', en: "Paragraph numbers to accept. No duplicates. Omitted paragraphs are not applied." }) },
-    } }, annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('draft', [L({ ko: '초안', en: "draft" }), L({ ko: '채택', en: "accept" }), 'draft']),
+    } }, annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('draft', dedupe(both({ ko: '초안', en: "draft" }), both({ ko: '채택', en: "accept" }), 'draft')),
   },
   {
     name: 'update_section', title: L({ ko: '한글 문서 구역·쪽 설정', en: "HWP section and page settings" }),
@@ -81,7 +84,7 @@ const EDIT_TOOLS: JsonObject[] = [
         kind: { type: 'string', enum: ['header', 'footer'] }, applyTo: { type: 'string', enum: ['both', 'even', 'odd'] },
         templateId: { type: 'integer', minimum: 0, maximum: 10, description: L({ ko: '0 빈 영역, 1/2/3 쪽번호 왼쪽/가운데/오른쪽, 4 쪽번호·파일명, 5 파일명·쪽번호, 6~10은 1~5의 굵게·밑줄 변형.', en: "0 empty; 1/2/3 page number left/center/right; 4 page number + filename; 5 filename + page number; 6–10 bold/underline variants of 1–5." }) },
       } },
-    } }, annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('section', [L({ ko: '구역', en: "section" }), L({ ko: '쪽 설정', en: "page setup" }), L({ ko: '머리말', en: "header" }), L({ ko: '꼬리말', en: "footer" }), L({ ko: '용지', en: "paper" }), 'section', 'page setup']),
+    } }, annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('section', dedupe(both({ ko: '구역', en: "section" }), both({ ko: '쪽 설정', en: "page setup" }), both({ ko: '머리말', en: "header" }), both({ ko: '꼬리말', en: "footer" }), both({ ko: '용지', en: "paper" }), 'section', 'page setup')),
   },
   {
     name: 'edit_styles', title: L({ ko: '한글 문서 스타일 정의', en: "Define HWP document styles" }),
@@ -100,7 +103,7 @@ const EDIT_TOOLS: JsonObject[] = [
       } },
     } }, annotations: { readOnlyHint: false, destructiveHint: false },
     // Hosts match keywords as substrings, so bare 스타일/style would also match prose tone ("공무원 스타일").
-    _meta: sessionMeta('style', [L({ ko: '문단 스타일', en: "paragraph style" }), L({ ko: '스타일 정의', en: "style definition" }), L({ ko: '스타일을 정의', en: "define style" }), L({ ko: '새 스타일', en: "new style" }), L({ ko: '스타일 만들', en: "create style" }), L({ ko: '스타일을 만들', en: "create a style" }), L({ ko: '스타일 추가', en: "add style" }), L({ ko: '스타일을 추가', en: "add a style" }), L({ ko: '스타일 수정', en: "modify style" }), L({ ko: '스타일을 수정', en: "modify a style" }), L({ ko: '스타일 편집', en: "edit style" }), L({ ko: '스타일을 편집', en: "edit a style" }), 'paragraph style', 'style definition']),
+    _meta: sessionMeta('style', dedupe(both({ ko: '문단 스타일', en: "paragraph style" }), both({ ko: '스타일 정의', en: "style definition" }), both({ ko: '스타일을 정의', en: "define style" }), both({ ko: '새 스타일', en: "new style" }), both({ ko: '스타일 만들', en: "create style" }), both({ ko: '스타일을 만들', en: "create a style" }), both({ ko: '스타일 추가', en: "add style" }), both({ ko: '스타일을 추가', en: "add a style" }), both({ ko: '스타일 수정', en: "modify style" }), both({ ko: '스타일을 수정', en: "modify a style" }), both({ ko: '스타일 편집', en: "edit style" }), both({ ko: '스타일을 편집', en: "edit a style" }), 'paragraph style', 'style definition')),
   },
   {
     name: 'edit_notes', title: L({ ko: '한글 문서 각주·미주 편집', en: "Edit HWP footnotes and endnotes" }),
@@ -112,7 +115,7 @@ const EDIT_TOOLS: JsonObject[] = [
       offset: { type: 'integer', minimum: 0, description: L({ ko: 'insert에서만. 본문 문단 안 Unicode code point 위치.', en: "insert only. Unicode code point position in the body paragraph." }) },
       text: { type: 'string', minLength: 1, maxLength: 2000, description: L({ ko: 'append에서만. 줄바꿈 없음. 탭은 유지한다.', en: "append only. No line breaks. Tabs are preserved." }) },
     } },
-    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('note', [L({ ko: '각주', en: "footnote" }), L({ ko: '미주', en: "endnote" }), 'footnote', 'endnote']),
+    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('note', dedupe(both({ ko: '각주', en: "footnote" }), both({ ko: '미주', en: "endnote" }), 'footnote', 'endnote')),
   },
   {
     name: 'replace_text', title: L({ ko: '한글 문서 문구 바꾸기', en: "Replace text in HWP document" }),
@@ -166,7 +169,7 @@ const EDIT_TOOLS: JsonObject[] = [
       splitHints: { type: 'array', maxItems: 40, description: L({ ko: '분할 출처가 모호할 때 원문 핸들과 출력의 0부터인 반열린 인덱스 범위를 원문 순서로 지정한다.', en: "When split provenance is ambiguous, provide source handles and 0-based half-open output index ranges in source order." }), items: { type: 'object', additionalProperties: false, required: ['source', 'outputStart', 'outputEnd'], properties: {
         source: { type: 'string', minLength: 1, maxLength: 128 }, outputStart: { type: 'integer', minimum: 0, maximum: 49 }, outputEnd: { type: 'integer', minimum: 2, maximum: 50 },
       } } },
-    } }, annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('rewrite', [L({ ko: '윤문', en: "rewrite" }), L({ ko: '문장', en: "sentence" }), L({ ko: '다듬', en: "polish" }), 'rewrite', 'polish']),
+    } }, annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('rewrite', dedupe(both({ ko: '윤문', en: "rewrite" }), both({ ko: '문장', en: "sentence" }), both({ ko: '다듬', en: "polish" }), 'rewrite', 'polish')),
   },
   {
     name: 'update_table', title: L({ ko: '한글 문서 표 고치기', en: "Edit HWP document table" }),
@@ -218,7 +221,7 @@ const EDIT_TOOLS: JsonObject[] = [
       },
     },
     // Verbex checks trim() only for emptiness, then matches the original keyword; leading spaces avoid compounds such as 발표는 and 목표로, but do not match at the start of a request.
-    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'table', 'dev.agentinterop/keywords': [L({ ko: "표 2", en: "table 2" }), L({ ko: "표에서", en: "in table" }), L({ ko: "표를", en: "the table" }), L({ ko: "표의", en: "table's" }), L({ ko: "표에", en: "to table" }), L({ ko: "표 수정", en: "edit table" }), L({ ko: "표 삽입", en: "insert table" }), L({ ko: "새 표", en: "new table" }), L({ ko: "표 추가", en: "add table" }), L({ ko: "표 하나", en: "one table" }), L({ ko: "표 만들", en: "create table" }), L({ ko: "표 넣", en: "put table" }), L({ ko: "표의 문장", en: "table sentence" }), L({ ko: "표의 문단", en: "table paragraph" }), L({ ko: "셀", en: "cell" }), "table", L({ ko: " 표로", en: " as a table" }), L({ ko: " 표는", en: " the table" }), L({ ko: " 표도", en: " table too" }), L({ ko: " 표와", en: " with table" }), L({ ko: " 표 형식", en: " table format" })] },
+    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'table', 'dev.agentinterop/keywords': TABLE_KEYWORDS },
   },
   {
     name: 'insert_table', title: L({ ko: '한글 문서에 표 넣기', en: "Insert table in HWP document" }),
@@ -235,7 +238,7 @@ const EDIT_TOOLS: JsonObject[] = [
         caption: { type: 'string', minLength: 1, maxLength: 1000, description: L({ ko: '표 다음의 일반 문단에 넣을 설명(캡션 개체 아님). 줄바꿈 없음.', en: "Description in an ordinary paragraph after the table (not a caption object). No line breaks." }) },
       },
     },
-    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'table', 'dev.agentinterop/keywords': [L({ ko: "표 2", en: "table 2" }), L({ ko: "표에서", en: "in table" }), L({ ko: "표를", en: "the table" }), L({ ko: "표의", en: "table's" }), L({ ko: "표에", en: "to table" }), L({ ko: "표 수정", en: "edit table" }), L({ ko: "표 삽입", en: "insert table" }), L({ ko: "새 표", en: "new table" }), L({ ko: "표 추가", en: "add table" }), L({ ko: "표 하나", en: "one table" }), L({ ko: "표 만들", en: "create table" }), L({ ko: "표 넣", en: "put table" }), L({ ko: "표의 문장", en: "table sentence" }), L({ ko: "표의 문단", en: "table paragraph" }), L({ ko: "셀", en: "cell" }), "table", L({ ko: " 표로", en: " as a table" }), L({ ko: " 표는", en: " the table" }), L({ ko: " 표도", en: " table too" }), L({ ko: " 표와", en: " with table" }), L({ ko: " 표 형식", en: " table format" })] },
+    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'table', 'dev.agentinterop/keywords': TABLE_KEYWORDS },
   },
   {
     name: 'fill_fields', title: L({ ko: '한글 문서 누름틀 채우기', en: "Fill HWP document input fields" }),
@@ -251,7 +254,7 @@ const EDIT_TOOLS: JsonObject[] = [
         },
       },
     },
-    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'field', 'dev.agentinterop/keywords': [L({ ko: "누름틀", en: "input field" }), L({ ko: "필드", en: "field" }), L({ ko: "수신", en: "recipient" }), L({ ko: "제목", en: "title" }), "field"] },
+    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'field', 'dev.agentinterop/keywords': dedupe(both({ ko: "누름틀", en: "input field" }), both({ ko: "필드", en: "field" }), both({ ko: "수신", en: "recipient" }), both({ ko: "제목", en: "title" }), "field") },
   },
   {
     name: 'format_text', title: L({ ko: '한글 문서 서식 바꾸기', en: "Change HWP document formatting" }),
@@ -279,13 +282,13 @@ const EDIT_TOOLS: JsonObject[] = [
         spaceAfterPt: { type: 'number', minimum: 0, maximum: 500, description: L({ ko: '문단 아래 간격(pt).', en: "Space after paragraph (pt)." }) },
       },
     },
-    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'format', 'dev.agentinterop/keywords': [L({ ko: "서식", en: "format" }), L({ ko: "굵게", en: "bold" }), L({ ko: "기울임", en: "italic" }), L({ ko: "정렬", en: "align" }), L({ ko: "글자", en: "character" }), "pt", "bold", "italic"] },
+    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...sessionMeta(), 'dev.agentinterop/group': 'format', 'dev.agentinterop/keywords': dedupe(both({ ko: "서식", en: "format" }), both({ ko: "굵게", en: "bold" }), both({ ko: "기울임", en: "italic" }), both({ ko: "정렬", en: "align" }), both({ ko: "글자", en: "character" }), "pt", "bold", "italic") },
   },
   {
     name: 'undo_last_edit', title: L({ ko: '마지막 AI 편집 되돌리기', en: "Undo last AI edit" }),
     description: L({ ko: '이 대화가 이 문서에 한 마지막 편집 도구 호출 하나만 되돌린다(연달아 불러도 그 앞은 되돌리지 못한다). 그 뒤에 사람이나 다른 편집이 있었으면 되돌리지 않는다. 되돌리면 핸들이 모두 바뀌므로 다시 읽어야 한다.', en: "Undoes only this conversation's last edit tool call in this document (repeated calls cannot undo earlier calls). Refuses if a person or another edit changed the document afterward. All handles change after undo; read again." }),
     inputSchema: { type: 'object', additionalProperties: false, required: ['path'], properties: { path: PATH } },
-    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('history', [L({ ko: '되돌', en: "undo" }), L({ ko: '취소', en: "cancel" }), 'undo']),
+    annotations: { readOnlyHint: false, destructiveHint: false }, _meta: sessionMeta('history', dedupe(both({ ko: '되돌', en: "undo" }), both({ ko: '취소', en: "cancel" }), 'undo')),
   },
 ];
 /** Read effect, but it reports the AI edit ledger, so it is described only together with the edit tools. */
@@ -296,20 +299,20 @@ const CHECK_TOOL: JsonObject = {
     type: 'object', additionalProperties: false, required: ['path'],
     properties: { path: PATH, pages: { type: 'array', minItems: 1, maxItems: 5, description: L({ ko: '화면 모양까지 비교할 쪽 번호(1부터). 생략하면 첫 쪽.', en: "1-based page numbers to compare visually as well. Defaults to the first page." }), items: { type: 'integer', minimum: 1, maximum: 100000 } } },
   },
-  annotations: { readOnlyHint: true }, _meta: meta({ 'dev.agentinterop/group': 'verify', 'dev.agentinterop/keywords': [L({ ko: '점검', en: "check" }), L({ ko: '보존 검사', en: "preservation check" }), L({ ko: '호환', en: "compatibility" }), 'verify'] }),
+  annotations: { readOnlyHint: true }, _meta: meta({ 'dev.agentinterop/group': 'verify', 'dev.agentinterop/keywords': dedupe(both({ ko: '점검', en: "check" }), both({ ko: '보존 검사', en: "preservation check" }), both({ ko: '호환', en: "compatibility" }), 'verify') }),
 };
 /** Commit effect: the host asks a person about every single save and checkpoints the files before it lets this provider write. */
 const SAVE_TOOL: JsonObject = {
   name: 'save_document', title: L({ ko: '한글 문서 저장', en: "Save HWP document" }),
   description: L({ ko: '한글 문서 작업본을 그 문서의 파일에 저장한다. 사용자가 저장을 요청했을 때만 부른다. 부를 때마다 사람이 저장을 승인해야 하고, 거절하면 저장하지 않는다. 사람이 입력 중이거나 승인하는 동안 문서나 파일이 바뀌면 저장하지 않으니 그때는 다시 요청한다. destination을 주면 같은 형식의 새 경로에 사본을 저장한다. 원본 작업본은 그대로 남고 저장되지 않는다.', en: "Saves the working copy to its document file. Call only when the user requests saving. A person must approve each call; refusal saves nothing. Does not save while a person is typing or if the document/file changes during approval; request again then. destination saves a copy to a new path in the same format. The original working copy remains and is not saved." }),
   inputSchema: { type: 'object', additionalProperties: false, required: ['path'], properties: { path: PATH, destination: { ...PATH, description: L({ ko: '다른 이름으로 저장할 새 경로. 생략하면 원본 저장.', en: "New path for Save As. Omit to save the original." }) } } },
-  annotations: { readOnlyHint: false, destructiveHint: true }, _meta: { ...meta(), 'dev.agentinterop/effect': 'commit', 'dev.agentinterop/group': 'save', 'dev.agentinterop/keywords': [L({ ko: '저장', en: "Save" }), L({ ko: '사본', en: "copy" }), 'save'] },
+  annotations: { readOnlyHint: false, destructiveHint: true }, _meta: { ...meta(), 'dev.agentinterop/effect': 'commit', 'dev.agentinterop/group': 'save', 'dev.agentinterop/keywords': dedupe(both({ ko: '저장', en: "Save" }), both({ ko: '사본', en: "copy" }), 'save') },
 };
 const CREATE_TOOL: JsonObject = {
   name: 'create_document', title: L({ ko: '새 한글 문서 만들기', en: "Create new HWP document" }),
   description: L({ ko: '새 경로에 빈 한글 문서 또는 template 파일의 사본을 만든다. template은 디스크에 저장된 같은 형식의 HWP/HWPX 경로다. 내용을 채우는 도구가 아니므로 생성 뒤 read_document로 문단을 읽고 편집한다. 사람이 매번 폴더·문서·인덱스 생성을 승인하며 기존 파일을 덮어쓰지 않는다.', en: "Creates an empty HWP document or a copy of a template file at a new path. template is a disk-saved HWP/HWPX path in the same format. Does not fill content; after creation, read paragraphs with read_document, then edit. A person approves folder/document/index creation each time. Never overwrites existing files." }),
   inputSchema: { type: 'object', additionalProperties: false, required: ['path'], properties: { path: PATH, template: PATH } },
-  annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...meta(), 'dev.agentinterop/effect': 'commit', 'dev.agentinterop/group': 'create', 'dev.agentinterop/keywords': [L({ ko: '새 한글', en: "new HWP" }), L({ ko: '새 문서', en: "new document" }), L({ ko: '만들', en: "make" }), L({ ko: '생성', en: "create" }), L({ ko: '템플릿', en: "template" }), 'create', 'template'] },
+  annotations: { readOnlyHint: false, destructiveHint: false }, _meta: { ...meta(), 'dev.agentinterop/effect': 'commit', 'dev.agentinterop/group': 'create', 'dev.agentinterop/keywords': dedupe(both({ ko: '새 한글', en: "new HWP" }), both({ ko: '새 문서', en: "new document" }), both({ ko: '만들', en: "make" }), both({ ko: '생성', en: "create" }), both({ ko: '템플릿', en: "template" }), 'create', 'template') },
 };
 const SAVE_INSTRUCTIONS = L({ ko: ' 사용자가 저장을 요청하면 save_document를 부른다. 새 파일은 create_document로 만든 뒤 읽고 편집한다. 그때마다 사람이 승인하며, 요청받지 않은 저장은 하지 않는다.', en: " Call save_document when the user requests saving. Create new files with create_document, then read and edit. A person approves each time; never save without a request." });
 const EDIT_INSTRUCTIONS = L({ ko: '한글(HWP/HWPX) 작업본을 편집한다. 파일 저장은 사람이 한다. 대상 경로를 고정하고 확장자를 임의로 바꾸지 않는다. 전체 요청은 cursor를 따라 끝까지 읽는다. 연속 문단 윤문은 rewrite_paragraphs, 문구는 replace_text, 문단 전체·삽입·삭제는 edit_paragraphs, 표는 update_table 또는 insert_table, 초안은 apply_draft, 누름틀은 fill_fields, 서식은 format_text를 쓴다. 핸들 p12는 페이지가 아니라 문단이며 해당 문서 상태에서만 유효하다. 원문의 사실·시제·불확실성·기호와 주석 참조를 보존하고 내용을 지어내지 않는다. 혼합 서식 오류는 formatting으로 실제 구간을 확인해 작은 범위로 나눈다. 예외 확인창이 열리면 사람의 결정을 기다린다. 승인 후 같은 변경을 재요청하면 해당 편집만 서식 손실이 가능하다. 저수준 삭제·삽입으로 보호를 우회하지 않는다. 사람이 거절하면 강요하지 않는다. 문단별 줄 수는 layout에 target을 주어 추정하고 화면에서 확인한다. 추정이나 미검증을 완료로 보고하지 않는다. 텍스트·서식 동시 요청은 텍스트 수정, 재조회, format_text 순서로 처리한다. Markdown 기호를 임의로 넣지 않는다. 양식은 빈 칸을 채우고 누름틀 안내문은 fill_fields를 쓴다. 확인되지 않은 이름·날짜·금액 등은 지어내지 않는다. 구조가 바뀌거나 사람이 편집하면 다시 읽는다. 바꾸지 못한 곳과 미확인 범위를 알린다. preview는 미리보기이며 작업본 적용이 아니다. 사용자가 적용을 요청했다면 preview 뒤 같은 입력을 preview 없이 다시 호출하고 결과의 적용 여부를 확인한다. 적용이 확인되지 않으면 적용했다고 말하지 않는다.', en: "Edit HWP/HWPX working copies. A person saves files. Pin the path; never change its extension arbitrarily. For whole-document requests, follow cursors to the end. Use rewrite_paragraphs for consecutive prose, replace_text for phrases, edit_paragraphs for whole paragraphs/insertion/deletion, update_table/insert_table for tables, apply_draft for drafts, fill_fields for input fields, format_text for formatting. p12 is a paragraph, not a page; handles belong to that document state. Preserve facts, tense, uncertainty, symbols, and note references; invent nothing. For mixed-format errors, inspect actual runs with formatting and split into small ranges. Wait for the person's exception-dialog decision. After approval, repeating the same change permits formatting loss for that edit only. Never bypass safeguards with low-level deletion/insertion or pressure a refusal. Estimate paragraph lines using layout with target; confirm onscreen. Do not report estimates/unverified work as complete. For text+formatting requests: edit text, reread, then format_text. Do not add arbitrary Markdown symbols. Fill blank form cells; use fill_fields for field prompts. Invent no unconfirmed names/dates/amounts. Reread after structural or human edits. Report unchanged locations and unchecked scope. preview does not apply to the working copy. If application was requested, repeat the same input without preview after previewing; verify the result confirms application before claiming it." });

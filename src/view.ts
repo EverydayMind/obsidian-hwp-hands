@@ -3497,7 +3497,7 @@ export class HwpView extends FileView {
     register('format.paragraph-dialog', L({ ko: '문단 모양', en: "Paragraph format" }), () => this.openParagraphFormatDialog(), {
       shortcut: 'Alt+T', available: () => !paragraphFormatReason(), reason: paragraphFormatReason,
     });
-    register('format.style-dialog', L({ ko: '문단 스타일', en: "paragraph style" }), () => this.openStyleSelectionDialog(), {
+    register('format.style-dialog', L({ ko: '문단 스타일', en: "Paragraph style" }), () => this.openStyleSelectionDialog(), {
       shortcut: 'F6', available: () => !styleFormatReason(), reason: styleFormatReason,
     });
     register('format.copy-style', L({ ko: '모양 복사', en: "Copy formatting" }), () => this.copySelectedFormat(), {
@@ -3509,8 +3509,8 @@ export class HwpView extends FileView {
       reason: () => !this.copiedFormat ? L({ ko: '먼저 모양을 복사하세요.', en: "Copy formatting first." }) : editBlockReason() ?? this.formattingReason(this.copiedFormat),
     });
     const styleDefinitionReason = (): string | undefined => editBlockReason() ?? (this.formattingModel?.styles.length ? undefined : L({ ko: '스타일 정보를 아직 읽지 못했습니다.', en: "Style information has not been read yet." }));
-    register('format.style-new', L({ ko: '스타일 추가', en: "add style" }), () => this.openStyleEditor('create'), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
-    register('format.style-edit', L({ ko: '스타일 편집', en: "edit style" }), () => this.openStyleEditor('edit'), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
+    register('format.style-new', L({ ko: '스타일 추가', en: "Add style" }), () => this.openStyleEditor('create'), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
+    register('format.style-edit', L({ ko: '스타일 편집', en: "Edit style" }), () => this.openStyleEditor('edit'), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
     register('format.style-delete', L({ ko: '스타일 지우기', en: "Clear style" }), () => this.deleteStyleInteractive(), { available: () => !styleDefinitionReason(), reason: styleDefinitionReason });
     register('format.numbering-define', L({ ko: '문단 번호 모양', en: "Paragraph numbering format" }), () => this.openNumberingDialog(), { available: () => !bodyEditReason(), reason: bodyEditReason });
     register('page.apply-settings', L({ ko: '쪽 설정 적용', en: "Apply page settings" }), () => this.applyPageSettings(), { available: () => !editBlockReason() && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? (!this.formattingModel?.sections.length ? L({ ko: '쪽 설정 정보를 아직 읽지 못했습니다.', en: "Page setup information has not been read yet." }) : undefined) });
@@ -3528,7 +3528,7 @@ export class HwpView extends FileView {
       register(`story.${id}`, field, () => { throw new Error(reason()); }, { available: () => false, reason });
     }
     register('insert.hyperlink', L({ ko: '하이퍼링크', en: "Hyperlink" }), () => {}, { available: () => false, reason: () => L({ ko: 'RHWP 코어에 하이퍼링크 삽입 API가 없습니다.', en: "RHWP core has no hyperlink insertion API." }) });
-    register('page.footer-template', L({ ko: '꼬리말', en: "footer" }), () => this.openHeaderFooterTemplateModal(false), { available: () => !editBlockReason() && !!this.documentTree && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }) });
+    register('page.footer-template', L({ ko: '꼬리말', en: "Footer" }), () => this.openHeaderFooterTemplateModal(false), { available: () => !editBlockReason() && !!this.documentTree && !!this.formattingModel?.sections.length, reason: () => editBlockReason() ?? L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }) });
     const headerFooterReason = (): string | undefined => editBlockReason() ?? (!this.documentTree || !this.formattingModel?.sections.length ? L({ ko: '문서를 먼저 여세요.', en: "Open a document first." }) : undefined);
     for (const isHeader of [true, false]) {
       register(`page.edit-${isHeader ? 'header' : 'footer'}`, LT({ ko: () => `${isHeader ? '머리말' : '꼬리말'} 편집…`, en: () => `Edit ${isHeader ? 'header' : 'footer'}…` }), () => this.editHeaderFooter(isHeader), {
@@ -3696,8 +3696,8 @@ export class HwpView extends FileView {
         { command: 'insert.table', icon: 'table', label: L({ ko: '표', en: "Table" }) },
       ] },
       { label: L({ ko: '각주·미주', en: "Footnotes/endnotes" }), tools: [
-        { command: 'insert.footnote', icon: 'superscript', label: L({ ko: '각주', en: "footnote" }) },
-        { command: 'insert.endnote', icon: 'list-end', label: L({ ko: '미주', en: "endnote" }) },
+        { command: 'insert.footnote', icon: 'superscript', label: L({ ko: '각주', en: "Footnote" }) },
+        { command: 'insert.endnote', icon: 'list-end', label: L({ ko: '미주', en: "Endnote" }) },
       ] },
       { label: L({ ko: '하이퍼링크·문자표', en: "Hyperlink/character map" }), tools: [
         { command: 'insert.hyperlink', icon: 'link', label: L({ ko: '하이퍼링크', en: "Hyperlink" }) },
@@ -3715,8 +3715,8 @@ export class HwpView extends FileView {
         { command: 'object.flip-vertical', icon: 'flip-vertical', label: L({ ko: '상하 대칭', en: "Flip vertically" }) },
       ] },
       { label: L({ ko: '머리말·꼬리말', en: "Headers/footers" }), tools: [
-        { command: 'page.header-footer-template', icon: 'panel-top', label: L({ ko: '머리말', en: "header" }) },
-        { command: 'page.footer-template', icon: 'panel-bottom', label: L({ ko: '꼬리말', en: "footer" }) },
+        { command: 'page.header-footer-template', icon: 'panel-top', label: L({ ko: '머리말', en: "Header" }) },
+        { command: 'page.footer-template', icon: 'panel-bottom', label: L({ ko: '꼬리말', en: "Footer" }) },
       ] },
       { label: L({ ko: '보기', en: "View" }), tools: [
         { command: 'view.control-codes', icon: 'pilcrow', label: L({ ko: '조판 부호', en: "Control codes" }) },
@@ -4062,7 +4062,7 @@ export class HwpView extends FileView {
     this.lineSpacingDecreaseButton = this.toolButton(paragraphFormat, L({ ko: '줄 간격 −', en: "Line spacing −" }), 'paragraph', () => this.runEditorCommand('format.line-spacing-decrease'));
     this.lineSpacingIncreaseButton = this.toolButton(paragraphFormat, L({ ko: '줄 간격 +', en: "Line spacing +" }), 'paragraph', () => this.runEditorCommand('format.line-spacing-increase'));
     this.toolButton(paragraphFormat, L({ ko: '문단 속성 적용', en: "Apply paragraph properties" }), 'paragraph', () => this.applyParagraphProperties());
-    this.styleSelect = this.feature(format.createEl('select', { attr: { 'aria-label': L({ ko: '문단 스타일', en: "paragraph style" }) } }), 'style');
+    this.styleSelect = this.feature(format.createEl('select', { attr: { 'aria-label': L({ ko: '문단 스타일', en: "Paragraph style" }) } }), 'style');
     this.styleSelect.createEl('option', { value: '', text: L({ ko: '문단 스타일 선택', en: "Select paragraph style" }) });
     this.styleSelect.onchange = () => { if (this.styleSelect.value) void this.guard(() => this.applyStyle(Number(this.styleSelect.value))); };
     this.listSelect = this.feature(format.createEl('select', { attr: { 'aria-label': L({ ko: '목록 서식', en: "List formatting" }) } }), 'list');
@@ -4135,7 +4135,7 @@ export class HwpView extends FileView {
       button.setAttribute('aria-label', label); button.dataset.command = `format.align-${value}`;
       setIcon(button, icon); this.alignmentButtons.set(value, button);
     }
-    moveGroup(L({ ko: '정렬', en: "Sort" }), [alignmentControls]);
+    moveGroup(L({ ko: '정렬', en: "Alignment" }), [alignmentControls]);
     moveGroup(L({ ko: '줄 간격', en: "Line spacing" }), [this.toolbarLineSpacingSelect, spinner(this.lineSpacingDecreaseButton, this.lineSpacingIncreaseButton, L({ ko: '줄 간격', en: "Line spacing" }))]);
     moveGroup(L({ ko: '목록', en: "Lists" }), [this.listSelect, this.numberingToggleButton, this.bulletToggleButton, this.listLevelDownButton, this.listLevelUpButton]);
     // Clearing and copying character shapes is not on Hancom's format row, so it goes last and is the first to move under ≡.
@@ -6036,9 +6036,9 @@ export class HwpView extends FileView {
     const open = (style?: (typeof styles)[number]): void => {
       const fields = styleFields(mode, style, styles);
       this.openFormCommandDialog({
-        title: mode === 'create' ? L({ ko: '스타일 추가', en: "add style" }) : LT({ ko: () => `스타일 편집 (${style!.name})`, en: () => `Edit style (${style!.name})` }),
+        title: mode === 'create' ? L({ ko: '스타일 추가', en: "Add style" }) : LT({ ko: () => `스타일 편집 (${style!.name})`, en: () => `Edit style (${style!.name})` }),
         hint: mode === 'create' ? L({ ko: '기본 스타일의 모양에서 시작합니다. 바꾼 항목만 새 스타일에 적용됩니다.', en: "Starts from the default style's appearance. Only changed fields apply to the new style." }) : L({ ko: '바꾼 항목만 스타일에 적용되며, 이 스타일을 쓰는 문단에 바로 반영됩니다.', en: "Only changed fields apply to the style and immediately affect paragraphs using it." }),
-        fields, submitLabel: mode === 'create' ? L({ ko: '추가', en: "add" }) : L({ ko: '적용', en: "Apply" }),
+        fields, submitLabel: mode === 'create' ? L({ ko: '추가', en: "Add" }) : L({ ko: '적용', en: "Apply" }),
         build: (values, initial) => [styleCommand(mode, style?.id, values, initial, style)].filter((command): command is Command => !!command),
       });
     };
@@ -6559,7 +6559,7 @@ export class HwpView extends FileView {
     const paragraph = this.rootBodyParagraph(), offset = this.insertionOffset(paragraph);
     const context = this.captureContext(), revision = this.state?.revision;
     new FormModal(this.app, {
-      title: L({ ko: '사용자 지정 표 삽입', en: "Insert custom table" }), submitLabel: L({ ko: '삽입', en: "insert" }), fields: [
+      title: L({ ko: '사용자 지정 표 삽입', en: "Insert custom table" }), submitLabel: L({ ko: '삽입', en: "Insert" }), fields: [
         { key: 'rows', label: L({ ko: '줄 수', en: "Row count" }), kind: 'number', value: Number(this.tableRowsInput.value) || 2, min: 1, max: 100, integer: true },
         { key: 'cols', label: L({ ko: '칸 수', en: "Column count" }), kind: 'number', value: Number(this.tableColsInput.value) || 2, min: 1, max: 100, integer: true },
       ],

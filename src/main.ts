@@ -27,9 +27,9 @@ import { EDITOR_VIEW_TYPE, PREVIOUS_VIEW_TYPES, HwpHandsView, LegacyHwpView, Pre
 import { HwpDocumentPickerModal, InputDraftRecoveryModal, PathModal, SaveOnCloseModal, StorageCleanupModal, type SaveOnCloseChoice } from './ui/dialogs';
 import { processHwpMarkdown } from './markdown-integration';
 import type { HwpLinkTarget } from './hwp-links';
-import { EDITOR_COMMAND_CATALOG } from './ui/commands/command-registry';
+import { EDITOR_COMMAND_CATALOG, EXCLUDED_PALETTE_COMMAND_IDS, paletteName } from './ui/commands/command-registry';
 import { editorHotkey, isBrowserEditShortcut } from './ui/commands/editor-hotkey';
-import { DEFAULT_EDITOR_CHROME, editorChromeFromSettings, editorChromePreset, type EditorChrome } from './ui/shell/editor-chrome';
+import { DEFAULT_EDITOR_CHROME, editorChromeFromSettings, editorChromePreset, editorChromeSelectOptions, type EditorChrome } from './ui/shell/editor-chrome';
 import { DEFAULT_INPUT_MODE, normalizeInputMode, type InputModeSettings } from './ui/editor/input-mode';
 import { ViewContextService } from './ui/editor/view-context';
 import { revealOutputAnchor } from './output-anchor-reveal';
@@ -203,7 +203,7 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
     };
     for (const command of EDITOR_COMMAND_CATALOG) {
       const shortcuts = [...('shortcut' in command && command.shortcut ? [command.shortcut] : []), ...('aliases' in command ? command.aliases : [])];
-      if (command.id !== 'file.save' && command.id !== 'file.refresh-index') addActiveEditorCommand(command.id, command.label, shortcuts);
+      if (!EXCLUDED_PALETTE_COMMAND_IDS.has(command.id)) addActiveEditorCommand(command.id, paletteName(command), shortcuts);
     }
     this.addCommand({ id: 'open-document', name: L({ ko: 'HWP/HWPX 문서 열기', en: "Open HWP/HWPX document" }), callback: () => {
       this.openDocumentPicker();
@@ -286,7 +286,7 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
   async setAiPrivate(path: string, hidden: boolean): Promise<void> {
     await this.agentPrivacy.set(path, hidden, data => this.persistAiPrivacy(data));
     this.app.workspace.trigger(PROVIDERS_CHANGED_EVENT);
-    new Notice(hidden ? L({ ko: '이 문서는 HWP Hands AI 도구에 제공하지 않습니다. 이미 전달된 내용과 별도 Markdown 인덱스·파일 접근에는 적용되지 않습니다.', en: "This document will not be provided to HWP Hands AI tools. This does not affect previously shared content, separate Markdown indexes, or file access." }) : L({ ko: '이 문서의 HWP Hands AI 비공개를 해제했습니다. 새로 조회한 뒤 사용할 수 있습니다.', en: "HWP Hands AI privacy was removed from this document. Read it again before use." }), 10000);
+    new Notice(hidden ? L({ ko: '이 문서는 HWP Hands의 AI 도구에 제공하지 않습니다. 이미 전달된 내용에는 적용되지 않고, 다른 플러그인이나 도구가 이 파일과 색인 노트(.index.md)를 직접 읽는 것은 막지 못합니다.', en: "This document will not be provided to HWP Hands AI tools. This does not affect content already shared, and it cannot stop other plugins or tools from reading this file or its index note (.index.md) directly." }) : L({ ko: '이 문서의 HWP Hands AI 비공개를 해제했습니다. 새로 조회한 뒤 사용할 수 있습니다.', en: "HWP Hands AI privacy was removed from this document. Read it again before use." }), 10000);
   }
   private async ensurePluginStyles(directory: string, adapter: App['vault']['adapter']): Promise<void> {
     const stylePath = `${this.manifest.id}/styles.css`.toLocaleLowerCase();
@@ -475,22 +475,25 @@ class HwpSettings extends PluginSettingTab {
   display(): void {
     this.containerEl.empty();
     this.containerEl.createEl('p', { text: L({ ko: '문서는 로컬에서 처리됩니다. 화면의 글꼴과 복잡한 배치는 한컴 한글과 다를 수 있습니다.', en: "Documents are processed locally. Fonts and complex layouts may differ from Hancom Hangul." }) });
-    this.containerEl.createEl('p', { text: LT({ ko: () => `진단 정보: HWP Hands ${this.plugin.manifest.version} · RHWP ${this.plugin.api.engineVersion} · API v${this.plugin.api.version}. Obsidian 버전은 설정의 정보 화면에서 확인할 수 있습니다.`, en: () => `Diagnostics: HWP Hands ${this.plugin.manifest.version} · RHWP ${this.plugin.api.engineVersion} · API v${this.plugin.api.version}. Check the Obsidian version in Settings → About.` }) });
     new Setting(this.containerEl).setName(L({ ko: 'HWP/HWPX 기본 열기', en: "Open HWP/HWPX by default" })).setDesc(L({ ko: '켜면 파일 탐색기와 일반 링크가 HWP Hands를 기본 보기로 사용합니다. 다른 플러그인과 충돌하거나 기본 보기를 바꾸려면 끄세요. 변경은 플러그인을 다시 불러온 뒤 적용됩니다. 파일 메뉴의 “HWP Hands로 열기”는 항상 사용할 수 있습니다.', en: "When enabled, the file explorer and ordinary links use HWP Hands as the default view. Disable to resolve plugin conflicts or change the default view. Changes apply after reloading the plugin. The file menu's “Open with HWP Hands” remains available." })).addToggle(t => t.setValue(this.plugin.settings.autoOpenWithEditor).onChange(async value => {
       this.plugin.settings.autoOpenWithEditor = value; await this.persist(); new Notice(L({ ko: '파일 기본 열기 설정을 적용하려면 HWP Hands 플러그인을 다시 불러오세요.', en: "Reload HWP Hands to apply the default file opening setting." }));
     }));
-    new Setting(this.containerEl).setName(L({ ko: '편집 화면 도구 표시', en: "Editor tool visibility" })).setDesc(L({ ko: '메뉴와 도구 상자를 접어 문서 공간을 넓힙니다. 열린 HWP 탭에 바로 적용됩니다.', en: "Collapse menus and toolboxes to increase document space. Applies immediately to open HWP tabs." })).addDropdown(dropdown => dropdown
-      .addOption('expanded', L({ ko: '모두 펼침', en: "Expand all" })).addOption('basic-collapsed', L({ ko: '기본 도구 상자 접음', en: "Collapse basic toolbox" })).addOption('all-collapsed', L({ ko: '모두 접음', en: "Collapse all" })).addOption('custom', L({ ko: '개별 설정', en: "Custom settings" }))
-      .setValue(editorChromePreset(this.plugin.settings.editorChrome)).onChange(async value => {
+    const chromePreset = editorChromePreset(this.plugin.settings.editorChrome);
+    new Setting(this.containerEl).setName(L({ ko: '편집 화면 도구 표시', en: "Editor tool visibility" })).setDesc(L({ ko: '메뉴와 도구 상자를 접어 문서 공간을 넓힙니다. 열린 HWP 탭에 바로 적용됩니다.', en: "Collapse menus and toolboxes to increase document space. Applies immediately to open HWP tabs." })).addDropdown(dropdown => {
+      for (const option of editorChromeSelectOptions(this.plugin.settings.editorChrome)) {
+        dropdown.addOption(option.value, option.label);
+        if (option.disabled) {
+          const optionEl = dropdown.selectEl.querySelector<HTMLOptionElement>(`option[value="${option.value}"]`);
+          if (optionEl) optionEl.disabled = true;
+        }
+      }
+      dropdown.setValue(chromePreset).onChange(async value => {
         if (value === 'custom') return;
         await this.plugin.setEditorChrome(value === 'expanded' ? { menu: true, basicToolbox: true, formatToolbox: true }
           : value === 'basic-collapsed' ? { menu: true, basicToolbox: false, formatToolbox: true }
             : { menu: false, basicToolbox: false, formatToolbox: false });
-      }));
-    new Setting(this.containerEl).setName(L({ ko: '입력 수신기 배치', en: "Input receiver placement" })).setDesc(L({ ko: '쪽 위에서 입력을 받는 보이지 않는 수신기의 위치입니다. 기본은 캐럿 위치입니다. IME 후보창이나 스크린리더에 문제가 있으면 투명 줄 상자를 사용하세요.', en: "Position of the invisible input receiver over the page. Defaults to the caret position. Use the transparent line box if IME candidate windows or screen readers have problems." })).addDropdown(dropdown => dropdown
-      .addOption('caret', L({ ko: '캐럿 위치 (권장)', en: "Caret position (recommended)" })).addOption('line', L({ ko: '투명 줄 상자', en: "Transparent line box" })).setValue(this.plugin.settings.inputReceiverPlacement).onChange(async value => {
-        await this.plugin.setInputMode({ ...this.plugin.settings, inputReceiverPlacement: value === 'line' ? 'line' : 'caret' });
-      }));
+      });
+    });
     new Setting(this.containerEl).setName(L({ ko: '입력 미리보기', en: "Input preview" })).setDesc(L({ ko: '문서에 반영되기 전의 글자와 한글 조합을 쪽 위에 즉시 표시합니다. 끄면 엔진 쪽 이미지가 갱신될 때까지 기다립니다.', en: "Immediately shows characters and Korean IME composition over the page before they reach the document. When disabled, waits for the engine page image to refresh." })).addToggle(toggle => toggle
       .setValue(this.plugin.settings.editPreviewEnabled).onChange(async editPreviewEnabled => {
         await this.plugin.setInputMode({ ...this.plugin.settings, editPreviewEnabled });
@@ -504,7 +507,7 @@ class HwpSettings extends PluginSettingTab {
     new Setting(this.containerEl).setName(L({ ko: '문서 전체 AI 비공개', en: "Entire-document AI privacy" })).setHeading();
     this.containerEl.createEl('p', { text: privatePaths === null
       ? L({ ko: '비공개 설정을 읽을 수 없어 HWP Hands AI 접근을 모두 차단했습니다. 정상 비공개 설정을 복구한 뒤 플러그인을 다시 불러오세요.', en: "Could not read privacy settings; all HWP Hands AI access was blocked. Restore valid privacy settings and reload the plugin." })
-      : L({ ko: '파일 메뉴나 명령 팔레트에서 지정합니다. HWP Hands AI 도구의 조회·검색·편집·저장을 차단합니다. 이미 전달한 내용, 별도 Markdown 인덱스와 다른 도구의 파일 접근에는 적용되지 않습니다. 이동 전 경로도 확인 후 해제할 때까지 유지합니다.', en: "Set through the file menu or command palette. Blocks HWP Hands AI reads, searches, edits, and saves. Does not affect previously shared content, separate Markdown indexes, or other tools' file access. Retains previous paths after moves until checked and cleared." }) });
+      : L({ ko: '파일 메뉴나 명령 팔레트에서 지정합니다. HWP Hands AI 도구의 조회·검색·편집·저장을 차단합니다. 이미 전달한 내용에는 적용되지 않고, 다른 플러그인이나 도구가 원본 파일과 색인 노트(.index.md)를 직접 읽는 것은 막지 못합니다. 이동 전 경로도 확인 후 해제할 때까지 유지합니다.', en: "Set through the file menu or command palette. Blocks HWP Hands AI reads, searches, edits, and saves. Does not affect previously shared content, and it cannot stop other plugins or tools from reading the original file or its index note (.index.md) directly. Retains previous paths after moves until checked and cleared." }) });
     if (this.plugin.aiPrivacyNeedsReview()) this.containerEl.createEl('p', { text: L({ ko: '비공개 문서가 기록된 경로에 없어 모든 HWP Hands AI 접근을 차단했습니다. 이동한 문서를 먼저 비공개로 지정한 뒤 이전 경로를 해제하세요. 삭제했다면 이전 경로를 확인하고 해제하세요.', en: "A private document is missing from its recorded path; all HWP Hands AI access was blocked. Mark the moved document private before clearing the old path. If deleted, verify and clear the old path." }) });
     for (const path of privatePaths ?? []) new Setting(this.containerEl).setName(path).addButton(button => button.setButtonText(L({ ko: '비공개 해제', en: "Remove privacy" })).onClick(async () => {
       try { await this.plugin.setAiPrivate(path, false); this.display(); }
@@ -513,7 +516,14 @@ class HwpSettings extends PluginSettingTab {
     new Setting(this.containerEl).setName(L({ ko: '문서 최대 크기 (MB)', en: "Maximum document size (MB)" })).addText(t => t.setValue(String(this.plugin.settings.maxFileBytes / 1024 / 1024)).onChange(async value => {
       const size = Number(value); if (Number.isFinite(size) && size >= 1 && size <= 200) { this.plugin.settings.maxFileBytes = size * 1024 * 1024; await this.persist(); }
     }));
-    this.containerEl.createEl('p', { text: L({ ko: '다른 플러그인: app.plugins.plugins["hwp-hands"].api (version = 1). 배포 폴더의 API.md에서 계약을 확인할 수 있습니다.', en: "Other plugins: app.plugins.plugins[\"hwp-hands\"].api (version = 1). See API.md in the distribution folder for the contract." }) });
+    const advanced = this.containerEl.createEl('details');
+    advanced.createEl('summary', { text: L({ ko: '고급·진단', en: "Advanced and diagnostics" }) });
+    advanced.createEl('p', { text: LT({ ko: () => `진단 정보: HWP Hands ${this.plugin.manifest.version} · RHWP ${this.plugin.api.engineVersion} · API v${this.plugin.api.version}. Obsidian 버전은 설정의 정보 화면에서 확인할 수 있습니다.`, en: () => `Diagnostics: HWP Hands ${this.plugin.manifest.version} · RHWP ${this.plugin.api.engineVersion} · API v${this.plugin.api.version}. Check the Obsidian version in Settings → About.` }) });
+    new Setting(advanced).setName(L({ ko: '한글 입력기·화면 낭독기 호환', en: "IME and screen reader compatibility" })).setDesc(L({ ko: '한글 입력 후보 창이 엉뚱한 곳에 뜨거나 화면 낭독기가 문서를 읽지 못할 때만 바꾸세요.', en: "Change this only if the IME candidate window appears in the wrong place or a screen reader cannot read the document." })).addDropdown(dropdown => dropdown
+      .addOption('caret', L({ ko: '캐럿 위치 (권장)', en: "Caret position (recommended)" })).addOption('line', L({ ko: '투명 줄 상자', en: "Transparent line box" })).setValue(this.plugin.settings.inputReceiverPlacement).onChange(async value => {
+        await this.plugin.setInputMode({ ...this.plugin.settings, inputReceiverPlacement: value === 'line' ? 'line' : 'caret' });
+      }));
+    advanced.createEl('p', { text: L({ ko: '다른 플러그인: app.plugins.plugins["hwp-hands"].api (version = 1). 배포 폴더의 API.md에서 계약을 확인할 수 있습니다.', en: "Other plugins: app.plugins.plugins[\"hwp-hands\"].api (version = 1). See API.md in the distribution folder for the contract." }) });
   }
   private async persist(): Promise<void> { this.plugin.manager.options = managerOptions(this.plugin.settings); await this.plugin.saveData(this.plugin.settings); }
 }

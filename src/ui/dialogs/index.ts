@@ -1,5 +1,6 @@
 import { LT, L } from '../../i18n/locale';
-import { FuzzySuggestModal, Modal, Notice, TFile, type App } from 'obsidian';
+import { FuzzySuggestModal, Modal, Notice, TFile, TFolder, type App } from 'obsidian';
+import { attachFolderSuggest, type FolderSuggestHandle } from './folder-path-suggest';
 import type HwpHandsPlugin from '../../main';
 import { inputDraftTargetLabel, type InputDraftEntry } from '../../input-drafts';
 import { textChangeRange } from '../../text-comparison';
@@ -40,15 +41,21 @@ export class HwpDocumentPickerModal extends FuzzySuggestModal<TFile> {
 }
 
 export class PathModal extends FocusReturnModal {
+  private suggest?: FolderSuggestHandle;
   constructor(app: App, private readonly label: string, private readonly initial: string, private readonly action: (path: string) => Promise<void>, private readonly onClosed?: () => void) { super(app); }
   onOpen(): void {
     this.contentEl.createEl('h3', { text: this.label });
     const input = this.contentEl.createEl('input', { cls: 'hwp-path-input', type: 'text', value: this.initial });
-    const submit = this.contentEl.createEl('button', { text: L({ ko: '확인', en: "Confirm" }), cls: 'mod-cta' });
+    this.contentEl.createEl('p', { cls: 'hwp-hint', text: L({ ko: '볼트 안 경로입니다. 없는 폴더를 적으면 만들어집니다.', en: "Path inside the vault. Folders that do not exist are created." }) });
+    this.suggest = attachFolderSuggest(this.app, input);
+    const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
+    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) });
+    cancel.addEventListener('click', () => this.close());
+    const submit = buttons.createEl('button', { text: L({ ko: '확인', en: "Confirm" }), cls: 'mod-cta' });
     const run = async () => { submit.disabled = true; try { await this.action(input.value.trim().replaceAll('\\', '/')); this.close(); } catch (error) { new Notice(error instanceof Error ? error.message : String(error), 8000); submit.disabled = false; } };
-    submit.addEventListener('click', () => void run()); input.addEventListener('keydown', e => { if (e.key === 'Enter') void run(); }); input.focus(); input.select();
+    submit.addEventListener('click', () => void run()); input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && !e.defaultPrevented) void run(); }); input.focus(); input.select();
   }
-  onClose(): void { this.contentEl.empty(); this.restoreFocus(); this.onClosed?.(); }
+  onClose(): void { this.suggest?.close(); this.suggest = undefined; this.contentEl.empty(); this.restoreFocus(); this.onClosed?.(); }
 }
 export class SaveAsModal extends FocusReturnModal {
   constructor(app: App, private readonly initialPath: string, private readonly initialFormat: HwpDocumentFormat,
@@ -93,7 +100,7 @@ export class PrintPagesModal extends FocusReturnModal {
     const last = range.createEl('input', { type: 'number', value: String(this.pageCount), attr: { min: '1', max: String(this.pageCount), 'aria-label': L({ ko: '끝 쪽', en: "Last page" }) } });
     const status = this.contentEl.createDiv({ attr: { role: 'status', 'aria-live': 'polite' } });
     const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
-    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.addEventListener('click', () => this.close());
+    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }); cancel.addEventListener('click', () => this.close());
     const print = buttons.createEl('button', { text: L({ ko: '인쇄 / PDF 저장', en: "Print / Save PDF" }), cls: 'mod-cta' });
     print.addEventListener('click', () => {
       const from = Number(first.value), to = Number(last.value);
@@ -245,7 +252,7 @@ export class TableCellFormatModal extends FocusReturnModal {
 
     const status = this.contentEl.createDiv({ attr: { role: 'status', 'aria-live': 'polite' } });
     const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
-    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.addEventListener('click', () => this.close());
+    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }); cancel.addEventListener('click', () => this.close());
     const submit = buttons.createEl('button', { text: L({ ko: '적용', en: "Apply" }), cls: 'mod-cta' });
     submit.addEventListener('click', () => {
       const spacing = Number(cellSpacing.value), paddingValue = Number(padding.value);
@@ -281,7 +288,7 @@ export class ClickHereFieldModal extends FocusReturnModal {
     const editableRow = this.contentEl.createEl('label', { cls: 'hwp-field-editable' });
     const editable = editableRow.createEl('input', { type: 'checkbox' }); editable.checked = true;
     editableRow.appendText(L({ ko: '양식 모드에서 입력 허용', en: "Allow input in form mode" }));
-    const submit = this.contentEl.createEl('button', { text: L({ ko: '삽입', en: "insert" }), cls: 'mod-cta' });
+    const submit = this.contentEl.createEl('button', { text: L({ ko: '삽입', en: "Insert" }), cls: 'mod-cta' });
     const run = async () => {
       const fieldName = name.value.trim();
       if (!fieldName) { name.focus(); new Notice(L({ ko: '필드 이름을 입력하세요.', en: "Enter a field name." })); return; }
@@ -340,7 +347,7 @@ export class StyleSelectionModal extends FocusReturnModal {
 
   onOpen(): void {
     this.contentEl.addClass('hwp-format-dialog');
-    this.contentEl.createEl('h2', { text: L({ ko: '문단 스타일', en: "paragraph style" }) });
+    this.contentEl.createEl('h2', { text: L({ ko: '문단 스타일', en: "Paragraph style" }) });
     const status = this.contentEl.createDiv({ attr: { role: 'status', 'aria-live': 'polite' } });
     const row = this.contentEl.createDiv({ cls: 'hwp-format-dialog-row' });
     row.createEl('label', { text: L({ ko: '적용할 스타일', en: "Style to apply" }) });
@@ -349,7 +356,7 @@ export class StyleSelectionModal extends FocusReturnModal {
     for (const style of this.styles) select.createEl('option', { value: String(style.id), text: style.name || style.englishName || LT({ ko: () => `스타일 ${style.id}`, en: () => `Style ${style.id}` }) });
     select.value = this.currentStyleId !== undefined && this.styles.some(style => style.id === this.currentStyleId) ? String(this.currentStyleId) : '';
     const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
-    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.addEventListener('click', () => this.close());
+    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }); cancel.addEventListener('click', () => this.close());
     const apply = buttons.createEl('button', { text: L({ ko: '적용', en: "Apply" }), cls: 'mod-cta' });
     apply.addEventListener('click', () => {
       const styleId = Number(select.value);
@@ -436,7 +443,7 @@ export class CharacterFormatModal extends FocusReturnModal {
     const shadowColor = this.colorField(L({ ko: '그림자 색', en: "Shadow color" }), L({ ko: '그림자 색 적용', en: "Apply shadow color" }), this.initial.shadowColor ?? '#000000', this.initial.shadowColor !== undefined, effects);
     effects.open = false;
     const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
-    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.addEventListener('click', () => this.close());
+    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }); cancel.addEventListener('click', () => this.close());
     const submit = buttons.createEl('button', { text: L({ ko: '적용', en: "Apply" }), cls: 'mod-cta' });
     submit.addEventListener('click', () => {
       const properties: CharacterFormatUpdate = {};
@@ -533,7 +540,7 @@ export class ParagraphFormatModal extends FocusReturnModal {
     this.contentEl.addClass('hwp-format-dialog');
     this.contentEl.createEl('h2', { text: L({ ko: '문단 모양', en: "Paragraph format" }) });
     const status = this.contentEl.createDiv({ attr: { role: 'status', 'aria-live': 'polite' } });
-    const alignment = this.select(L({ ko: '정렬', en: "Sort" }), L({ ko: '문단 정렬', en: "Paragraph alignment" }));
+    const alignment = this.select(L({ ko: '정렬', en: "Alignment" }), L({ ko: '문단 정렬', en: "Paragraph alignment" }));
     alignment.createEl('option', { value: '', text: L({ ko: '현재 유지', en: "Keep current" }) });
     for (const [value, label] of [['left', L({ ko: '왼쪽', en: "Left" })], ['center', L({ ko: '가운데', en: "Center" })], ['right', L({ ko: '오른쪽', en: "Right" })], ['justify', L({ ko: '양쪽', en: "Justified" })], ['distribute', L({ ko: '배분', en: "Distributed" })], ['split', L({ ko: '나눔', en: "Split" })]] as const) alignment.createEl('option', { value, text: label });
     alignment.value = this.initial.alignment ?? '';
@@ -562,7 +569,7 @@ export class ParagraphFormatModal extends FocusReturnModal {
       if (lineMode.value !== initialMode) lineSpacing.value = lineMode.value === 'Percent' ? '100' : lineMode.value ? '12' : '';
     });
     const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
-    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.addEventListener('click', () => this.close());
+    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }); cancel.addEventListener('click', () => this.close());
     const submit = buttons.createEl('button', { text: L({ ko: '적용', en: "Apply" }), cls: 'mod-cta' });
     submit.addEventListener('click', () => {
       const properties: ParagraphFormatUpdate = {};
@@ -667,7 +674,7 @@ export class PageSetupModal extends FocusReturnModal {
     if (typeof this.initial.binding === 'number' && this.initial.binding === 3) binding.createEl('option', { value: '3', text: L({ ko: '현재 값 3 유지', en: "Keep current value 3" }) });
     binding.value = typeof this.initial.binding === 'number' && this.initial.binding >= 0 && this.initial.binding <= 3 ? String(this.initial.binding) : '';
     const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
-    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.addEventListener('click', () => this.close());
+    const cancel = buttons.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }); cancel.addEventListener('click', () => this.close());
     const apply = buttons.createEl('button', { text: L({ ko: '적용', en: "Apply" }), cls: 'mod-cta' });
     apply.addEventListener('click', () => {
       const widthValue = Number(width.value), heightValue = Number(height.value);
@@ -705,12 +712,12 @@ export class HeaderFooterTemplateModal extends FocusReturnModal {
       const element = this.contentEl.createDiv({ cls: 'hwp-format-dialog-row' }); element.createEl('label', { text: label }); return element;
     };
     const isHeader = row(L({ ko: '영역', en: "Area" }), L({ ko: '머리말 또는 꼬리말', en: "Header or footer" })).createEl('select', { attr: { 'aria-label': L({ ko: '머리말 또는 꼬리말', en: "Header or footer" }) } });
-    isHeader.createEl('option', { value: 'true', text: L({ ko: '머리말', en: "header" }) }); isHeader.createEl('option', { value: 'false', text: L({ ko: '꼬리말', en: "footer" }) });
+    isHeader.createEl('option', { value: 'true', text: L({ ko: '머리말', en: "Header" }) }); isHeader.createEl('option', { value: 'false', text: L({ ko: '꼬리말', en: "Footer" }) });
     isHeader.value = String(this.initialIsHeader);
     const applyTo = row(L({ ko: '적용 쪽', en: "Apply to pages" }), L({ ko: '머리말·꼬리말 적용 쪽', en: "Header/footer page scope" })).createEl('select', { attr: { 'aria-label': L({ ko: '머리말·꼬리말 적용 쪽', en: "Header/footer page scope" }) } });
     for (const [value, label] of [['0', L({ ko: '양쪽 쪽', en: "Both page types" })], ['1', L({ ko: '짝수 쪽', en: "Even pages" })], ['2', L({ ko: '홀수 쪽', en: "Odd pages" })]]) applyTo.createEl('option', { value, text: label });
     applyTo.value = String(this.initialApplyTo);
-    const template = row(L({ ko: '템플릿', en: "template" }), L({ ko: '머리말·꼬리말 템플릿', en: "Header/footer template" })).createEl('select', { attr: { 'aria-label': L({ ko: '머리말·꼬리말 템플릿', en: "Header/footer template" }) } });
+    const template = row(L({ ko: '템플릿', en: "Template" }), L({ ko: '머리말·꼬리말 템플릿', en: "Header/footer template" })).createEl('select', { attr: { 'aria-label': L({ ko: '머리말·꼬리말 템플릿', en: "Header/footer template" }) } });
     const templates = [
       L({ ko: '빈 머리말 / 꼬리말', en: "Empty header / footer" }), L({ ko: '쪽 번호 왼쪽', en: "Page number left" }), L({ ko: '쪽 번호 가운데', en: "Page number center" }), L({ ko: '쪽 번호 오른쪽', en: "Page number right" }),
       L({ ko: '쪽 번호 왼쪽 · 파일 이름 오른쪽', en: "Page number left · file name right" }), L({ ko: '파일 이름 왼쪽 · 쪽 번호 오른쪽', en: "File name left · page number right" }),
@@ -802,7 +809,7 @@ export class EndnoteShapeModal extends FocusReturnModal {
     const updateSeparator = (): void => { for (const control of [lineType, lineWidth, color, separatorLength]) control.disabled = !separator.checked; };
     separator.addEventListener('change', updateSeparator); updateSeparator();
     const buttons = this.contentEl.createDiv({ cls: 'hwp-format-dialog-buttons' });
-    buttons.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }).addEventListener('click', () => this.close());
+    buttons.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }).addEventListener('click', () => this.close());
     const apply = buttons.createEl('button', { text: L({ ko: '적용', en: "Apply" }), cls: 'mod-cta' });
     apply.addEventListener('click', () => {
       const values = [separatorLength, marginTop, spacing, marginBottom].map(input => Number(input.value));
@@ -832,7 +839,7 @@ export class ConfirmDiscard extends FocusReturnModal {
   onOpen(): void {
     this.contentEl.createEl('h3', { text: L({ ko: '디스크 파일 다시 불러오기', en: "Reload disk file" }) });
     this.contentEl.createEl('p', { text: L({ ko: '현재 편집 세션과 미적용 입력을 버리고 디스크 파일을 다시 읽습니다. 변경을 보존하려면 먼저 새 파일로 저장하거나 입력 복구 목록에 보관하세요.', en: "Discards the current editing session and unapplied input, then rereads the disk file. To preserve changes, first save as a new file or keep the input in the recovery list." }) });
-    const cancel = this.contentEl.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.onclick = () => this.close(); cancel.focus();
+    const cancel = this.contentEl.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }); cancel.onclick = () => this.close(); cancel.focus();
     const discard = this.contentEl.createEl('button', { text: L({ ko: '변경 버리고 불러오기', en: "Discard changes and reload" }), cls: 'mod-warning' });
     discard.onclick = () => { void this.action().then(() => this.close()).catch(error => new Notice(error instanceof Error ? error.message : String(error))); };
   }
@@ -849,7 +856,7 @@ export class ConfirmAnchoredDelete extends FocusReturnModal {
   onOpen(): void {
     this.contentEl.createEl('h3', { text: L({ ko: '포함된 요소까지 삭제할까요?', en: "Delete included elements too?" }) });
     this.contentEl.createEl('p', { text: L({ ko: '선택 영역에 필드, 개체 또는 인라인 컨트롤이 있습니다. 계속하면 선택한 텍스트와 포함된 요소를 함께 삭제합니다.', en: "The selection contains fields, objects, or inline controls. Continuing deletes both the selected text and included elements." }) });
-    const cancel = this.contentEl.createEl('button', { text: L({ ko: '취소', en: "cancel" }) });
+    const cancel = this.contentEl.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) });
     cancel.onclick = () => this.finish(false); cancel.focus();
     const confirm = this.contentEl.createEl('button', { text: L({ ko: '포함된 요소까지 삭제', en: "Delete included elements too" }), cls: 'mod-warning' });
     confirm.onclick = () => this.finish(true);
@@ -865,7 +872,7 @@ export class ConfirmInputDraftDiscard extends FocusReturnModal {
   onOpen(): void {
     this.contentEl.createEl('h3', { text: L({ ko: '입력 복구본 폐기', en: "Discard input recovery copy" }) });
     this.contentEl.createEl('p', { text: L({ ko: '이 입력 복구본을 영구적으로 삭제합니다. 원본 문서에는 적용하지 않습니다.', en: "Permanently deletes this input recovery copy. Does not apply it to the original document." }) });
-    const cancel = this.contentEl.createEl('button', { text: L({ ko: '취소', en: "cancel" }) }); cancel.onclick = () => this.close(); cancel.focus();
+    const cancel = this.contentEl.createEl('button', { text: L({ ko: '취소', en: "Cancel" }) }); cancel.onclick = () => this.close(); cancel.focus();
     const discard = this.contentEl.createEl('button', { text: L({ ko: '복구본 폐기', en: "Discard recovery copy" }), cls: 'mod-warning' });
     discard.onclick = () => { discard.disabled = true; void this.action().then(() => this.close()).catch(error => { new Notice(error instanceof Error ? error.message : String(error), 8000); discard.disabled = false; }); };
   }
@@ -1036,7 +1043,7 @@ export class SaveOnCloseModal extends FocusReturnModal {
     const actions = this.contentEl.createDiv({ cls: 'modal-button-container' });
     if (!this.conflict) { const save = actions.createEl('button', { text: L({ ko: '저장', en: "Save" }), cls: 'mod-cta' }); save.onclick = () => this.finish('save'); save.focus(); }
     const discard = actions.createEl('button', { text: L({ ko: '저장 안 함', en: "Don't save" }), cls: 'mod-warning' }); discard.onclick = () => this.finish('discard');
-    const reopen = actions.createEl('button', { text: L({ ko: '취소 (다시 열기)', en: "Cancel (reopen)" }) }); reopen.onclick = () => this.finish('reopen');
+    const reopen = actions.createEl('button', { text: L({ ko: '계속 편집', en: "Keep editing" }) }); reopen.onclick = () => this.finish('reopen');
     if (this.conflict) reopen.focus();
   }
   onClose(): void { this.contentEl.empty(); this.restoreFocus(); if (!this.settled) { this.settled = true; this.resolve('later'); } }
