@@ -792,13 +792,13 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       context: { text: string; offset: number; truncatedBefore: boolean; truncatedAfter: boolean }; snippet: string }> = [];
     const shown = new Map<string, Shown>();
     let ordinal = 0, more = false;
-    outer: for (const paragraph of epoch.all) {
+    for (const paragraph of epoch.all) {
       if (!paragraph.text.includes(query)) continue;
       const source = Array.from(paragraph.text);
       for (let offset = 0; offset + needle.length <= source.length; offset++) {
         if (!needle.every((character, index) => source[offset + index] === character)) continue;
         if (ordinal++ < start) continue;
-        if (matches.length === limit) { more = true; break outer; }
+        if (matches.length === limit) { more = true; continue; }
         const from = Math.max(0, offset - SNIPPET_RADIUS), to = Math.min(source.length, offset + needle.length + SNIPPET_RADIUS);
         const handle = handleOf(epoch, paragraph, rootIndex, tables);
         // A match snippet is a full observation only when its window covers the whole paragraph.
@@ -810,11 +810,11 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
       }
     }
     const cursor = more ? remember({ kind: 'find', epoch: epoch.id, binding: JSON.stringify([query, includeStories]), position: start + matches.length }) : undefined;
-    const lines = [header(state), matches.length ? LT({ ko: () => `"${query}" ${start + 1}번째부터 ${matches.length}곳:`, en: () => `"${query}": ${matches.length} matches starting at match ${start + 1}:` }) : start ? LT({ ko: () => `"${query}"의 일치가 더 없다.`, en: () => `No more matches for "${query}".` }) : LT({ ko: () => `"${query}"를 찾지 못했다.`, en: () => `Could not find "${query}".` }),
+    const lines = [LT({ ko: () => `총 ${ordinal}곳`, en: () => `Total: ${ordinal} matches` }), header(state), matches.length ? LT({ ko: () => `"${query}" ${start + 1}번째부터 ${matches.length}곳:`, en: () => `"${query}": ${matches.length} matches starting at match ${start + 1}:` }) : start ? LT({ ko: () => `"${query}"의 일치가 더 없다.`, en: () => `No more matches for "${query}".` }) : LT({ ko: () => `"${query}"를 찾지 못했다.`, en: () => `Could not find "${query}".` }),
       L({ ko: '치환에는 text 또는 context.text의 실제 문구를 사용한다. snippet은 강조 표시 전용이다. offset은 문단 내 Unicode code point 기준이며 생략 여부는 truncatedBefore/After로 표시한다.', en: "For replacement, use the actual phrase in text or context.text. snippet is only for highlighted display. offset uses Unicode code points within the paragraph; truncatedBefore/After indicate omissions." }),
       ...matches.map(({ snippet: _snippet, ...match }) => JSON.stringify(match))];
     if (cursor) lines.push(LT({ ko: () => `… 계속: cursor=${cursor}`, en: () => `… Continue: cursor=${cursor}` }));
-    return { content: [{ type: 'text', text: lines.join('\n') }], structuredContent: { matches, snippetFormat: 'highlighted-display-only', complete: !more, scope: includeStories ? 'body+cells+stories' : 'body+cells', ...(cursor ? { cursor } : {}) }, _meta: { ...resource(epoch), ...observed(ctx, epoch, [...shown.values()]) } };
+    return { content: [{ type: 'text', text: lines.join('\n') }], structuredContent: { total: ordinal, matches, snippetFormat: 'highlighted-display-only', complete: !more, scope: includeStories ? 'body+cells+stories' : 'body+cells', ...(cursor ? { cursor } : {}) }, _meta: { ...resource(epoch), ...observed(ctx, epoch, [...shown.values()]) } };
   }
 
   const failure = (error: unknown): ToolResult => {

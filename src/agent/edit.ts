@@ -515,6 +515,13 @@ export class AgentEdits {
         return fail('INVALID_ARGUMENT', LT({ ko: () => `${at}: 삽입에는 줄바꿈 없는 문자열 1~${MAX_INSERTED}개의 paragraphs만 준다. 문단마다 배열 항목 하나다.`, en: () => `${at}: insertion accepts only paragraphs containing 1–${MAX_INSERTED} strings without line breaks. One array item per paragraph.` }), true,
           inputAt(item.text !== undefined ? `${at}.text` : line >= 0 ? `${at}.paragraphs[${line}]` : `${at}.paragraphs`));
       }
+      const markdown = (lines as string[]).findIndex(line => {
+        const value = line.trim();
+        return (value.startsWith('|') && value.endsWith('|') && (value.match(/\|/g)?.length ?? 0) >= 3)
+          || (value.includes('|') && value.includes('-') && /^[|\s:-]+$/.test(value));
+      });
+      if (!source && markdown >= 0) return fail('INVALID_ARGUMENT', L({ ko: '삽입 문단에 Markdown 표 행을 넣을 수 없다. insert_table에 before 또는 after와 rows: [["열1", "열2"], ["값1", "값2"]]를 줘라. 제목 앞에 넣으려면 before에 그 제목 문단을 준다.', en: 'Inserted paragraphs cannot contain Markdown table rows. Call insert_table with before or after and rows: [["Column 1", "Column 2"], ["Value 1", "Value 2"]]. To insert before a heading, pass that heading paragraph as before.' }), true,
+        inputAt(`${at}.paragraphs[${markdown}]`));
       return { action, target, lines: lines as string[], ...style };
     });
     const exclusive = operations.filter(item => item.action === 'delete').map(item => item.target);
@@ -1127,10 +1134,12 @@ export class AgentEdits {
       structuredContent: { ok: true, changed: changed.slice(0, 20), filled: edits.length, changedPages: pages.slice(0, 50), undoAvailable: applied.canUndo }, _meta: meta };
   }
 
-  /** A new table after a body paragraph, filled in the same transaction. */
+  /** A new table before or after a body paragraph, filled in the same transaction. */
   private async insertTable(args: JsonObject, ctx: CallerContext, state: State, epoch: EditEpoch, receipt: Receipter, guard?: SelectionGuard): Promise<ToolResult> {
-    const operation = operationId([state.path, 'insert_table', args.after ?? null, args.rows ?? null, args.headerRow ?? null, args.caption ?? null]), fail = this.failer(receipt, operation);
-    const rows = args.rows, after = args.after, caption = args.caption;
+    const operation = operationId([state.path, 'insert_table', args.after ?? null, args.before ?? null, args.rows ?? null, args.headerRow ?? null, args.caption ?? null]), fail = this.failer(receipt, operation);
+    const before = args.before !== undefined, field = before ? 'before' : 'after';
+    if ((args.after === undefined) === (args.before === undefined)) return fail('INVALID_ARGUMENT', L({ ko: 'after와 before 중 정확히 하나를 줘라. 예: {path, before: "d…:p3", rows: [["값"]]}. 제목 앞에 넣으려면 before에 그 제목 문단을 준다.', en: 'Supply exactly one of after and before. Example: {path, before: "d…:p3", rows: [["Value"]]}. To insert before a heading, pass that heading paragraph as before.' }), true, inputAt('$'));
+    const rows = args.rows, after = args[field], caption = args.caption;
     const width = Array.isArray(rows) && Array.isArray(rows[0]) ? rows[0].length : 0;
     if (!Array.isArray(rows) || !rows.length || rows.length > MAX_TABLE_ROWS || !width || width > MAX_TABLE_COLS || rows.some(row => !Array.isArray(row) || row.length !== width || row.some(control))) {
       const list = Array.isArray(rows) ? rows : [], row = list.findIndex(row => !Array.isArray(row) || row.length !== width || row.some(control)), wrong = list[row];
@@ -1140,21 +1149,23 @@ export class AgentEdits {
     }
     if (args.headerRow !== undefined && typeof args.headerRow !== 'boolean') return fail('INVALID_ARGUMENT', L({ ko: 'headerRow는 true 또는 false다.', en: "headerRow must be true or false." }), true, inputAt('headerRow'));
     if (caption !== undefined && (control(caption) || !(caption as string).length)) return fail('INVALID_ARGUMENT', L({ ko: 'caption은 줄바꿈 없는 문자열이다.', en: "caption must be a string without line breaks." }), true, inputAt('caption'));
-    if (typeof after !== 'string' || !after.startsWith(`${epoch.id}:`)) return fail('HANDLE_EXPIRED', L({ ko: 'after의 핸들이 지금 문서 상태의 것이 아니다. 다시 읽어 새 핸들을 써라.', en: "The after handle does not belong to the current document state. Reread and use a fresh handle." }), true, inputAt('after'));
+    if (typeof after !== 'string' || !after.startsWith(`${epoch.id}:`)) return fail('HANDLE_EXPIRED', LT({ ko: () => `${field}의 핸들이 지금 문서 상태의 것이 아니다. 다시 읽어 새 핸들을 써라. 제목 앞에 넣으려면 before에 그 제목 문단을 준다.`, en: () => `The ${field} handle does not belong to the current document state. Reread and use a fresh handle. To insert before a heading, pass that heading paragraph as before.` }), true, inputAt(field));
     const all = await this.env.api.query.paragraphs(epoch.path, { includeCells: true });
     await this.unchanged(state, epoch, fail);
     const handles = await this.env.handles(epoch, all), anchor = all[handles.indexOf(after)];
-    if (!anchor) return fail('HANDLE_EXPIRED', LT({ ko: () => `${after}은 본문 문단 핸들이 아니다. read_document가 준 문단 핸들을 써라.`, en: () => `${after} is not a body paragraph handle. Use a paragraph handle from read_document.` }), true, inputAt('after'));
-    if (anchor.address.cellPath?.length) return fail('UNSUPPORTED_TARGET', L({ ko: '표는 본문 문단 뒤에만 넣는다. 표 칸이나 글상자 안에는 넣지 않는다.', en: "Tables can only be inserted after body paragraphs, not inside table cells or text boxes." }), false, inputAt('after'));
-    if (guard && !guard.insertion(anchor.address, false)) return await this.outside(guard, epoch, fail, LT({ ko: () => `${after} 뒤는`, en: () => `The position after ${after}` }));
+    if (!anchor) return fail('HANDLE_EXPIRED', LT({ ko: () => `${after}은 본문 문단 핸들이 아니다. read_document가 준 문단 핸들을 before 또는 after에 줘라. 제목 앞에는 before를 쓴다.`, en: () => `${after} is not a body paragraph handle. Pass a paragraph handle from read_document as before or after. Use before for insertion before a heading.` }), true, inputAt(field));
+    if (anchor.address.cellPath?.length) return fail('UNSUPPORTED_TARGET', L({ ko: '표 칸이나 글상자 안에는 넣지 않는다. 본문 문단 핸들을 before 또는 after에 줘라. 제목 앞에는 before를 쓴다.', en: 'Tables cannot be inserted inside table cells or text boxes. Supply a body paragraph handle as before or after. Use before for insertion before a heading.' }), false, inputAt(field));
+    if (before && (await this.env.api.query.fields(epoch.path)).some(item => item.address && addressKey(item.address) === addressKey(anchor.address)))
+      return fail('UNSUPPORTED_TARGET', L({ ko: '누름틀이 있는 문단 앞에는 표를 넣을 수 없다. 다른 본문 문단을 before로 주거나, 뒤에 넣으려면 after로 줘라. 제목 앞에는 before에 그 제목 문단을 준다.', en: 'Cannot insert a table before a paragraph containing input fields. Supply another body paragraph as before, or use after to insert after it. For insertion before a heading, pass that heading paragraph as before.' }), false, inputAt(field));
+    if (guard && !guard.insertion(anchor.address, before)) return await this.outside(guard, epoch, fail, LT({ ko: () => `${after} ${before ? '앞' : '뒤'}는`, en: () => `The position ${before ? 'before' : 'after'} ${after}` }));
     if (this.observations.shown(ctx.caller, ctx.observations, state).get(addressKey(anchor.address))?.get(anchor.text) === undefined)
       return fail('OBSERVATION_REQUIRED', L({ ko: '아직 적용되지 않았다. 표를 넣을 자리의 문단을 아래에 보여 주었다. 요청과 맞으면 같은 호출을 다시 보내면 적용된다.', en: "Not applied yet. The paragraph at the table insertion point is shown below. If it matches the request, send the same call again to apply." }), true,
         { blocks: [{ handle: after, text: clip(anchor.text) }], suggestion: observedRetrySuggestion() }, this.observations.record(ctx.caller, epoch, [{ handle: after, address: anchor.address, text: anchor.text, full: Array.from(anchor.text).length <= PREVIEW_CHARS }]));
-    const { section, paragraph: index } = anchor.address, at = index + 1, cells = rows as string[][];
+    const { section, paragraph: index } = anchor.address, at = index + (before ? 0 : 1), cells = rows as string[][];
     const table = { section, paragraph: at, control: 0 };
-    // Where the engine puts a table depends on the paragraph it is created in. A new empty paragraph after the anchor makes it
-    // one case: the table takes that paragraph and one empty paragraph follows. The anchor itself is not split or touched.
-    const commands: Command[] = [{ type: 'insertParagraph', section, index: at, text: '' }, { type: 'createTable', target: { section, paragraph: at }, offset: 0, rows: cells.length, cols: width }];
+    // Create at the requested body index. Before uses the engine's insertBefore path to keep section controls in place.
+    // The table takes the new paragraph and one empty paragraph follows; the anchor's text and objects remain intact.
+    const commands: Command[] = [{ type: 'insertParagraph', section, index: at, text: '', ...(before ? { like: 'next' as const } : {}) }, { type: 'createTable', target: { section, paragraph: at }, offset: 0, rows: cells.length, cols: width }];
     cells.forEach((row, r) => row.forEach((text, c) => { if (text) commands.push({ type: 'setCellText', table, row: r, col: c, text }); }));
     if (args.headerRow === true) commands.push({ type: 'formatCellBlock', table, startRow: 0, startCol: 0, endRow: 0, endCol: width - 1, character: { bold: true }, paragraph: { alignment: 'center' } });
     // The paragraph after the table must be the empty one the engine added; otherwise everything is rolled back.
@@ -1164,20 +1175,22 @@ export class AgentEdits {
     // A dry run of the first two commands changes nothing and tells where the engine would put the table, before the cells are addressed for real.
     const probe = await this.probe(ctx, state, epoch, commands.slice(0, 2));
     const made = probe.results[1] as { paraIdx?: Json; controlIdx?: Json } | undefined;
-    if (made?.paraIdx !== at || made.controlIdx !== 0) return fail('UNSUPPORTED_TARGET', LT({ ko: () => `${after} 뒤에는 표가 놓일 자리를 확정하지 못해 넣지 않았다. 다른 문단 뒤를 지정하거나 사람이 화면에서 넣어야 한다.`, en: () => `Could not determine a table placement after ${after}; nothing was inserted. Choose another paragraph or ask a person to insert onscreen.` }), false, inputAt('after'));
+    if (made?.paraIdx !== at || typeof made.controlIdx !== 'number' || !Number.isInteger(made.controlIdx) || made.controlIdx < 0) return fail('UNSUPPORTED_TARGET', LT({ ko: () => `${after} ${before ? '앞' : '뒤'}에는 표가 놓일 자리를 확정하지 못해 넣지 않았다. 다른 본문 문단을 before 또는 after로 줘라. 제목 앞에는 before를 쓴다.`, en: () => `Could not determine a table placement ${before ? 'before' : 'after'} ${after}; nothing was inserted. Supply another body paragraph as before or after. Use before for insertion before a heading.` }), false, inputAt(field));
+    // Section/column controls stay in the first paragraph. Use the probed table control index there too.
+    table.control = made.controlIdx;
     const added = 2;
     const changed = [{ handle: after, before: '', after: clip(LT({ ko: () => `[표 ${cells.length}행×${width}열] ${cells[0].join(' | ')}${caption !== undefined ? ` ⏎ ${caption as string}` : ''}`, en: () => `[Table ${cells.length} rows × ${width} columns] ${cells[0].join(' | ')}${caption !== undefined ? ` ⏎ ${caption as string}` : ''}` })) }];
     const { applied, pages, meta } = await this.commit('insert_table', ctx, state, epoch, receipt, operation, commands, changed,
-      { structural: true, summary: LT({ ko: () => `${cells.length}행×${width}열 표 넣음`, en: () => `Inserted ${cells.length}-row × ${width}-column table` }), moved: { section, changes: [{ action: 'insert_after', index, count: added }] },
-        marks: [{ address: { section, paragraph: at }, table: 0 }, ...(caption !== undefined ? [{ address: { section, paragraph: at + 1 } }] : [])] });
-    guard?.restructured([{ action: 'insert_after', index, count: added }], applied.revision);
+      { structural: true, summary: LT({ ko: () => `${cells.length}행×${width}열 표 넣음`, en: () => `Inserted ${cells.length}-row × ${width}-column table` }), moved: { section, changes: [{ action: before ? 'insert_before' : 'insert_after', index, count: added }] },
+        marks: [{ address: { section, paragraph: at }, table: table.control }, ...(caption !== undefined ? [{ address: { section, paragraph: at + 1 } }] : [])] });
+    guard?.restructured([{ action: before ? 'insert_before' : 'insert_after', index, count: added }], applied.revision);
     const selected = new Map<string, NextRole>([
       [addressKey({ kind: 'body', section, paragraph: at }), 'table'],
       [addressKey({ kind: 'body', section, paragraph: at + 1 }), caption !== undefined ? 'inserted' : 'after'],
       ...(caption !== undefined ? [[addressKey({ kind: 'body', section, paragraph: at + 2 }), 'after'] as [string, NextRole]] : []),
     ]);
     const continuation = await this.nextHandles(ctx, epoch.path, applied, selected);
-    return { content: [{ type: 'text', text: LT({ ko: () => `${after} 뒤에 ${cells.length}행×${width}열 표를 넣었다.${continuation ? ' 핸들이 바뀌었다. 아래 새 핸들로 바로 이어서 편집할 수 있다. 다른 곳을 편집할 때만 다시 읽는다.' + this.nextLines(continuation.handles) : ' 핸들이 바뀌었으니 계속 편집하려면 문서를 다시 읽어라.'}`, en: () => `Inserted a ${cells.length}-row × ${width}-column table after ${after}.${continuation ? ' Handles changed. Continue immediately with the new handles below; reread only to edit elsewhere.' + this.nextLines(continuation.handles) : ' Handles changed; reread before continuing to edit.'}` }) }],
+    return { content: [{ type: 'text', text: LT({ ko: () => `${after} ${before ? '앞' : '뒤'}에 ${cells.length}행×${width}열 표를 넣었다.${continuation ? ' 핸들이 바뀌었다. 아래 새 핸들로 바로 이어서 편집할 수 있다. 다른 곳을 편집할 때만 다시 읽는다.' + this.nextLines(continuation.handles) : ' 핸들이 바뀌었으니 계속 편집하려면 문서를 다시 읽어라.'}`, en: () => `Inserted a ${cells.length}-row × ${width}-column table ${before ? 'before' : 'after'} ${after}.${continuation ? ' Handles changed. Continue immediately with the new handles below; reread only to edit elsewhere.' + this.nextLines(continuation.handles) : ' Handles changed; reread before continuing to edit.'}` }) }],
       structuredContent: { ok: true, changed, rows: cells.length, cols: width, changedPages: pages.slice(0, 50), undoAvailable: applied.canUndo, handlesExpired: true, ...(continuation ? { next: { handles: continuation.handles } } : {}) }, _meta: { ...meta, ...continuation?.observed } };
   }
 
