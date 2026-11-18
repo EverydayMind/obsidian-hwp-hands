@@ -825,6 +825,12 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
     return { isError: true, content: [{ type: 'text', text: message }], structuredContent: { code, retryable, ...domainErrorDetails(code, known ? error.extra : {}) }, _meta: { 'dev.agentinterop/error': { code, retryable }, ...(known && error.state ? resource(error.state) : {}) } };
   };
 
+  const active = new Set<Promise<unknown>>();
+  function track<T>(work: Promise<T>): Promise<T> {
+    active.add(work);
+    void work.then(() => active.delete(work), () => active.delete(work));
+    return work;
+  }
   return {
     protocol: 'agentinterop',
     protocolVersion: 1,
@@ -842,12 +848,13 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
     ...(edits ? { resolveTarget: ((name: string, args: JsonObject, ctx: InvocationContext) => commits && COMMIT_TOOL_NAMES.includes(name) ? commits.resolveTarget(name, args, ctx) : edits.resolveTarget(name, args, ctx)) as AgentCapabilityProvider['resolveTarget'] } : {}),
     // The functions are captured once: a host holds on to the exact ones it discovered.
     ...(commits ? { commit: {
-      prepare: (request: Parameters<AgentCommits['prepare']>[0], ctx: CommitContext) => { if (disposed) throw new HwpHandsError('CANCELLED', L({ ko: 'HWP Hands가 종료됐다.', en: "HWP Hands has been disposed." })); return commits.prepare(request, ctx); },
-      execute: (ticket: Parameters<AgentCommits['execute']>[0], ctx: CommitContext) => { if (disposed) throw new HwpHandsError('CANCELLED', L({ ko: 'HWP Hands가 종료됐다.', en: "HWP Hands has been disposed." })); return commits.execute(ticket, ctx); },
+      prepare: (request: Parameters<AgentCommits['prepare']>[0], ctx: CommitContext) => { if (disposed) throw new HwpHandsError('CANCELLED', L({ ko: 'HWP Hands가 종료됐다.', en: "HWP Hands has been disposed." })); return track(commits.prepare(request, ctx)); },
+      execute: (ticket: Parameters<AgentCommits['execute']>[0], ctx: CommitContext) => { if (disposed) throw new HwpHandsError('CANCELLED', L({ ko: 'HWP Hands가 종료됐다.', en: "HWP Hands has been disposed." })); return track(commits.execute(ticket, ctx)); },
       status: (preparationId: string, ctx?: CommitContext) => commits.status(preparationId, ctx),
     } } : {}),
     async callTool(name, args, ctx) {
       if (disposed) return failure(new ToolError('CLOSED', L({ ko: 'HWP Hands가 종료됐다.', en: "HWP Hands has been disposed." }), false));
+      return track((async () => {
       try {
         if (ctx?.signal?.aborted) throw new HwpHandsError('CANCELLED', L({ ko: '도구 호출이 취소됐다.', en: "The tool call was cancelled." }));
         if (DESCRIPTOR_TOOLS.some(tool => tool.name === name) || (edits && name === 'check_before_save')) {
@@ -866,9 +873,11 @@ function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptio
         return failure(new ToolError('INVALID_ARGUMENT', L({ ko: '사용할 수 없는 도구다. available의 이름을 확인하라.', en: "This tool is unavailable. Check the names in available." }), true, undefined,
           { available: [...DESCRIPTOR_TOOLS, ...(edits ? [...EDIT_TOOLS, CHECK_TOOL] : [])].map(tool => tool.name!), suggestion: L({ ko: 'describe()에서 현재 도구 목록을 다시 확인하라.', en: "Check the current tool list again with describe()." }) }));
       } catch (error) { return failure(error); }
+      })());
     },
     async dispose() {
       disposed = true;
+      await Promise.allSettled([...active]);
       editor.dispose();
       edits?.dispose(); commits?.dispose();
       unsubscribeEpochs(); unsubscribeApplied?.(); unsubscribePrivacy?.();

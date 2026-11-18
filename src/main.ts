@@ -57,6 +57,7 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
   private inputDraftStore!: InputDraftStore;
   private engineProvider!: WorkerEngineProvider;
   private agentProvider?: AgentCapabilityProvider;
+  private agentProviderChanges: Promise<void> = Promise.resolve();
   private agentPrivacy!: AgentPrivacy;
   /** Where AI edits landed that no person has looked through; the editor views draw them. Empty unless the edit tools are on. */
   readonly editMarks = new EditMarks();
@@ -117,27 +118,7 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
     this.app.workspace.onLayoutReady(bindViews);
     this.register(this.api.events.on('*', () => viewContext.changed()));
     this.register(() => { viewContext.dispose(); delete this.api.views; });
-    // Agent hosts discover this provider on the plugin instance; the plugin does not know or import any host.
-    this.agentProvider = createAgentProvider(this.api, { version: this.manifest.version, viewPaths: () => this.viewPaths(),
-      privacy: this.agentPrivacy,
-      rewriteCompute: (request, signal) => this.engineProvider.rewriteCompute(request, signal),
-      approveFormatException: (request, signal) => new Promise(resolve => new FormatExceptionModal(this.app, request, resolve, signal).open()),
-      reveal: (path, target) => this.revealDocument(path, target),
-      ...(this.settings.agentEditTools === true ? { marks: this.editMarks, edit: {
-        transaction: (path, commands, options, actorId, signal) => this.manager.transactionFromAi(path, commands, options, actorId, signal),
-        undo: (path, options, signal) => this.manager.undoFromAi(path, options, signal),
-        pendingEdits: sessionId => this.manager.pendingActorEdits(sessionId),
-        onApplied: listener => this.manager.observeApplied(listener),
-        discard: (path, options, actorId, signal) => this.manager.discardFromAi(path, options, actorId, signal),
-      }, ...(this.settings.agentSaveTool === true ? { commit: {
-        prepare: (path, context) => this.manager.prepareSave(path, context),
-        resolveNew: (destination, template) => this.manager.resolveNewDocument(destination, template),
-        prepareNew: request => this.manager.prepareNewDocument(request),
-        execute: (ticket, permit) => this.manager.executePreparedSave(ticket, permit),
-        status: preparationId => this.manager.preparedSaveStatus(preparationId),
-        cancel: preparationId => this.manager.cancelPreparedSave(preparationId),
-      } } : {}) } : {}) });
-    Object.defineProperty(this, AGENT_CAPABILITY_PROVIDER, { value: this.agentProvider, configurable: true, enumerable: false, writable: false });
+    this.installAgentProvider();
     this.register(() => this.editMarks.dispose());
     this.app.workspace.onLayoutReady(() => this.app.workspace.trigger(PROVIDERS_CHANGED_EVENT));
     // A working copy can stay unsaved with no view on it, for example after an agent edited a document nobody opened.
@@ -254,6 +235,45 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
       })().catch(error => this.report(error));
     }));
     this.addSettingTab(new HwpSettings(this.app, this));
+  }
+  private installAgentProvider(): AgentCapabilityProvider | undefined {
+    const previous = this.agentProvider;
+    const provider = createAgentProvider(this.api, { version: this.manifest.version, viewPaths: () => this.viewPaths(),
+      privacy: this.agentPrivacy,
+      rewriteCompute: (request, signal) => this.engineProvider.rewriteCompute(request, signal),
+      approveFormatException: (request, signal) => new Promise(resolve => new FormatExceptionModal(this.app, request, resolve, signal).open()),
+      reveal: (path, target) => this.revealDocument(path, target),
+      ...(this.settings.agentEditTools === true ? { marks: this.editMarks, edit: {
+        transaction: (path, commands, options, actorId, signal) => this.manager.transactionFromAi(path, commands, options, actorId, signal),
+        undo: (path, options, signal) => this.manager.undoFromAi(path, options, signal),
+        pendingEdits: sessionId => this.manager.pendingActorEdits(sessionId),
+        onApplied: listener => this.manager.observeApplied(listener),
+        discard: (path, options, actorId, signal) => this.manager.discardFromAi(path, options, actorId, signal),
+      }, ...(this.settings.agentSaveTool === true ? { commit: {
+        prepare: (path, context) => this.manager.prepareSave(path, context),
+        resolveNew: (destination, template) => this.manager.resolveNewDocument(destination, template),
+        prepareNew: request => this.manager.prepareNewDocument(request),
+        execute: (ticket, permit) => this.manager.executePreparedSave(ticket, permit),
+        status: preparationId => this.manager.preparedSaveStatus(preparationId),
+        cancel: preparationId => this.manager.cancelPreparedSave(preparationId),
+      } } : {}) } : {}) });
+    Object.defineProperty(this, AGENT_CAPABILITY_PROVIDER, { value: provider, configurable: true, enumerable: false, writable: false });
+    this.agentProvider = provider;
+    return previous;
+  }
+  updateAgentTools(change: () => void): Promise<void> {
+    const update = this.agentProviderChanges.then(async () => {
+      if (this.closingDown) return;
+      change();
+      await this.saveData(this.settings);
+      if (this.closingDown) return;
+      const previous = this.installAgentProvider();
+      if (!this.closingDown) this.app.workspace.trigger(PROVIDERS_CHANGED_EVENT);
+      try { await previous?.dispose(); }
+      catch (error) { console.error('Failed to dispose previous agent provider', error); }
+    });
+    this.agentProviderChanges = update.catch(() => undefined);
+    return update;
   }
   isAiPrivate(path: string): boolean { return this.agentPrivacy.configured(path); }
   aiPrivatePaths(): string[] | null { return this.agentPrivacy.needsRepair ? null : this.agentPrivacy.snapshot().blockedPaths; }
@@ -443,7 +463,7 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
     const provider = this.agentProvider; this.agentProvider = undefined;
     delete (this as unknown as Record<symbol, unknown>)[AGENT_CAPABILITY_PROVIDER];
     this.app.workspace.trigger(PROVIDERS_CHANGED_EVENT);
-    void Promise.allSettled([...this.hwpViews().map(v => v.flushDraft()), provider?.dispose()]).then(() => this.manager?.dispose());
+    void Promise.allSettled([...this.hwpViews().map(v => v.flushDraft()), provider?.dispose(), this.agentProviderChanges]).then(() => this.manager?.dispose());
   }
   private hwpViews(): HwpView[] {
     return [VIEW_TYPE, EDITOR_VIEW_TYPE, ...PREVIOUS_VIEW_TYPES].flatMap(type => this.app.workspace.getLeavesOfType(type))
@@ -478,8 +498,8 @@ class HwpSettings extends PluginSettingTab {
     new Setting(this.containerEl).setName(L({ ko: '저장 전 원본 백업', en: "Back up original before saving" })).setDesc(L({ ko: '플러그인 폴더에 저장 전 파일을 문서별 최신 3개까지 보관합니다. 저장이 확인되면 그보다 오래된 백업은 지웁니다.', en: "Keeps up to three latest pre-save backups per document in the plugin folder. Deletes older backups after saving is verified." })).addToggle(t => t.setValue(this.plugin.settings.backup).onChange(async value => { this.plugin.settings.backup = value; await this.persist(); }));
     new Setting(this.containerEl).setName(L({ ko: '저장·외부 변경 후 검색 인덱스 자동 생성', en: "Automatically create search index after saving/external changes" })).setDesc(L({ ko: '원본 옆 .index.md를 저장, 외부 수정, 이름 변경 뒤 갱신합니다. 직접 편집하거나 사용자 소유로 확인되는 인덱스는 보존합니다.', en: "Updates the adjacent .index.md after saving, external edits, or renaming. Preserves indexes edited directly or identified as user-owned." })).addToggle(t => t.setValue(this.plugin.settings.autoIndex).onChange(async value => { this.plugin.settings.autoIndex = value; await this.persist(); }));
     new Setting(this.containerEl).setName(L({ ko: 'AI 에이전트 도구', en: "AI agent tools" })).setHeading();
-    new Setting(this.containerEl).setName(L({ ko: 'AI 에이전트 편집 도구 허용', en: "Allow AI agent editing tools" })).setDesc(L({ ko: '켜면 Verbex 같은 호스트 플러그인에 한글 문서 편집 도구가 노출됩니다. 편집은 작업본에만 적용되고 파일은 바뀌지 않습니다. 도구 목록이 바뀌므로 호스트에서 HWP Hands를 다시 승인해야 합니다. 플러그인을 다시 불러오면 적용됩니다.', en: "When enabled, host plugins such as Verbex can use the document editing tools. Edits apply to the working copy only; the file is not changed. Because the tool list changes, approve HWP Hands again in the host. Applies after reloading the plugin." })).addToggle(t => t.setValue(this.plugin.settings.agentEditTools).onChange(async value => { setAgentEditing(this.plugin.settings, value); await this.persist(); this.display(); }));
-    new Setting(this.containerEl).setName(L({ ko: 'AI 에이전트 저장 도구 허용', en: "Allow AI agent save tool" })).setDesc(L({ ko: '켜면 호스트가 작업본을 파일로 저장하는 도구를 쓸 수 있습니다. 저장은 호스트의 승인 절차를 거칩니다. 편집 도구가 켜져 있어야 합니다. 바꾼 뒤 호스트에서 다시 승인해야 합니다. 플러그인을 다시 불러오면 적용됩니다.', en: "When enabled, the host can use the tool that saves the working copy to the file. Saving goes through the host's approval. Requires the editing tools. Approve HWP Hands again in the host after changing this. Applies after reloading the plugin." })).addToggle(t => t.setValue(this.plugin.settings.agentSaveTool).setDisabled(!this.plugin.settings.agentEditTools).onChange(async value => { this.plugin.settings.agentSaveTool = value; await this.persist(); }));
+    new Setting(this.containerEl).setName(L({ ko: 'AI 에이전트 편집 도구 허용', en: "Allow AI agent editing tools" })).setDesc(L({ ko: '켜면 Verbex 같은 호스트 플러그인에 한글 문서 편집 도구가 노출됩니다. 편집은 작업본에만 적용되고 파일은 바뀌지 않습니다. 즉시 적용됩니다. 호스트에서 HWP Hands를 다시 승인하세요. 변경하면 진행 중인 AI 편집 세션과 저장 준비가 종료되지만, 저장하지 않은 작업본은 유지됩니다.', en: "When enabled, host plugins such as Verbex can use the document editing tools. Edits apply to the working copy only; the file is not changed. Applies immediately. Approve HWP Hands again in the host. Changing this ends AI editing sessions and prepared saves in progress; unsaved working copies stay." })).addToggle(t => t.setValue(this.plugin.settings.agentEditTools).onChange(async value => { await this.plugin.updateAgentTools(() => setAgentEditing(this.plugin.settings, value)); this.display(); }));
+    new Setting(this.containerEl).setName(L({ ko: 'AI 에이전트 저장 도구 허용', en: "Allow AI agent save tool" })).setDesc(L({ ko: '켜면 호스트가 작업본을 파일로 저장하는 도구를 쓸 수 있습니다. 저장은 호스트의 승인 절차를 거칩니다. 편집 도구가 켜져 있어야 합니다. 즉시 적용됩니다. 호스트에서 HWP Hands를 다시 승인하세요. 변경하면 진행 중인 AI 편집 세션과 저장 준비가 종료되지만, 저장하지 않은 작업본은 유지됩니다.', en: "When enabled, the host can use the tool that saves the working copy to the file. Saving goes through the host's approval. Requires the editing tools. Applies immediately. Approve HWP Hands again in the host. Changing this ends AI editing sessions and prepared saves in progress; unsaved working copies stay." })).addToggle(t => t.setValue(this.plugin.settings.agentSaveTool).setDisabled(!this.plugin.settings.agentEditTools).onChange(async value => { await this.plugin.updateAgentTools(() => { this.plugin.settings.agentSaveTool = value; }); }));
     const privatePaths = this.plugin.aiPrivatePaths();
     new Setting(this.containerEl).setName(L({ ko: '문서 전체 AI 비공개', en: "Entire-document AI privacy" })).setHeading();
     this.containerEl.createEl('p', { text: privatePaths === null
