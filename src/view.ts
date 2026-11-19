@@ -3810,8 +3810,6 @@ export class HwpView extends FileView {
     this.pageInput.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); void this.guard(() => this.goToPage()); } };
     this.sectionGotoSelect = navigation.createEl('select', { attr: { 'aria-label': L({ ko: '이동할 구역', en: "Section to navigate to" }) } });
     this.button(navigation, L({ ko: '구역 이동', en: "Go to section" }), () => this.goToSection());
-    this.button(navigation, L({ ko: '폭 맞춤', en: "Fit width" }), () => this.runEditorCommand('view.fit-width'));
-    this.button(navigation, L({ ko: '쪽 맞춤', en: "Fit page" }), () => this.runEditorCommand('view.fit-page'));
     this.zoomPreset = navigation.createEl('select', { cls: 'hwp-zoom-preset', attr: { 'aria-label': L({ ko: '미리보기 배율 프리셋', en: "Preview zoom presets" }) } });
     for (const [value, label] of [
       ['fit-width', L({ ko: '폭 맞춤', en: "Fit width" })], ['fit-page', L({ ko: '쪽 맞춤', en: "Fit page" })], ['50', '50%'], ['75', '75%'], ['100', '100%'],

@@ -406,6 +406,8 @@ export interface HwpHandsApiV1 {
   readonly engineVersion: string;
   /** Present in the Obsidian plugin; absent in a headless DocumentManager. */
   views?: EditorViews;
+  /** Present in the Obsidian plugin. Honoring it is voluntary for callers. */
+  privacy?: { isBlocked(path: string): boolean };
   documents: {
     open(path: string): Promise<State>;
     acquire(path: string): Promise<DocumentLease>;

@@ -37,6 +37,19 @@ export class AgentPrivacy {
     } catch { return true; }
   }
   blocked(path: string): boolean { return this.invalid || this.needsReview || this.paths.has(key(path)); }
+  /** Public check for other plugins: fail-closed, and an `<doc>.hwp(x).index.md` note follows its document. Never throws. */
+  blockedForPublic(path: unknown): boolean {
+    // Only HWP documents and their index notes are in scope: while the list is invalid or needs review, a host must not lose access to every other note.
+    if (typeof path !== 'string' || !path) return this.invalid || this.needsReview;
+    if (this.paths.has(key(path))) return true;
+    if (!/\.hwpx?(?:\.index\.md)?$/i.test(path)) return false;
+    if (this.invalid || this.needsReview) return true;
+    if (/\.index\.md$/i.test(path)) {
+      const document = path.slice(0, -'.index.md'.length);
+      if (/\.hwpx?$/i.test(document) && this.paths.has(key(document))) return true;
+    }
+    return false;
+  }
   assert(path: unknown): void { if (this.invalid || this.needsReview || typeof path === 'string' && this.paths.has(key(path))) throw denied(); }
   private data(paths = this.paths): AgentPrivacyData {
     const retiredPaths = [...this.retired].filter(path => paths.has(path)).sort();

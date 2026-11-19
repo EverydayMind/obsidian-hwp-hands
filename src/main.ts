@@ -50,6 +50,15 @@ function managerOptions(settings: HwpHandsSettings): ManagerOptions {
   return { backup: settings.backup, autoIndex: settings.autoIndex, historyLimit: settings.historyLimit, maxFileBytes: settings.maxFileBytes };
 }
 
+/** Short human label for the long-running engine calls; anything else is a generic document operation. */
+function engineOperationLabel(method: string): string {
+  if (method === 'export' || method === 'exportWithReport') return L({ ko: '저장·내보내기', en: "saving/exporting" });
+  if (method === 'page' || method === 'canvasPage' || method === 'pages' || method === 'layout') return L({ ko: '화면 그리기', en: "rendering" });
+  if (method === 'search' || method === 'searchDocument') return L({ ko: '찾기', en: "searching" });
+  if (method === 'execute') return L({ ko: '편집 적용', en: "applying edits" });
+  if (method === 'allText' || method === 'documentSnapshot' || method === 'tree' || method === 'paragraphs') return L({ ko: '문서 읽기', en: "reading the document" });
+  return L({ ko: '문서 작업', en: "document operation" });
+}
 export default class HwpHandsPlugin extends Plugin { addCommand(command: Command): Command { return super.addCommand({ ...command, name: commandDisplayName(command.name) }); }
   api!: HwpHandsApiV1;
   manager!: DocumentManager;
@@ -103,6 +112,8 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
         return inspectOpenOutput(path, hash, anchors);
       });
     const viewContext = new ViewContextService(this.api);
+    this.api.privacy = { isBlocked: path => this.isAiBlocked(path) };
+    this.register(() => { delete this.api.privacy; });
     this.api.views = viewContext.views;
     this.api.views.revealOutputAnchor = (input, signal) => this.agentPrivacy.run(
       [input && typeof input === 'object' ? Object.getOwnPropertyDescriptor(input, 'path')?.value : undefined], signal,
@@ -123,6 +134,7 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
     this.app.workspace.onLayoutReady(() => this.app.workspace.trigger(PROVIDERS_CHANGED_EVENT));
     // A working copy can stay unsaved with no view on it, for example after an agent edited a document nobody opened.
     const offscreenStatus = this.addStatusBarItem();
+    offscreenStatus.toggle(false);
     offscreenStatus.addClass('mod-clickable');
     offscreenStatus.setAttribute('aria-label', L({ ko: '화면에 없는 미저장 HWP 문서 보기', en: "Show unsaved HWP documents without views" }));
     offscreenStatus.onclick = () => new OffscreenDocumentsModal(this.app, this).open();
@@ -278,6 +290,7 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
   isAiPrivate(path: string): boolean { return this.agentPrivacy.configured(path); }
   aiPrivatePaths(): string[] | null { return this.agentPrivacy.needsRepair ? null : this.agentPrivacy.snapshot().blockedPaths; }
   aiPrivacyNeedsReview(): boolean { return this.agentPrivacy.needsReview; }
+  isAiBlocked(path: string): boolean { return this.agentPrivacy.blockedForPublic(path); }
   private async persistAiPrivacy(data: AgentPrivacyData): Promise<void> {
     this.settings.agentPrivacy = data;
     try { await this.saveData(this.settings); }
@@ -286,7 +299,7 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
   async setAiPrivate(path: string, hidden: boolean): Promise<void> {
     await this.agentPrivacy.set(path, hidden, data => this.persistAiPrivacy(data));
     this.app.workspace.trigger(PROVIDERS_CHANGED_EVENT);
-    new Notice(hidden ? L({ ko: '이 문서는 HWP Hands의 AI 도구에 제공하지 않습니다. 이미 전달된 내용에는 적용되지 않고, 다른 플러그인이나 도구가 이 파일과 색인 노트(.index.md)를 직접 읽는 것은 막지 못합니다.', en: "This document will not be provided to HWP Hands AI tools. This does not affect content already shared, and it cannot stop other plugins or tools from reading this file or its index note (.index.md) directly." }) : L({ ko: '이 문서의 HWP Hands AI 비공개를 해제했습니다. 새로 조회한 뒤 사용할 수 있습니다.', en: "HWP Hands AI privacy was removed from this document. Read it again before use." }), 10000);
+    new Notice(hidden ? L({ ko: '이 문서는 HWP Hands의 AI 도구에 제공하지 않습니다. 이 목록을 지키는 Verbex·KorDoc Transform 버전도 이 문서와 색인 노트(.index.md)를 읽지 않습니다. 이미 전달된 내용에는 적용되지 않고, 그 밖의 플러그인이나 도구가 파일을 직접 읽는 것은 막지 못합니다.', en: "This document will not be provided to HWP Hands AI tools. Versions of Verbex and KorDoc Transform that honor this list also skip this document and its index note (.index.md). This does not affect content already shared, and it cannot stop other plugins or tools from reading the file directly." }) : L({ ko: '이 문서의 HWP Hands AI 비공개를 해제했습니다. 새로 조회한 뒤 사용할 수 있습니다.', en: "HWP Hands AI privacy was removed from this document. Read it again before use." }), 10000);
   }
   private async ensurePluginStyles(directory: string, adapter: App['vault']['adapter']): Promise<void> {
     const stylePath = `${this.manifest.id}/styles.css`.toLocaleLowerCase();
@@ -416,12 +429,16 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
   private onEngineProgress(progress: EngineProgress): void {
     if (progress.phase === 'started' || progress.phase === 'cancel-requested') {
       this.engineTasks.set(progress.requestId, progress);
+      if (!progress.cancelable) return;
       if (!this.engineNotice && !this.engineNoticeTimer) {
         this.engineNoticeTimer = setTimeout(() => {
           this.engineNoticeTimer = undefined;
-          if (!this.engineTasks.size) return;
-          this.engineNotice = new Notice(L({ ko: 'HWP 문서 작업 처리 중입니다. 명령 팔레트에서 작업을 취소할 수 있습니다.', en: "An HWP document operation is running. You can cancel it from the command palette." }), 0);
-        }, 250);
+          const running = [...this.engineTasks.values()].find(task => task.cancelable);
+          if (!running) return;
+          const label = engineOperationLabel(running.method);
+          const command = L({ ko: '현재 HWP 엔진 작업 취소', en: "Cancel current HWP engine operation" });
+          this.engineNotice = new Notice(L({ ko: `HWP Hands가 아직 작업 중입니다(${label}). 명령 '${command}'으로 취소할 수 있습니다.`, en: `HWP Hands is still working (${label}). You can cancel it with the command '${command}'.` }), 0);
+        }, 1500);
       }
       return;
     }
@@ -507,7 +524,7 @@ class HwpSettings extends PluginSettingTab {
     new Setting(this.containerEl).setName(L({ ko: '문서 전체 AI 비공개', en: "Entire-document AI privacy" })).setHeading();
     this.containerEl.createEl('p', { text: privatePaths === null
       ? L({ ko: '비공개 설정을 읽을 수 없어 HWP Hands AI 접근을 모두 차단했습니다. 정상 비공개 설정을 복구한 뒤 플러그인을 다시 불러오세요.', en: "Could not read privacy settings; all HWP Hands AI access was blocked. Restore valid privacy settings and reload the plugin." })
-      : L({ ko: '파일 메뉴나 명령 팔레트에서 지정합니다. HWP Hands AI 도구의 조회·검색·편집·저장을 차단합니다. 이미 전달한 내용에는 적용되지 않고, 다른 플러그인이나 도구가 원본 파일과 색인 노트(.index.md)를 직접 읽는 것은 막지 못합니다. 이동 전 경로도 확인 후 해제할 때까지 유지합니다.', en: "Set through the file menu or command palette. Blocks HWP Hands AI reads, searches, edits, and saves. Does not affect previously shared content, and it cannot stop other plugins or tools from reading the original file or its index note (.index.md) directly. Retains previous paths after moves until checked and cleared." }) });
+      : L({ ko: '파일 메뉴나 명령 팔레트에서 지정합니다. HWP Hands AI 도구의 조회·검색·편집·저장을 차단합니다. 이 목록을 지키는 Verbex·KorDoc Transform 버전도 원본 파일과 색인 노트(.index.md)를 읽지 않습니다. 이미 전달한 내용에는 적용되지 않고, 그 밖의 플러그인이나 도구가 파일을 직접 읽는 것은 막지 못합니다. 이동 전 경로도 확인 후 해제할 때까지 유지합니다.', en: "Set through the file menu or command palette. Blocks HWP Hands AI reads, searches, edits, and saves. Versions of Verbex and KorDoc Transform that honor this list also skip the original file and its index note (.index.md). Does not affect previously shared content, and it cannot stop other plugins or tools from reading the file directly. Retains previous paths after moves until checked and cleared." }) });
     if (this.plugin.aiPrivacyNeedsReview()) this.containerEl.createEl('p', { text: L({ ko: '비공개 문서가 기록된 경로에 없어 모든 HWP Hands AI 접근을 차단했습니다. 이동한 문서를 먼저 비공개로 지정한 뒤 이전 경로를 해제하세요. 삭제했다면 이전 경로를 확인하고 해제하세요.', en: "A private document is missing from its recorded path; all HWP Hands AI access was blocked. Mark the moved document private before clearing the old path. If deleted, verify and clear the old path." }) });
     for (const path of privatePaths ?? []) new Setting(this.containerEl).setName(path).addButton(button => button.setButtonText(L({ ko: '비공개 해제', en: "Remove privacy" })).onClick(async () => {
       try { await this.plugin.setAiPrivate(path, false); this.display(); }
