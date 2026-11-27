@@ -1,4 +1,5 @@
-import { LT, L } from './i18n/locale';
+import { LT, L, getLocale } from './i18n/locale';
+import { agentSkillNames, hostSkillSupport } from './agent/agent-skills';
 import './i18n/app-locale';
 import { FileSystemAdapter, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder, type App, type Command, type Hotkey, type WorkspaceLeaf } from 'obsidian';
 import { rename } from 'node:fs/promises';
@@ -489,9 +490,22 @@ export default class HwpHandsPlugin extends Plugin { addCommand(command: Command
 }
 class HwpSettings extends PluginSettingTab {
   constructor(app: App, private readonly plugin: HwpHandsPlugin) { super(app, plugin); }
+  private hostSkillStatusText(): string {
+    const names = agentSkillNames(getLocale()).join(', ');
+    switch (hostSkillSupport(this.app)) {
+      case 'supported': return names
+        ? L({ ko: `AI 호스트가 이 플러그인의 Skill(${names})을 읽을 수 있습니다.`, en: `An AI host can read this plugin's Skills (${names}).` })
+        : L({ ko: 'AI 호스트가 이 플러그인의 Skill을 읽을 수 있습니다.', en: "An AI host can read this plugin's Skills." });
+      case 'not_found': return names
+        ? L({ ko: `켜진 AI 호스트 중 플러그인 Skill을 읽는 것이 없습니다. Verbex를 쓰고 있다면 최신 판으로 업데이트하면 이 플러그인의 Skill(${names})을 쓸 수 있습니다.`, en: `No enabled AI host reads plugin Skills. If you use Verbex, update it to use this plugin's Skills (${names}).` })
+        : L({ ko: '켜진 AI 호스트 중 플러그인 Skill을 읽는 것이 없습니다. Verbex를 쓰고 있다면 최신 판으로 업데이트하세요.', en: "No enabled AI host reads plugin Skills. If you use Verbex, update it." });
+      default: return L({ ko: 'AI 호스트의 플러그인 Skill 지원 여부를 확인할 수 없습니다.', en: "Could not check whether an AI host supports plugin Skills." });
+    }
+  }
   display(): void {
     this.containerEl.empty();
     this.containerEl.createEl('p', { text: L({ ko: '문서는 로컬에서 처리됩니다. 화면의 글꼴과 복잡한 배치는 한컴 한글과 다를 수 있습니다.', en: "Documents are processed locally. Fonts and complex layouts may differ from Hancom Hangul." }) });
+    this.containerEl.createEl('p', { text: this.hostSkillStatusText(), cls: 'setting-item-description' });
     new Setting(this.containerEl).setName(L({ ko: 'HWP/HWPX 기본 열기', en: "Open HWP/HWPX by default" })).setDesc(L({ ko: '켜면 파일 탐색기와 일반 링크가 HWP Hands를 기본 보기로 사용합니다. 다른 플러그인과 충돌하거나 기본 보기를 바꾸려면 끄세요. 변경은 플러그인을 다시 불러온 뒤 적용됩니다. 파일 메뉴의 “HWP Hands로 열기”는 항상 사용할 수 있습니다.', en: "When enabled, the file explorer and ordinary links use HWP Hands as the default view. Disable to resolve plugin conflicts or change the default view. Changes apply after reloading the plugin. The file menu's “Open with HWP Hands” remains available." })).addToggle(t => t.setValue(this.plugin.settings.autoOpenWithEditor).onChange(async value => {
       this.plugin.settings.autoOpenWithEditor = value; await this.persist(); new Notice(L({ ko: '파일 기본 열기 설정을 적용하려면 HWP Hands 플러그인을 다시 불러오세요.', en: "Reload HWP Hands to apply the default file opening setting." }));
     }));

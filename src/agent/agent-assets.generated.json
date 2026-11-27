@@ -1,0 +1,56 @@
+{
+  "generator": "verbex-plugin-skills@1",
+  "pluginId": "hwp-hands",
+  "assets": {
+    "version": 1,
+    "skills": [
+      {
+        "id": "hwp-collab-editing",
+        "locale": "ko",
+        "frontmatter": {
+          "name": "한글 문서 공동 편집",
+          "description": "HWP/HWPX 문서를 HWP Hands 작업본에서 읽고 사람과 함께 편집한다. 문구·문단·표·누름틀·서식을 수정하고 저장·사본·새 문서는 별도 승인으로 진행한다.",
+          "trigger_keywords": [
+            "한글 편집",
+            "hwp 편집",
+            "hwpx 수정",
+            "한글 수정",
+            "작업본",
+            "공동 편집"
+          ],
+          "allowed-tools": [
+            "plg__hwp-hands__get_editor_context",
+            "plg__hwp-hands__read_document",
+            "plg__hwp-hands__find_text",
+            "plg__hwp-hands__replace_text",
+            "plg__hwp-hands__edit_paragraphs",
+            "plg__hwp-hands__rewrite_paragraphs",
+            "plg__hwp-hands__update_table",
+            "plg__hwp-hands__insert_table",
+            "plg__hwp-hands__fill_fields",
+            "plg__hwp-hands__apply_draft",
+            "plg__hwp-hands__edit_notes",
+            "plg__hwp-hands__edit_styles",
+            "plg__hwp-hands__update_section",
+            "plg__hwp-hands__format_text",
+            "plg__hwp-hands__undo_last_edit",
+            "plg__hwp-hands__check_before_save",
+            "plg__hwp-hands__save_document",
+            "plg__hwp-hands__create_document"
+          ],
+          "required-plugins": [
+            "hwp-hands"
+          ]
+        },
+        "bodySha256": "bf5117668d4624e19a22fdcb440286cdd035f27a685a61e76ffa0ab3148f689b",
+        "bodyTokens": 1646
+      }
+    ]
+  },
+  "bodies": {
+    "hwp-collab-editing/ko": "`.hwp`·`.hwpx`의 읽기·작업본 편집·문서 생성에 적용한다. 편집·저장 도구가 승인되어 제공되는 환경에서 사용한다.\n\n1. 제출 시점에 지정된 문서·선택 범위를 따른다. 대상이 없으면 `get_editor_context`로 열린 문서를 확인한다. 모든 문서 도구에 Vault 상대 경로 `path`를 명시한다. 탭이 바뀌었다고 작업 대상을 바꾸지 않는다.\n2. `read_document`나 `find_text`로 고칠 부분을 먼저 읽는다. 읽기는 `cursor`가 남으면 그 값으로 이어 간다. 찾기는 정확한 문구를 쓰고, 여러 곳이면 `within` 핸들 또는 `occurrence: nth`와 1부터 세는 `occurrenceIndex`로 범위를 좁힌다.\n3. 연속 문단 윤문은 제공된 경우 `rewrite_paragraphs`, 문구는 `replace_text`, 명시적 문단 편집은 `edit_paragraphs`, 표는 `update_table`·`insert_table`, 누름틀은 `fill_fields`, 글자·문단 서식은 `format_text`로 고친다. 실제 제공된 입력 스키마를 따른다. 핸들은 읽기 결과 그대로 사용하며 다른 플러그인의 블록 번호와 섞지 않는다. 문단·표 구조를 바꾼 뒤에는 다시 읽는다.\n4. 관측이 없거나 오래됐다는 오류는 해당 범위를 다시 읽고 처리한다. 사람이 입력 중이면 적용하지 않고 멈춘다. 보호된 개체·필드·앵커를 일반 교체로 우회하지 않는다. 지원하지 않는 위치는 사용자에게 위치와 이유를 알린다.\n5. 편집 결과는 같은 작업본에 반영되고 원본 파일은 저장 전까지 그대로다. 변경 카드의 위치 보기·되돌리기를 안내한다. 화면에 없는 문서도 미저장 목록에서 열어 확인할 수 있다. 작업본의 변경이 실제로 적용됐는지 도구의 구조화 결과를 확인한다.\n6. 사용자가 저장을 요청하면 `save_document`를 호출한다. 이번 저장의 파일 목록·상태를 보여 주는 별도 승인을 따른다. 편집 승인으로 저장 승인까지 받았다고 간주하지 않는다. 저장 시간 초과·일부 저장·미확정이면 같은 저장을 자동 재호출하지 않고 저장 카드의 결과 확인으로 안내한다.\n7. 새 문서는 `create_document`의 `path`와 선택적 `template`으로 만든 뒤 `read_document`로 읽고 편집한다. 템플릿은 저장된 디스크 내용이며 같은 형식만 지원한다. 다른 이름 저장은 `save_document`의 `destination`을 사용한다. 사본 저장 후 원본 작업본의 미저장 변경은 남는다. 새 파일도 편집한 뒤 저장하려면 별도 저장 승인이 필요하다.\n8. `.hwp`·`.hwpx`에 일반 텍스트 쓰기 도구를 사용하지 않는다. 다른 플러그인이 작업본을 보관하여 쓰기가 거절되면 해당 화면에서 작업을 정리한 뒤 다시 요청한다. 실제 제공된 입력 스키마를 따른다.\n\n## 고급 작업과 거절\n\n- 현재 요청에 실제 노출된 기능만 쓴다. 도구 부재는 설치/활성·탐색·현재 descriptor 승인·효과 스위치·대화 선택/예산 순서로 확인한다. 편집·저장을 tools 필수 목록으로 일괄 요구하지 않는다.\n- `read_document`의 `quality/notes/styles/sections` 모드는 진단/전용 관측이다. coverage·truncated·unsupported를 보고하며 findings 부재로 전체 정상이나 저장 보존을 보장하지 않는다. 편집 전 blocks/find_text 또는 해당 전용 모드의 현재 핸들을 확보한다.\n- session 도구의 `preview:true`는 적용·저장·서식 보존 검증 완료가 아니다(`applied:false`, `preservationVerified:false`). 실적용은 preview를 빼고 현재 대상·관측·사람 입력 상태를 재검증한다.\n- `edit_styles`·`update_section` 뒤 다시 조회해 핸들을 갱신한다. `edit_notes`는 빈 각주/미주 삽입과 관측한 note 문단 끝 append만 지원하며 기존 note 치환·삭제·엄격 문자 서식 보존을 약속하지 않는다.\n- `apply_draft`는 완성된 본문 문단 배열과 채택 번호를 보낸다. `structuredContent.draft`의 `status/accepted/remaining/saved`로 부분 채택과 미저장을 구분한다. unknown 또는 accepted/remaining=null이면 재조회하고 자동 재삽입하지 않는다.\n- `AI_PRIVATE`(retryable=false) 거절을 다른 provider나 디스크 읽기로 우회하지 않는다. 사람이 원래 화면에서 정책을 확인한다. 부분 비공개 및 provider 간 기술적 공통 차단을 약속하지 않는다.\n\n완료 응답에는 수정한 내용, 작업본 반영 여부, 확인된 저장 상태와 남은 사람 검토를 구분해 간결하게 적는다.\n"
+  },
+  "sources": {
+    "hwp-collab-editing/ko": "580fbd4211451cec24a4c0ffc6ddd2395cbe1b5115ff369e28fe1b32ca57e6e7"
+  }
+}

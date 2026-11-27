@@ -19,6 +19,8 @@ import { runKey, runText, styleKey, styleText } from './styles';
 import { sectionKey, sectionView } from './sections';
 import { collectRevisionTables, TableCellIndex, TableRowIndex, tableTextFragments, tableTextPage } from './table-read';
 import type { AgentPrivacy } from './privacy';
+import type { AssetsDescriptor, ReadAssetResult } from '../../contracts/agentinterop/host-capabilities-v1/protocol';
+import { describeAgentAssets, hostPrivacyMember, readAgentAsset } from './agent-skills';
 import type { ReadProgress } from '../../contracts/agentinterop/read-progress-v1/protocol';
 import type { RewriteComputeRequest, RewriteComputeResult } from './rewrite-compute';
 
@@ -57,6 +59,7 @@ export interface AgentProviderOptions {
   /** Internal opt-in, used only with edit tools. With it the provider also describes a commit-effect save tool and the commit capability. */
   commit?: CommitBridge;
 }
+type CoreProvider = Omit<AgentCapabilityProvider, 'describeAssets' | 'readAsset' | 'privacy'>;
 export interface AgentCapabilityProvider {
   readonly protocol: 'agentinterop';
   readonly protocolVersion: 1;
@@ -68,6 +71,10 @@ export interface AgentCapabilityProvider {
   /** Present with the save tool: prepares, performs and reports one approved write of a document file. A host never saves through callTool. */
   commit?: Pick<AgentCommits, 'prepare' | 'execute' | 'status'>;
   dispose(): Promise<void>;
+  /** Host-only members (host-capabilities-v1): own data properties, never part of describe(). */
+  describeAssets(): AssetsDescriptor;
+  readAsset(request: unknown): ReadAssetResult;
+  privacy?: { isBlocked(path: string): boolean; extensions: string[] };
 }
 
 const READ_BUDGET_CHARS = 8000;
@@ -86,6 +93,19 @@ interface Held { lease: DocumentLease; usedAt: number; owners: Set<string>; time
 interface Cursor { kind: string; epoch: string; binding: string; position: number; tablePosition?: import('./table-read').TableTextPosition; layoutTablePosition?: number }
 
 export function createAgentProvider(api: HwpHandsApiV1, options: AgentProviderOptions): AgentCapabilityProvider {
+  const provider = createGatedProvider(api, options);
+  // Own data properties on the published object itself, whichever path built it. The host never runs getters.
+  let disposed = false;
+  const dispose = provider.dispose.bind(provider);
+  return Object.assign(provider, {
+    dispose: async () => { disposed = true; await dispose(); },
+    describeAssets: () => { if (disposed) throw new Error('Provider disposed'); return describeAgentAssets(); },
+    readAsset: (request: unknown) => { if (disposed) throw new Error('Provider disposed'); return readAgentAsset(request); },
+    ...(options.privacy ? { privacy: hostPrivacyMember(options.privacy) } : {}),
+  });
+}
+
+function createGatedProvider(api: HwpHandsApiV1, options: AgentProviderOptions): CoreProvider {
   const raw = createUnwrappedProvider(api, options), privacy = options.privacy;
   if (!privacy) return raw;
   // Only contract path fields are inspected; search text, document content and model strings are not path declarations.
@@ -130,7 +150,7 @@ export function createAgentProvider(api: HwpHandsApiV1, options: AgentProviderOp
   };
 }
 
-function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptions): AgentCapabilityProvider {
+function createUnwrappedProvider(api: HwpHandsApiV1, options: AgentProviderOptions): CoreProvider {
   const locale = options.locale ?? getLocale();
   const L = <T>(pair: { ko: T; en: T }): T => select(pair, locale);
   const LT = (pair: { ko: () => string; en: () => string }): string => selectLazy(pair, locale);
